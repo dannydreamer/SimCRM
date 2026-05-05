@@ -3,8 +3,11 @@ import { compare } from "bcryptjs"
 import type { NextAuthOptions } from "next-auth"
 import CredentialsProvider from "next-auth/providers/credentials"
 
+const SESSION_MAX_AGE = parseInt(process.env.SESSION_MAX_AGE ?? "2592000", 10)
+
 export const authOptions: NextAuthOptions = {
-  session: { strategy: "jwt" },
+  session: { strategy: "jwt", maxAge: SESSION_MAX_AGE },
+  jwt: { maxAge: SESSION_MAX_AGE },
   pages: {
     signIn: "/login",
   },
