@@ -1,0 +1,315 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+}
+
+// ─── Enums ───────────────────────────────────────────────────────────────────
+
+enum Role {
+  MANAGER
+  TECH
+  CASTER
+  FEEDBACK_DOCUMENTER
+  FACILITATOR
+}
+
+enum ShiyuchPedagogi {
+  GIL_HARACH
+  YESODI
+  TICHON
+  CHINUCH_MEYUCHAD
+  SHAFACH
+  MOVILEI_TECHUM
+  IRIYAT_YERUSHALAIM
+  MANCHI
+  ACHER
+}
+
+enum ShiyuchTakzivi {
+  OVDEI_HORAA
+  MANCHI
+  IRIYAT_YERUSHALAIM_TASHLUM
+  CHUTZNIIOT_TASHLUM
+}
+
+enum WorkshopStatus {
+  NEW
+  SPECIFIED
+  READY
+  CLOSING
+  CLOSED
+  CANCELLED
+}
+
+enum LocationType {
+  CENTER
+  EXTERNAL
+}
+
+enum RagColor {
+  GREEN
+  YELLOW
+  RED
+}
+
+enum Gender {
+  MALE
+  FEMALE
+}
+
+enum BackupType {
+  AUTO
+  MANUAL
+}
+
+// ─── Person (internal staff) ─────────────────────────────────────────────────
+
+model Person {
+  id                 String   @id @default(uuid())
+  name               String
+  email              String   @unique
+  passwordHash       String
+  mustChangePassword Boolean  @default(true)
+  active             Boolean  @default(true)
+  createdAt          DateTime @default(now())
+
+  roles PersonRole[]
+
+  workshopsAuthored      Workshop[]            @relation("WorkshopAuthor")
+  workshopsCreated       Workshop[]            @relation("WorkshopCreatedBy")
+  roomsFacilitated       Room[]
+  scenariosAuthored      Scenario[]
+  feedbackEntered        Feedback[]
+  developmentLogsEntered ActorDevelopmentLog[]
+}
+
+model PersonRole {
+  id       String @id @default(uuid())
+  personId String
+  role     Role
+
+  person Person @relation(fields: [personId], references: [id], onDelete: Cascade)
+
+  @@unique([personId, role])
+}
+
+// ─── Organization + Group ────────────────────────────────────────────────────
+
+model Organization {
+  id              String          @id @default(uuid())
+  name            String
+  city            String
+  shiyuchPedagogi ShiyuchPedagogi
+  shiyuchTakzivi  ShiyuchTakzivi
+  pocName         String?
+  pocPhone        String?
+  pocEmail        String?
+  notes           String?
+  createdAt       DateTime        @default(now())
+
+  participantGroups ParticipantGroup[]
+}
+
+model ParticipantGroup {
+  id             String  @id @default(uuid())
+  organizationId String
+  name           String
+  notes          String?
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+  workshops     Workshop[]
+}
+
+// ─── Workshop ─────────────────────────────────────────────────────────────────
+
+model Workshop {
+  id                String         @id @default(uuid())
+  participantGroupId String
+  date              DateTime
+  startTime         String
+  endTime           String
+  numRooms          Int
+  locationType      LocationType   @default(CENTER)
+  locationName      String?
+  authorId          String?
+  directorRequested Boolean        @default(false)
+  directorNotes     String?
+  status            WorkshopStatus @default(NEW)
+  cancelled         Boolean        @default(false)
+  tentative         Boolean        @default(false)
+  postponedWarning  Boolean        @default(false)
+  feedbackFormAdded Boolean        @default(false)
+  notes             String?
+  createdAt         DateTime       @default(now())
+  createdById       String?
+
+  participantGroup    ParticipantGroup          @relation(fields: [participantGroupId], references: [id])
+  author              Person?                   @relation("WorkshopAuthor", fields: [authorId], references: [id])
+  createdBy           Person?                   @relation("WorkshopCreatedBy", fields: [createdById], references: [id])
+  rooms               Room[]
+  scenarios           Scenario[]
+  castings            Casting[]
+  actorAvailabilities ActorWorkshopAvailability[]
+  feedbacks           Feedback[]
+}
+
+// ─── Room ─────────────────────────────────────────────────────────────────────
+
+model Room {
+  id                  String  @id @default(uuid())
+  workshopId          String
+  roomNumber          Int
+  facilitatorId       String?
+  pptReceived         Boolean @default(false)
+  facilitatorTentative Boolean @default(false)
+  cancelled           Boolean @default(false)
+  letterReceived      Boolean @default(false)
+
+  workshop    Workshop   @relation(fields: [workshopId], references: [id])
+  facilitator Person?    @relation(fields: [facilitatorId], references: [id])
+  castings    Casting[]
+  feedbacks   Feedback[]
+
+  @@unique([workshopId, roomNumber])
+}
+
+// ─── Topic ────────────────────────────────────────────────────────────────────
+
+model Topic {
+  id        String   @id @default(uuid())
+  name      String
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+
+  scenarios Scenario[]
+}
+
+// ─── Scenario ─────────────────────────────────────────────────────────────────
+
+model Scenario {
+  id               String  @id @default(uuid())
+  workshopId       String
+  name             String?
+  topicId          String
+  authorId         String?
+  actorRequirements String?
+  written          Boolean @default(false)
+  cancelled        Boolean @default(false)
+  orderIndex       Int     @default(0)
+
+  workshop Workshop  @relation(fields: [workshopId], references: [id])
+  topic    Topic     @relation(fields: [topicId], references: [id])
+  author   Person?   @relation(fields: [authorId], references: [id])
+  castings Casting[]
+}
+
+// ─── Actor ────────────────────────────────────────────────────────────────────
+
+model Actor {
+  id          String   @id @default(uuid())
+  name        String
+  gender      Gender
+  phone       String?
+  email       String?
+  languages   String?
+  specialties String?
+  canDirect   Boolean  @default(false)
+  createdAt   DateTime @default(now())
+
+  castings               Casting[]
+  feedbacks              Feedback[]
+  developmentLogs        ActorDevelopmentLog[]
+  workshopAvailabilities ActorWorkshopAvailability[]
+}
+
+// ─── Casting ──────────────────────────────────────────────────────────────────
+
+model Casting {
+  id         String  @id @default(uuid())
+  workshopId String
+  scenarioId String?
+  roomId     String?
+  actorId    String
+  isDirector Boolean @default(false)
+
+  workshop Workshop  @relation(fields: [workshopId], references: [id])
+  scenario Scenario? @relation(fields: [scenarioId], references: [id])
+  room     Room?     @relation(fields: [roomId], references: [id])
+  actor    Actor     @relation(fields: [actorId], references: [id])
+}
+
+// ─── Actor Workshop Availability ──────────────────────────────────────────────
+
+model ActorWorkshopAvailability {
+  id         String  @id @default(uuid())
+  actorId    String
+  workshopId String
+  available  Boolean @default(false)
+
+  actor    Actor    @relation(fields: [actorId], references: [id])
+  workshop Workshop @relation(fields: [workshopId], references: [id])
+
+  @@unique([actorId, workshopId])
+}
+
+// ─── Feedback ─────────────────────────────────────────────────────────────────
+
+model Feedback {
+  id                       String   @id @default(uuid())
+  actorId                  String
+  workshopId               String
+  roomId                   String
+  aspect1PrepColor         RagColor @default(GREEN)
+  aspect1PrepText          String?
+  aspect2SimColor          RagColor @default(GREEN)
+  aspect2SimText           String?
+  aspect3ReflectionColor   RagColor @default(GREEN)
+  aspect3ReflectionText    String?
+  aspect4ProfessionalColor RagColor @default(GREEN)
+  aspect4ProfessionalText  String?
+  enteredById              String
+  enteredAt                DateTime @default(now())
+
+  actor     Actor    @relation(fields: [actorId], references: [id])
+  workshop  Workshop @relation(fields: [workshopId], references: [id])
+  room      Room     @relation(fields: [roomId], references: [id])
+  enteredBy Person   @relation(fields: [enteredById], references: [id])
+}
+
+// ─── Actor Development Log ────────────────────────────────────────────────────
+
+model ActorDevelopmentLog {
+  id          String   @id @default(uuid())
+  actorId     String
+  date        DateTime
+  note        String
+  enteredById String
+  createdAt   DateTime @default(now())
+
+  actor     Actor  @relation(fields: [actorId], references: [id])
+  enteredBy Person @relation(fields: [enteredById], references: [id])
+}
+
+// ─── Annual Goals (יעדי סדנאות) ──────────────────────────────────────────────
+
+model AnnualGoal {
+  id             String         @id @default(uuid())
+  year           Int
+  shiyuchTakzivi ShiyuchTakzivi
+  allocation     Int            @default(0)
+
+  @@unique([year, shiyuchTakzivi])
+}
+
+// ─── Backup Log ───────────────────────────────────────────────────────────────
+
+model BackupLog {
+  id        String     @id @default(uuid())
+  type      BackupType
+  filePath  String?
+  fileSize  Int?
+  createdAt DateTime   @default(now())
+}

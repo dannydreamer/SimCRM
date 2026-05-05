@@ -1,0 +1,35 @@
+@import "tailwindcss";
+
+:root {
+  --color-navy:  #2C4B9A;
+  --color-teal:  #0B8390;
+  --color-green: #31AA59;
+  --color-mint:  #86C9BB;
+  --color-blush: #F9CFCC;
+
+  --color-rag-green:  #D4EDDA;
+  --color-rag-yellow: #FFF3CD;
+  --color-rag-red:    #F8D7DA;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  font-family: var(--font-heebo), 'Arial', sans-serif;
+  font-size: 14px;
+  color: #111827;
+  background: #ffffff;
+  direction: rtl;
+}
+
+.status-pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 10px;
+  border-radius: 9999px;
+  font-size: 12px;
+  font-weight: 500;
+  white-space: nowrap;
+}
