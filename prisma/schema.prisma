@@ -81,7 +81,6 @@ model Person {
   workshopsAuthored      Workshop[]            @relation("WorkshopAuthor")
   workshopsCreated       Workshop[]            @relation("WorkshopCreatedBy")
   roomsFacilitated       Room[]
-  scenariosAuthored      Scenario[]
   feedbackEntered        Feedback[]
   developmentLogsEntered ActorDevelopmentLog[]
 }
@@ -190,19 +189,17 @@ model Topic {
 // ─── Scenario ─────────────────────────────────────────────────────────────────
 
 model Scenario {
-  id               String  @id @default(uuid())
-  workshopId       String
-  name             String?
-  topicId          String
-  authorId         String?
+  id                String  @id @default(uuid())
+  workshopId        String
+  name              String?
+  topicId           String
   actorRequirements String?
-  written          Boolean @default(false)
-  cancelled        Boolean @default(false)
-  orderIndex       Int     @default(0)
+  written           Boolean @default(false)
+  cancelled         Boolean @default(false)
+  orderIndex        Int     @default(0)
 
   workshop Workshop  @relation(fields: [workshopId], references: [id])
   topic    Topic     @relation(fields: [topicId], references: [id])
-  author   Person?   @relation(fields: [authorId], references: [id])
   castings Casting[]
 }
 
