@@ -1,0 +1,48 @@
+export const ROLE_LABELS: Record<string, string> = {
+  MANAGER: "מנהלת",
+  TECH: "טכנית",
+  CASTER: "מלהקת",
+  FEEDBACK_DOCUMENTER: "מתעד/ת פידבק",
+  FACILITATOR: "מתחקר/ת",
+}
+
+// Roles that can log into the system (excludes FACILITATOR — slotted in rooms only)
+export const LOGIN_ROLES = ["MANAGER", "TECH", "CASTER", "FEEDBACK_DOCUMENTER"] as const
+
+export const NAV_ITEMS = [
+  {
+    href: "/sadnaot",
+    label: "סדנאות",
+    roles: ["MANAGER", "TECH", "CASTER", "FEEDBACK_DOCUMENTER", "FACILITATOR"],
+  },
+  {
+    href: "/irgunnim",
+    label: "ארגונים",
+    roles: ["MANAGER", "TECH", "CASTER", "FEEDBACK_DOCUMENTER"],
+  },
+  {
+    href: "/shakhanim",
+    label: "שחקנים",
+    roles: ["MANAGER", "CASTER", "FEEDBACK_DOCUMENTER"],
+  },
+  {
+    href: "/luach",
+    label: "לוח שנה",
+    roles: ["MANAGER", "TECH"],
+  },
+  {
+    href: "/yaadot",
+    label: "יעדי סדנאות",
+    roles: ["MANAGER"],
+  },
+  {
+    href: "/omas",
+    label: "עומס מתחקרים",
+    roles: ["MANAGER"],
+  },
+  {
+    href: "/users",
+    label: "ניהול משתמשים",
+    roles: ["MANAGER"],
+  },
+]
