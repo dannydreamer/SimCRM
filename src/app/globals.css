@@ -1,15 +1,21 @@
 @import "tailwindcss";
 
-:root {
-  --color-navy:  #2C4B9A;
-  --color-teal:  #0B8390;
-  --color-green: #31AA59;
-  --color-mint:  #86C9BB;
-  --color-blush: #F9CFCC;
+@theme {
+  /* ── Brand palette ─────────────────────────────── */
+  --color-navy:             #2C4B9A;
+  --color-navy-dark:        #243d80;
+  --color-navy-light:       #EEF2FF;
+  --color-sim-teal:         #0B8390;
+  --color-brand-green:      #31AA59;
+  --color-brand-green-dark: #1a7a38;
+  --color-mint:             #86C9BB;
+  --color-blush:            #F9CFCC;
 
-  --color-rag-green:  #D4EDDA;
-  --color-rag-yellow: #FFF3CD;
-  --color-rag-red:    #F8D7DA;
+  /* ── RAG colors ─────────────────────────────────── */
+  --color-rag-green:        #D4EDDA;
+  --color-rag-amber:        #FFF3CD;
+  --color-rag-amber-text:   #856404;
+  --color-rag-red:          #F8D7DA;
 }
 
 * {
@@ -22,14 +28,4 @@ body {
   color: #111827;
   background: #ffffff;
   direction: rtl;
-}
-
-.status-pill {
-  display: inline-flex;
-  align-items: center;
-  padding: 2px 10px;
-  border-radius: 9999px;
-  font-size: 12px;
-  font-weight: 500;
-  white-space: nowrap;
 }

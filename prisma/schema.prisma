@@ -140,10 +140,13 @@ model Workshop {
   cancelled         Boolean        @default(false)
   tentative         Boolean        @default(false)
   postponedWarning  Boolean        @default(false)
-  feedbackFormAdded Boolean        @default(false)
-  notes             String?
-  createdAt         DateTime       @default(now())
-  createdById       String?
+  feedbackFormAdded   Boolean        @default(false)
+  castingMaleNeeded   Int?
+  castingFemaleNeeded Int?
+  castingNotes        String?
+  notes               String?
+  createdAt           DateTime       @default(now())
+  createdById         String?
 
   participantGroup    ParticipantGroup          @relation(fields: [participantGroupId], references: [id])
   author              Person?                   @relation("WorkshopAuthor", fields: [authorId], references: [id])

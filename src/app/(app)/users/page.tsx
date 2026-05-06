@@ -147,7 +147,7 @@ export default function UsersPage() {
         {formMode === null && (
           <button
             onClick={openCreate}
-            className="px-4 py-2 bg-[#2C4B9A] text-white text-sm font-medium rounded hover:bg-[#243d80] transition-colors"
+            className="px-4 py-2 bg-navy text-white text-sm font-medium rounded hover:bg-navy-dark transition-colors"
           >
             + הוספת משתמש
           </button>
@@ -171,7 +171,7 @@ export default function UsersPage() {
                 type="text"
                 value={form.name}
                 onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
-                className="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#2C4B9A]/30"
+                className="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-navy/30"
                 placeholder="שם מלא"
                 required
               />
@@ -182,7 +182,7 @@ export default function UsersPage() {
                 type="email"
                 value={form.email}
                 onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))}
-                className="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#2C4B9A]/30"
+                className="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-navy/30"
                 placeholder="user@simcenter.co.il"
                 dir="ltr"
                 required
@@ -197,7 +197,7 @@ export default function UsersPage() {
                 type="text"
                 value={form.password}
                 onChange={(e) => setForm((f) => ({ ...f, password: e.target.value }))}
-                className="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#2C4B9A]/30"
+                className="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-navy/30"
                 placeholder="המשתמש יתבקש להחליף בהתחברות הראשונה"
                 dir="ltr"
                 required
@@ -211,7 +211,7 @@ export default function UsersPage() {
                 <button
                   type="button"
                   onClick={() => setShowPasswordReset(true)}
-                  className="text-sm text-[#2C4B9A] hover:underline"
+                  className="text-sm text-navy hover:underline"
                 >
                   איפוס סיסמה
                 </button>
@@ -222,7 +222,7 @@ export default function UsersPage() {
                     type="text"
                     value={form.newPassword}
                     onChange={(e) => setForm((f) => ({ ...f, newPassword: e.target.value }))}
-                    className="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#2C4B9A]/30"
+                    className="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-navy/30"
                     placeholder="המשתמש יתבקש להחליף בהתחברות הבאה"
                     dir="ltr"
                   />
@@ -240,7 +240,7 @@ export default function UsersPage() {
                     type="checkbox"
                     checked={form.roles.includes(role)}
                     onChange={() => toggleRole(role)}
-                    className="accent-[#2C4B9A]"
+                    className="accent-navy"
                   />
                   <span className="text-sm text-gray-700">{ROLE_LABELS[role]}</span>
                 </label>
@@ -256,7 +256,7 @@ export default function UsersPage() {
             <button
               type="submit"
               disabled={saving}
-              className="px-4 py-2 bg-[#2C4B9A] text-white text-sm font-medium rounded hover:bg-[#243d80] disabled:opacity-50 transition-colors"
+              className="px-4 py-2 bg-navy text-white text-sm font-medium rounded hover:bg-navy-dark disabled:opacity-50 transition-colors"
             >
               {saving ? "שומר..." : "שמירה"}
             </button>
@@ -347,7 +347,7 @@ function UserTable({
                   {user.roles.map((role) => (
                     <span
                       key={role}
-                      className="px-2 py-0.5 rounded-full text-xs font-medium bg-[#EEF2FF] text-[#2C4B9A]"
+                      className="px-2 py-0.5 rounded-full text-xs font-medium bg-navy-light text-navy"
                     >
                       {ROLE_LABELS[role] ?? role}
                     </span>
@@ -386,7 +386,7 @@ function UserTable({
                   <div className="flex items-center gap-3">
                     <button
                       onClick={() => onEdit(user)}
-                      className="text-xs text-[#2C4B9A] hover:underline"
+                      className="text-xs text-navy hover:underline"
                     >
                       עריכה
                     </button>
