@@ -25,17 +25,20 @@ const EMPTY_FORM = {
 export default function UsersPage() {
   const [users, setUsers] = useState<UserRecord[]>([])
   const [loading, setLoading] = useState(true)
+  const [forbidden, setForbidden] = useState(false)
   const [formMode, setFormMode] = useState<FormMode | null>(null)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [form, setForm] = useState({ ...EMPTY_FORM })
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState("")
   const [deactivateConfirm, setDeactivateConfirm] = useState<string | null>(null)
+  const [deactivateError, setDeactivateError] = useState("")
   const [showPasswordReset, setShowPasswordReset] = useState(false)
 
   async function fetchUsers() {
     setLoading(true)
     const res = await fetch("/api/users")
+    if (res.status === 403) { setForbidden(true); setLoading(false); return }
     if (res.ok) setUsers(await res.json())
     setLoading(false)
   }
@@ -105,6 +108,7 @@ export default function UsersPage() {
   }
 
   async function toggleActive(user: UserRecord) {
+    setDeactivateError("")
     const res = await fetch(`/api/users/${user.id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
@@ -112,12 +116,25 @@ export default function UsersPage() {
     })
     if (res.ok) {
       setUsers((prev) => prev.map((u) => u.id === user.id ? { ...u, active: !u.active } : u))
+      setDeactivateConfirm(null)
+    } else {
+      const data = await res.json()
+      setDeactivateError(data.error ?? "שגיאה בשמירה")
+      setDeactivateConfirm(null)
     }
-    setDeactivateConfirm(null)
   }
 
   const activeUsers = users.filter((u) => u.active)
   const inactiveUsers = users.filter((u) => !u.active)
+
+  if (forbidden) {
+    return (
+      <div className="p-8">
+        <h1 className="text-2xl font-bold text-gray-900 mb-2">ניהול משתמשים</h1>
+        <p className="text-sm text-red-600 mt-4">אין הרשאה לצפות בדף זה.</p>
+      </div>
+    )
+  }
 
   return (
     <div className="p-8 max-w-5xl">
@@ -252,6 +269,10 @@ export default function UsersPage() {
             </button>
           </div>
         </form>
+      )}
+
+      {deactivateError && (
+        <p className="text-sm text-red-600 mb-4">{deactivateError}</p>
       )}
 
       {loading ? (

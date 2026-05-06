@@ -1,6 +1,6 @@
 export const ROLE_LABELS: Record<string, string> = {
   MANAGER: "מנהלת",
-  TECH: "טכנית",
+  TECH: "מפעילה טכנית",
   CASTER: "מלהקת",
   FEEDBACK_DOCUMENTER: "מתעד/ת פידבק",
   FACILITATOR: "מתחקר/ת",
