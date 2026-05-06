@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react"
 import Link from "next/link"
-import { useSession } from "next-auth/react"
+import { useUser } from "@/app/(app)/user-context"
 import { StatusPill } from "@/components/StatusPill"
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -110,8 +110,8 @@ function FeedbackCell({ w }: { w: WorkshopRow }) {
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function SadnaotPage() {
-  const { data: session } = useSession()
-  const isManager = session?.user.roles.includes("MANAGER") ?? false
+  const user = useUser()
+  const isManager = user.roles.includes("MANAGER")
 
   const [workshops, setWorkshops] = useState<WorkshopRow[]>([])
   const [facilitators, setFacilitators] = useState<Facilitator[]>([])
