@@ -1,6 +1,17 @@
 import { withAuth } from "next-auth/middleware"
 import { NextResponse } from "next/server"
 
+// Routes with restricted access. Paths are prefix-matched.
+// Any authenticated route NOT listed here is accessible to all logged-in users.
+const ROUTE_PERMISSIONS: { prefix: string; roles: string[] }[] = [
+  { prefix: "/irgunnim", roles: ["MANAGER", "TECH", "CASTER", "FEEDBACK_DOCUMENTER"] },
+  { prefix: "/shakhanim", roles: ["MANAGER", "CASTER", "FEEDBACK_DOCUMENTER"] },
+  { prefix: "/luach",    roles: ["MANAGER", "TECH"] },
+  { prefix: "/yaadot",   roles: ["MANAGER"] },
+  { prefix: "/omas",     roles: ["MANAGER"] },
+  { prefix: "/users",    roles: ["MANAGER"] },
+]
+
 export default withAuth(
   function middleware(req) {
     const token = req.nextauth.token
@@ -14,6 +25,13 @@ export default withAuth(
       pathname !== "/api/change-password"
     ) {
       return NextResponse.redirect(new URL("/change-password", req.url))
+    }
+
+    // Route-level permission check
+    const userRoles = (token?.roles ?? []) as string[]
+    const rule = ROUTE_PERMISSIONS.find((r) => pathname.startsWith(r.prefix))
+    if (rule && !rule.roles.some((r) => userRoles.includes(r))) {
+      return NextResponse.redirect(new URL("/unauthorized", req.url))
     }
 
     return NextResponse.next()
