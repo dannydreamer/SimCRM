@@ -69,7 +69,7 @@ export default function ChangePasswordPage() {
                 required
                 value={current}
                 onChange={(e) => setCurrent(e.target.value)}
-                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#2C4B9A] focus:border-transparent"
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-navy focus:border-transparent"
                 dir="ltr"
                 autoComplete="current-password"
               />
@@ -84,7 +84,7 @@ export default function ChangePasswordPage() {
                 required
                 value={next}
                 onChange={(e) => setNext(e.target.value)}
-                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#2C4B9A] focus:border-transparent"
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-navy focus:border-transparent"
                 dir="ltr"
                 autoComplete="new-password"
               />
@@ -100,7 +100,7 @@ export default function ChangePasswordPage() {
                 required
                 value={confirm}
                 onChange={(e) => setConfirm(e.target.value)}
-                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#2C4B9A] focus:border-transparent"
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-navy focus:border-transparent"
                 dir="ltr"
                 autoComplete="new-password"
               />
@@ -113,7 +113,7 @@ export default function ChangePasswordPage() {
             <button
               type="submit"
               disabled={loading}
-              className="w-full bg-[#2C4B9A] hover:bg-[#243f82] text-white font-medium py-2.5 rounded-lg text-sm transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+              className="w-full bg-navy hover:bg-navy-dark text-white font-medium py-2.5 rounded-lg text-sm transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
             >
               {loading ? "שומר..." : "שמירה וכניסה"}
             </button>

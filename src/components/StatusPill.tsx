@@ -1,8 +1,8 @@
 const STATUS_CONFIG: Record<string, { label: string; className: string }> = {
   NEW:       { label: "סדנה חדשה",          className: "bg-gray-100 text-gray-500" },
-  SPECIFIED: { label: "בוצע איתור צרכים",   className: "bg-[#EEF2FF] text-[#2C4B9A]" },
-  READY:     { label: "מוכן",               className: "bg-[#D4EDDA] text-[#1a7a38]" },
-  CLOSING:   { label: "בתהליך סגירה",       className: "bg-[#FFF3CD] text-[#856404]" },
+  SPECIFIED: { label: "בוצע איתור צרכים",   className: "bg-navy-light text-navy" },
+  READY:     { label: "מוכן",               className: "bg-rag-green text-brand-green-dark" },
+  CLOSING:   { label: "בתהליך סגירה",       className: "bg-rag-amber text-rag-amber-text" },
   CLOSED:    { label: "סגור",               className: "bg-gray-200 text-gray-600" },
   CANCELLED: { label: "בוטל",               className: "bg-red-100 text-red-600" },
 }

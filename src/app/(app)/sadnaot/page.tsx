@@ -151,7 +151,7 @@ export default function SadnaotPage() {
         {isManager && (
           <Link
             href="/sadnaot/new"
-            className="px-4 py-2 bg-[#2C4B9A] text-white text-sm font-medium rounded hover:bg-[#243d80] transition-colors"
+            className="px-4 py-2 bg-navy text-white text-sm font-medium rounded hover:bg-navy-dark transition-colors"
           >
             + סדנה חדשה
           </Link>
@@ -174,7 +174,7 @@ export default function SadnaotPage() {
               onClick={() => setDateFilter(key)}
               className={`px-3 py-1.5 rounded-full text-sm font-medium transition-colors ${
                 dateFilter === key
-                  ? "bg-[#2C4B9A] text-white"
+                  ? "bg-navy text-white"
                   : "bg-gray-100 text-gray-600 hover:bg-gray-200"
               }`}
             >
@@ -188,7 +188,7 @@ export default function SadnaotPage() {
           <select
             value={facilitatorFilter}
             onChange={(e) => setFacilitatorFilter(e.target.value)}
-            className="text-sm border border-gray-200 rounded px-3 py-1.5 text-gray-700 focus:outline-none focus:ring-2 focus:ring-[#2C4B9A]/30"
+            className="text-sm border border-gray-200 rounded px-3 py-1.5 text-gray-700 focus:outline-none focus:ring-2 focus:ring-navy/30"
           >
             <option value="">מתחקר/ת: הכל</option>
             {facilitators.map((f) => (
@@ -275,7 +275,7 @@ function WorkshopRow({ w }: { w: WorkshopRow }) {
     >
       {/* תאריך */}
       <td className="px-3 py-2.5 whitespace-nowrap">
-        <span className={`font-medium text-[#0B8390] ${cancelled ? "line-through" : ""}`}>
+        <span className={`font-medium text-sim-teal ${cancelled ? "line-through" : ""}`}>
           {fmtDate(w.date)}
         </span>
       </td>
@@ -285,7 +285,7 @@ function WorkshopRow({ w }: { w: WorkshopRow }) {
         <span className={cancelled ? "line-through" : ""}>
           <Link
             href={`/irgunnim/${w.orgId}`}
-            className="text-[#2C4B9A] hover:underline"
+            className="text-navy hover:underline"
             onClick={(e) => e.stopPropagation()}
           >
             {w.orgName}

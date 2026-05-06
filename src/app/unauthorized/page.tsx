@@ -9,7 +9,7 @@ export default function UnauthorizedPage() {
         <p className="text-sm text-gray-400 mb-6">התפקיד שלך אינו מורשה לגשת לכתובת זו.</p>
         <Link
           href="/sadnaot"
-          className="text-sm text-[#2C4B9A] hover:underline"
+          className="text-sm text-navy hover:underline"
         >
           חזרה לסדנאות
         </Link>

@@ -51,7 +51,7 @@ export function AppShell({ user, version, children }: AppShellProps) {
           <div className="flex items-center gap-2 text-sm text-gray-700">
             <span className="font-medium">{user.name}</span>
             {roleLabels && (
-              <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-[#EEF2FF] text-[#2C4B9A]">
+              <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-navy-light text-navy">
                 {roleLabels}
               </span>
             )}
@@ -75,7 +75,7 @@ export function AppShell({ user, version, children }: AppShellProps) {
               href={item.href}
               className={`px-3 py-1 rounded text-sm font-medium transition-colors ${
                 active
-                  ? "bg-[#EEF2FF] text-[#2C4B9A]"
+                  ? "bg-navy-light text-navy"
                   : "text-gray-600 hover:text-gray-900 hover:bg-gray-50"
               }`}
             >
