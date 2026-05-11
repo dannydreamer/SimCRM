@@ -1,7 +1,7 @@
 "use client"
 
-import { useState } from "react"
-import { useRouter } from "next/navigation"
+import { useState, Suspense } from "react"
+import { useRouter, useSearchParams } from "next/navigation"
 import Link from "next/link"
 import { PEDAGOGI_LABELS, PEDAGOGI_VALUES, TAKZIVI_LABELS, TAKZIVI_VALUES } from "@/lib/shiyuch"
 
@@ -16,8 +16,10 @@ const EMPTY = {
   notes:           "",
 }
 
-export default function NewOrgPage() {
-  const router = useRouter()
+function NewOrgForm() {
+  const router  = useRouter()
+  const params  = useSearchParams()
+  const returnTo = params.get("returnTo")
   const [form, setForm]     = useState({ ...EMPTY })
   const [saving, setSaving] = useState(false)
   const [error, setError]   = useState("")
@@ -39,7 +41,11 @@ export default function NewOrgPage() {
     })
     const data = await res.json()
     if (!res.ok) { setError(data.error ?? "שגיאה בשמירה"); setSaving(false); return }
-    router.push(`/irgunnim/${data.id}`)
+    if (returnTo) {
+      router.push(`${returnTo}?orgId=${data.id}`)
+    } else {
+      router.push(`/irgunnim/${data.id}`)
+    }
   }
 
   const canSubmit = form.name.trim() && form.city.trim() && form.shiyuchPedagogi && form.shiyuchTakzivi
@@ -173,12 +179,20 @@ export default function NewOrgPage() {
             >
               {saving ? "שומר..." : "יצירת ארגון"}
             </button>
-            <Link href="/irgunnim" className="text-sm text-gray-500 hover:text-gray-800">
+            <Link href={returnTo ?? "/irgunnim"} className="text-sm text-gray-500 hover:text-gray-800">
               ביטול
             </Link>
           </div>
         </form>
       </div>
     </div>
+  )
+}
+
+export default function NewOrgPage() {
+  return (
+    <Suspense>
+      <NewOrgForm />
+    </Suspense>
   )
 }
