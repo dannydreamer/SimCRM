@@ -4,12 +4,9 @@ import { useEffect, useState } from "react"
 import { useParams } from "next/navigation"
 import Link from "next/link"
 import { useUser } from "@/app/(app)/user-context"
-import { RagDot, RagBar } from "@/components/RagDot"
-import { StatusPill } from "@/components/StatusPill"
+import { RagDot } from "@/components/RagDot"
 
 // ─── Types ────────────────────────────────────────────────────────────────────
-
-interface ColorCounts { GREEN: number; YELLOW: number; RED: number }
 
 interface FeedbackRow {
   id: string
@@ -42,7 +39,6 @@ interface ActorDetail {
   canDirect: boolean
   workshopCount: number
   lastDate: string | null
-  aspectSummary: { aspect1: ColorCounts; aspect2: ColorCounts; aspect3: ColorCounts; aspect4: ColorCounts }
   feedbacks: FeedbackRow[]
   devLogs: DevLog[]
 }
@@ -59,13 +55,6 @@ function fmtDate(iso: string) {
   const d = new Date(iso)
   return `${d.getDate()}.${d.getMonth() + 1}.${String(d.getFullYear()).slice(2)}`
 }
-
-const ASPECT_LABELS = [
-  "התכוננות לסדנה",
-  "שחקן כסימולטור",
-  "שיקוף",
-  "התנהלות מקצועית",
-]
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
@@ -271,10 +260,8 @@ export default function ActorProfilePage() {
           </div>
         )}
 
-        {/* Two-column layout */}
-        <div className="flex gap-6 items-start">
-          {/* Right column — feedback + dev log */}
-          <div className="flex-1 min-w-0">
+        {/* Feedback + dev log */}
+        <div className="max-w-3xl">
 
             {/* Feedback history — Manager + Feedback Doc only */}
             {canFeedback && (
@@ -397,30 +384,7 @@ export default function ActorProfilePage() {
               </div>
             )}
           </div>
-
-          {/* Left column — aspect summary */}
-          <div className="w-64 shrink-0">
-            <h2 className="text-base font-semibold text-gray-800 mb-3">סיכום היבטים</h2>
-            {totalFeedback === 0 ? (
-              <p className="text-sm text-gray-400">אין פידבק עדיין</p>
-            ) : (
-              <div className="space-y-4">
-                {[
-                  { label: ASPECT_LABELS[0], counts: actor.aspectSummary.aspect1 },
-                  { label: ASPECT_LABELS[1], counts: actor.aspectSummary.aspect2 },
-                  { label: ASPECT_LABELS[2], counts: actor.aspectSummary.aspect3 },
-                  { label: ASPECT_LABELS[3], counts: actor.aspectSummary.aspect4 },
-                ].map(({ label, counts }) => (
-                  <div key={label}>
-                    <p className="text-xs font-semibold text-gray-700 mb-1">{label}</p>
-                    <RagBar counts={counts} />
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
         </div>
       </div>
-    </div>
   )
 }

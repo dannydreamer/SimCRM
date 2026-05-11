@@ -3,23 +3,14 @@
 import { useEffect, useMemo, useState } from "react"
 import Link from "next/link"
 import { useUser } from "@/app/(app)/user-context"
-import { RagDot } from "@/components/RagDot"
 
 interface ActorRow {
   id: string
   name: string
   gender: "MALE" | "FEMALE"
   specialties: string | null
-  workshopCount: number
+  canDirect: boolean
   lastDate: string | null
-  feedbackCount: number
-  ragSummary: { aspect1: string; aspect2: string; aspect3: string; aspect4: string }
-}
-
-function initials(name: string) {
-  const parts = name.trim().split(/\s+/)
-  if (parts.length === 1) return parts[0].slice(0, 2)
-  return parts[0][0] + parts[parts.length - 1][0]
 }
 
 function fmtDate(iso: string) {
@@ -104,47 +95,51 @@ export default function ShakhanimPage() {
         </div>
       </div>
 
-      {/* Grid */}
+      {/* Table */}
       <div className="flex-1 overflow-auto px-8 pb-8">
         {loading ? (
           <p className="text-sm text-gray-400 py-8 text-center">טוען שחקנים...</p>
         ) : filtered.length === 0 ? (
           <p className="text-sm text-gray-400 py-8 text-center">לא נמצאו שחקנים</p>
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 max-w-5xl">
-            {filtered.map((actor) => (
-              <Link
-                key={actor.id}
-                href={`/shakhanim/${actor.id}`}
-                className="flex items-start gap-3 border border-gray-200 rounded-lg p-4 hover:border-navy/40 hover:shadow-sm transition-all bg-white"
-              >
-                {/* Avatar */}
-                <div className="w-10 h-10 rounded-full bg-navy-light text-navy flex items-center justify-center text-sm font-bold shrink-0">
-                  {initials(actor.name)}
-                </div>
-
-                {/* Info */}
-                <div className="flex-1 min-w-0">
-                  <p className="font-semibold text-gray-900 text-sm truncate">{actor.name}</p>
-                  <p className="text-xs text-gray-400 mb-1">
-                    {actor.gender === "MALE" ? "שחקן" : "שחקנית"}
-                    {actor.lastDate && ` · ${fmtDate(actor.lastDate)}`}
-                  </p>
-                  {actor.specialties && (
-                    <p className="text-xs text-gray-500 truncate mb-2">{actor.specialties}</p>
-                  )}
-                  {/* RAG dots */}
-                  {actor.feedbackCount > 0 && (
-                    <div className="flex items-center gap-1.5">
-                      <RagDot color={actor.ragSummary.aspect1} size="sm" />
-                      <RagDot color={actor.ragSummary.aspect2} size="sm" />
-                      <RagDot color={actor.ragSummary.aspect3} size="sm" />
-                      <RagDot color={actor.ragSummary.aspect4} size="sm" />
-                    </div>
-                  )}
-                </div>
-              </Link>
-            ))}
+          <div className="border border-gray-200 rounded-lg overflow-hidden max-w-3xl">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="bg-gray-50 border-b border-gray-200 text-right text-xs text-gray-500 font-medium">
+                  <th className="px-4 py-2.5">שם</th>
+                  <th className="px-4 py-2.5">התמחות</th>
+                  <th className="px-4 py-2.5 text-center">במאי?</th>
+                  <th className="px-4 py-2.5">פעילות אחרונה</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filtered.map((actor) => (
+                  <tr
+                    key={actor.id}
+                    onClick={() => (window.location.href = `/shakhanim/${actor.id}`)}
+                    className="border-b border-gray-100 last:border-0 hover:bg-gray-50 cursor-pointer transition-colors"
+                  >
+                    <td className="px-4 py-2.5">
+                      <span className="font-medium text-gray-900">{actor.name}</span>
+                      <span className="text-xs text-gray-400 mr-2">
+                        {actor.gender === "MALE" ? "שחקן" : "שחקנית"}
+                      </span>
+                    </td>
+                    <td className="px-4 py-2.5 text-gray-500 max-w-xs truncate">
+                      {actor.specialties || <span className="text-gray-300">—</span>}
+                    </td>
+                    <td className="px-4 py-2.5 text-center">
+                      {actor.canDirect
+                        ? <span className="text-brand-green font-medium">✓</span>
+                        : <span className="text-gray-300">—</span>}
+                    </td>
+                    <td className="px-4 py-2.5 text-gray-500">
+                      {actor.lastDate ? fmtDate(actor.lastDate) : <span className="text-gray-300">—</span>}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
         )}
       </div>

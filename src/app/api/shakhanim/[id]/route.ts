@@ -3,12 +3,6 @@ import { prisma } from "@/lib/prisma"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
 
-function colorCounts(colors: string[]) {
-  const c = { GREEN: 0, YELLOW: 0, RED: 0 }
-  colors.forEach((v) => { c[v as keyof typeof c] = (c[v as keyof typeof c] ?? 0) + 1 })
-  return c
-}
-
 export async function GET(
   _req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -53,13 +47,6 @@ export async function GET(
   const lastDate = actor.castings[0]?.workshop.date?.toISOString() ?? null
   const workshopCount = new Set(actor.castings.map((c) => c.workshop)).size
 
-  const aspectSummary = {
-    aspect1: colorCounts(actor.feedbacks.map((f) => f.aspect1PrepColor)),
-    aspect2: colorCounts(actor.feedbacks.map((f) => f.aspect2SimColor)),
-    aspect3: colorCounts(actor.feedbacks.map((f) => f.aspect3ReflectionColor)),
-    aspect4: colorCounts(actor.feedbacks.map((f) => f.aspect4ProfessionalColor)),
-  }
-
   return NextResponse.json({
     id:           actor.id,
     name:         actor.name,
@@ -71,7 +58,6 @@ export async function GET(
     canDirect:    actor.canDirect,
     workshopCount,
     lastDate,
-    aspectSummary,
     feedbacks: actor.feedbacks.map((f) => ({
       id:       f.id,
       date:     f.enteredAt.toISOString(),
