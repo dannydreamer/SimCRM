@@ -21,6 +21,11 @@ export const NAV_ITEMS = [
     roles: ["MANAGER", "TECH"],
   },
   {
+    href: "/nosim",
+    label: "נושאים",
+    roles: ["MANAGER", "TECH"],
+  },
+  {
     href: "/shakhanim",
     label: "שחקנים",
     roles: ["MANAGER", "CASTER", "FEEDBACK_DOCUMENTER"],
