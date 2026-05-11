@@ -18,7 +18,7 @@ export const NAV_ITEMS = [
   {
     href: "/irgunnim",
     label: "ארגונים",
-    roles: ["MANAGER", "TECH", "CASTER", "FEEDBACK_DOCUMENTER"],
+    roles: ["MANAGER", "TECH"],
   },
   {
     href: "/shakhanim",

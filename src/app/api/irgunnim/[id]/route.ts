@@ -81,7 +81,7 @@ export async function PATCH(
 ) {
   const session = await getServerSession(authOptions)
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-  if (!session.user.roles.includes("MANAGER") && !session.user.roles.includes("TECH")) {
+  if (!session.user.roles.includes("MANAGER")) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 })
   }
 

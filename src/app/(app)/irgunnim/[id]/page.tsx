@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { useParams, useRouter } from "next/navigation"
+import { useParams } from "next/navigation"
 import Link from "next/link"
 import { useUser } from "@/app/(app)/user-context"
 import { StatusPill } from "@/components/StatusPill"
@@ -53,8 +53,6 @@ function fmtDate(iso: string) {
 export default function OrgDetailPage() {
   const { id }    = useParams<{ id: string }>()
   const user      = useUser()
-  const router    = useRouter()
-  const canEdit   = user.roles.includes("MANAGER") || user.roles.includes("TECH")
   const isManager = user.roles.includes("MANAGER")
 
   const [org, setOrg]           = useState<OrgDetail | null>(null)
@@ -63,6 +61,11 @@ export default function OrgDetailPage() {
   const [editForm, setEditForm] = useState<Partial<OrgDetail>>({})
   const [saving, setSaving]     = useState(false)
   const [editError, setEditError] = useState("")
+
+  // Inline notes editing (Manager only, auto-save on blur)
+  const [notesValue, setNotesValue]   = useState<string | null>(null)
+  const [notesDirty, setNotesDirty]   = useState(false)
+  const [notesSaving, setNotesSaving] = useState(false)
 
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set())
   const [newGroupName, setNewGroupName]     = useState("")
@@ -74,10 +77,23 @@ export default function OrgDetailPage() {
     if (!res.ok) { setLoading(false); return }
     const data = await res.json()
     setOrg(data)
+    setNotesValue(data.notes ?? "")
     setLoading(false)
   }
 
   useEffect(() => { fetchOrg() }, [id])
+
+  async function saveNotes() {
+    if (!notesDirty) return
+    setNotesSaving(true)
+    await fetch(`/api/irgunnim/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ notes: notesValue }),
+    })
+    setNotesDirty(false)
+    setNotesSaving(false)
+  }
 
   function openEdit() {
     if (!org) return
@@ -89,7 +105,6 @@ export default function OrgDetailPage() {
       pocName:         org.pocName  ?? "",
       pocPhone:        org.pocPhone ?? "",
       pocEmail:        org.pocEmail ?? "",
-      notes:           org.notes    ?? "",
     })
     setEditError("")
     setEditing(true)
@@ -169,7 +184,7 @@ export default function OrgDetailPage() {
             </p>
           </div>
           <div className="flex items-center gap-2 shrink-0">
-            {canEdit && !editing && (
+            {isManager && !editing && (
               <button
                 onClick={openEdit}
                 className="px-3 py-1.5 text-sm border border-gray-300 rounded hover:bg-gray-50 text-gray-700 transition-colors"
@@ -269,15 +284,6 @@ export default function OrgDetailPage() {
                 />
               </div>
             </div>
-            <div className="mb-4">
-              <label className="block text-xs text-gray-600 mb-1">הערות</label>
-              <textarea
-                value={editForm.notes ?? ""}
-                onChange={(e) => setEditForm((f) => ({ ...f, notes: e.target.value }))}
-                rows={3}
-                className="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-navy/30 resize-none"
-              />
-            </div>
             {editError && <p className="text-sm text-red-600 mb-3">{editError}</p>}
             <div className="flex items-center gap-3">
               <button
@@ -314,14 +320,27 @@ export default function OrgDetailPage() {
           חדרים מתוכננים: <span className="font-medium text-gray-700">{org.totalRoomsPlanned}</span>
         </p>
 
-        {/* Notes */}
-        {(org.notes || canEdit) && (
+        {/* Notes — inline editable for Manager, read-only for Tech */}
+        {(org.notes || isManager) && (
           <div className="mb-6">
-            <h3 className="text-sm font-semibold text-gray-700 mb-1">הערות</h3>
-            {org.notes
-              ? <p className="text-sm text-gray-600 whitespace-pre-line">{org.notes}</p>
-              : <p className="text-sm text-gray-300 italic">אין הערות</p>
-            }
+            <div className="flex items-center gap-2 mb-1">
+              <h3 className="text-sm font-semibold text-gray-700">הערות</h3>
+              {notesSaving && <span className="text-xs text-gray-400">שומר...</span>}
+            </div>
+            {isManager ? (
+              <textarea
+                value={notesValue ?? ""}
+                onChange={(e) => { setNotesValue(e.target.value); setNotesDirty(true) }}
+                onBlur={saveNotes}
+                rows={3}
+                placeholder="הוסיפי הערות לארגון זה..."
+                className="w-full border border-gray-200 rounded px-3 py-2 text-sm text-gray-600 focus:outline-none focus:ring-2 focus:ring-navy/30 resize-none hover:border-gray-300 transition-colors"
+              />
+            ) : (
+              org.notes
+                ? <p className="text-sm text-gray-600 whitespace-pre-line">{org.notes}</p>
+                : <p className="text-sm text-gray-300 italic">אין הערות</p>
+            )}
           </div>
         )}
 
@@ -345,8 +364,8 @@ export default function OrgDetailPage() {
           </div>
         </div>
 
-        {/* Add group */}
-        {canEdit && (
+        {/* Add group — Manager only */}
+        {isManager && (
           <div className="mt-6 border-t border-gray-100 pt-4">
             <p className="text-sm font-medium text-gray-700 mb-2">+ קבוצה חדשה תחת ארגון זה</p>
             <div className="flex items-center gap-2">
