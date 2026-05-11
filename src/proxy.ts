@@ -6,7 +6,7 @@ import { NextResponse } from "next/server"
 const ROUTE_PERMISSIONS: { prefix: string; roles: string[] }[] = [
   { prefix: "/irgunnim", roles: ["MANAGER", "TECH"] },
   { prefix: "/nosim",    roles: ["MANAGER", "TECH"] },
-  { prefix: "/shakhanim", roles: ["MANAGER", "CASTER", "FEEDBACK_DOCUMENTER"] },
+  { prefix: "/shakhanim", roles: ["MANAGER", "TECH", "CASTER", "FEEDBACK_DOCUMENTER"] },
   { prefix: "/luach",    roles: ["MANAGER", "TECH"] },
   { prefix: "/yaadot",   roles: ["MANAGER"] },
   { prefix: "/omas",     roles: ["MANAGER"] },

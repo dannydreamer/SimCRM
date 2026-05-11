@@ -28,7 +28,7 @@ export const NAV_ITEMS = [
   {
     href: "/shakhanim",
     label: "שחקנים",
-    roles: ["MANAGER", "CASTER", "FEEDBACK_DOCUMENTER"],
+    roles: ["MANAGER", "TECH", "CASTER", "FEEDBACK_DOCUMENTER"],
   },
   {
     href: "/luach",
