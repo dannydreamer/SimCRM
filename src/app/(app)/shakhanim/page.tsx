@@ -26,8 +26,9 @@ export default function ShakhanimPage() {
 
   const [actors, setActors]   = useState<ActorRow[]>([])
   const [loading, setLoading] = useState(true)
-  const [q, setQ]             = useState("")
-  const [gender, setGender]   = useState<GenderFilter>("all")
+  const [q, setQ]                   = useState("")
+  const [gender, setGender]         = useState<GenderFilter>("all")
+  const [directorsOnly, setDirectorsOnly] = useState(false)
 
   useEffect(() => {
     fetch("/api/shakhanim")
@@ -38,10 +39,11 @@ export default function ShakhanimPage() {
   const filtered = useMemo(() => {
     return actors.filter((a) => {
       if (gender !== "all" && a.gender !== gender) return false
+      if (directorsOnly && !a.canDirect) return false
       if (q && !a.name.toLowerCase().includes(q.toLowerCase())) return false
       return true
     })
-  }, [actors, q, gender])
+  }, [actors, q, gender, directorsOnly])
 
   return (
     <div className="flex flex-col h-full">
@@ -93,6 +95,16 @@ export default function ShakhanimPage() {
             </button>
           ))}
         </div>
+        <button
+          onClick={() => setDirectorsOnly((v) => !v)}
+          className={`px-3 py-1.5 rounded-full text-sm font-medium transition-colors ${
+            directorsOnly
+              ? "bg-navy text-white"
+              : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+          }`}
+        >
+          במאי/ת בלבד
+        </button>
       </div>
 
       {/* Table */}
