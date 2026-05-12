@@ -99,8 +99,12 @@ export default function SadnaotPage() {
                 {active.map((w) => (
                   <tr key={w.id} className="border-b border-gray-100 last:border-0 hover:bg-gray-50 transition-colors">
                     <td className="px-4 py-2.5 whitespace-nowrap">
-                      <span className="font-medium text-gray-900">{fmtDate(w.date)}</span>
-                      {w.tentative && <span className="mr-1 text-amber-500 font-bold text-xs"> ?</span>}
+                      <div className="flex items-center gap-2">
+                        <span className="font-medium text-gray-900">{fmtDate(w.date)}</span>
+                        {w.tentative && (
+                          <span className="inline-block px-1.5 py-0.5 rounded bg-amber-100 text-amber-700 text-xs font-semibold leading-none">?</span>
+                        )}
+                      </div>
                       <span className="block text-xs text-gray-400">{w.startTime}–{w.endTime}</span>
                     </td>
                     <td className="px-4 py-2.5 text-gray-700">{w.groupName}</td>
