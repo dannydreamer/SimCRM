@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation"
 import Link from "next/link"
 import { useUser } from "@/app/(app)/user-context"
 import { PEDAGOGI_LABELS, TAKZIVI_LABELS } from "@/lib/shiyuch"
+import { NewOrgModal, type CreatedOrg } from "@/components/NewOrgModal"
 
 interface OrgOption {
   id:              string
@@ -19,6 +20,26 @@ interface PersonOption {
   name:  string
   roles: string[]
   active: boolean
+}
+
+function makeTimes(fromH: number, fromM: number, toH: number, toM: number): string[] {
+  const times: string[] = []
+  let h = fromH, m = fromM
+  while (h * 60 + m <= toH * 60 + toM) {
+    times.push(`${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`)
+    m += 15
+    if (m >= 60) { h++; m -= 60 }
+  }
+  return times
+}
+const START_TIMES = makeTimes(6, 0,  22, 0)
+const ALL_END_TIMES = makeTimes(6, 15, 22, 0)
+
+function addMinutes(t: string, mins: number): string {
+  const [h, m] = t.split(":").map(Number)
+  const total = Math.min(h * 60 + m + mins, 22 * 60)
+  const rh = Math.floor(total / 60), rm = total % 60
+  return `${String(rh).padStart(2, "0")}:${String(rm).padStart(2, "0")}`
 }
 
 function NewWorkshopForm() {
@@ -36,6 +57,14 @@ function NewWorkshopForm() {
   const [date,              setDate]              = useState("")
   const [startTime,         setStartTime]         = useState("")
   const [endTime,           setEndTime]           = useState("")
+
+  function handleStartTime(t: string) {
+    setStartTime(t)
+    if (t) {
+      const auto = addMinutes(t, 180)
+      setEndTime(auto > "22:00" ? "22:00" : auto)
+    }
+  }
   const [numRooms,          setNumRooms]          = useState("1")
   const [locationType,      setLocationType]      = useState<"CENTER" | "EXTERNAL">("CENTER")
   const [locationName,      setLocationName]      = useState("")
@@ -45,6 +74,13 @@ function NewWorkshopForm() {
   const [notes,             setNotes]             = useState("")
   const [saving,            setSaving]            = useState(false)
   const [error,             setError]             = useState("")
+  const [showOrgModal,      setShowOrgModal]      = useState(false)
+
+  function handleOrgCreated(org: CreatedOrg) {
+    setOrgs((prev) => [...prev, org])
+    setOrgId(org.id)
+    setShowOrgModal(false)
+  }
 
   useEffect(() => {
     Promise.all([
@@ -127,12 +163,13 @@ function NewWorkshopForm() {
                   <option key={o.id} value={o.id}>{o.name} — {o.city}</option>
                 ))}
               </select>
-              <Link
-                href="/irgunnim/new?returnTo=/sadnaot/new"
+              <button
+                type="button"
+                onClick={() => setShowOrgModal(true)}
                 className="text-sm text-navy hover:underline whitespace-nowrap"
               >
                 ארגון חדש?
-              </Link>
+              </button>
             </div>
             {selectedOrg && (
               <p className="mt-1.5 text-xs text-gray-400">
@@ -163,11 +200,19 @@ function NewWorkshopForm() {
             </div>
             <div>
               <label className="block text-sm text-gray-700 mb-1">שעת התחלה *</label>
-              <input type="time" value={startTime} onChange={(e) => setStartTime(e.target.value)} className={inputCls} required dir="ltr" />
+              <select value={startTime} onChange={(e) => handleStartTime(e.target.value)} className={inputCls} required dir="ltr">
+                <option value="">--:--</option>
+                {START_TIMES.map((t) => <option key={t} value={t}>{t}</option>)}
+              </select>
             </div>
             <div>
               <label className="block text-sm text-gray-700 mb-1">שעת סיום *</label>
-              <input type="time" value={endTime} onChange={(e) => setEndTime(e.target.value)} className={inputCls} required dir="ltr" />
+              <select value={endTime} onChange={(e) => setEndTime(e.target.value)} className={inputCls} required dir="ltr">
+                <option value="">--:--</option>
+                {ALL_END_TIMES.filter((t) => !startTime || t > startTime).map((t) => (
+                  <option key={t} value={t}>{t}</option>
+                ))}
+              </select>
             </div>
           </div>
 
@@ -237,6 +282,10 @@ function NewWorkshopForm() {
           </div>
         </form>
       </div>
+
+      {showOrgModal && (
+        <NewOrgModal onCreated={handleOrgCreated} onClose={() => setShowOrgModal(false)} />
+      )}
     </div>
   )
 }
