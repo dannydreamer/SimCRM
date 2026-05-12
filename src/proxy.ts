@@ -4,10 +4,11 @@ import { NextResponse } from "next/server"
 // Routes with restricted access. Paths are prefix-matched.
 // Any authenticated route NOT listed here is accessible to all logged-in users.
 const ROUTE_PERMISSIONS: { prefix: string; roles: string[] }[] = [
-  { prefix: "/irgunnim", roles: ["MANAGER", "TECH"] },
-  { prefix: "/nosim",    roles: ["MANAGER", "TECH"] },
-  { prefix: "/shakhanim", roles: ["MANAGER", "TECH", "CASTER", "FEEDBACK_DOCUMENTER"] },
-  { prefix: "/luach",    roles: ["MANAGER", "TECH"] },
+  { prefix: "/sadnaot/new", roles: ["MANAGER"] },
+  { prefix: "/irgunnim",    roles: ["MANAGER", "TECH"] },
+  { prefix: "/nosim",       roles: ["MANAGER", "TECH"] },
+  { prefix: "/shakhanim",   roles: ["MANAGER", "TECH", "CASTER", "FEEDBACK_DOCUMENTER"] },
+  { prefix: "/luach",       roles: ["MANAGER", "TECH"] },
   { prefix: "/yaadot",   roles: ["MANAGER"] },
   { prefix: "/omas",     roles: ["MANAGER"] },
   { prefix: "/users",    roles: ["MANAGER"] },
