@@ -51,6 +51,7 @@ function NewWorkshopForm() {
   const [orgs, setOrgs]               = useState<OrgOption[]>([])
   const [facilitators, setFacilitators] = useState<PersonOption[]>([])
   const [loadingOptions, setLoadingOptions] = useState(true)
+  const [existingGroups, setExistingGroups] = useState<{ id: string; name: string }[]>([])
 
   const [orgId,             setOrgId]             = useState(params.get("orgId") ?? "")
   const [groupName,         setGroupName]         = useState("")
@@ -93,6 +94,14 @@ function NewWorkshopForm() {
     })
   }, [])
 
+  useEffect(() => {
+    if (!orgId) { setExistingGroups([]); setGroupName(""); return }
+    fetch(`/api/irgunnim/${orgId}/groups`)
+      .then((r) => r.json())
+      .then(setExistingGroups)
+    setGroupName("")
+  }, [orgId])
+
   if (!isManager) {
     return (
       <div className="p-8">
@@ -101,8 +110,11 @@ function NewWorkshopForm() {
     )
   }
 
-  const selectedOrg = orgs.find((o) => o.id === orgId)
-  const canSubmit   = orgId && groupName.trim() && date && startTime && endTime && numRooms
+  const selectedOrg   = orgs.find((o) => o.id === orgId)
+  const matchedGroup  = existingGroups.find(
+    (g) => g.name.trim().toLowerCase() === groupName.trim().toLowerCase()
+  )
+  const canSubmit = orgId && groupName.trim() && date && startTime && endTime && numRooms
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -113,7 +125,8 @@ function NewWorkshopForm() {
       headers: { "Content-Type": "application/json" },
       body:    JSON.stringify({
         organizationId:   orgId,
-        groupName:        groupName.trim(),
+        groupId:          matchedGroup?.id ?? null,
+        groupName:        matchedGroup ? undefined : groupName.trim(),
         date,
         startTime,
         endTime,
@@ -182,14 +195,26 @@ function NewWorkshopForm() {
 
           {/* Participant group */}
           <div>
-            <label className="block text-sm text-gray-700 mb-1">שם קבוצה *</label>
+            <label className="block text-sm text-gray-700 mb-1">קבוצה *</label>
             <input
               type="text"
               value={groupName}
               onChange={(e) => setGroupName(e.target.value)}
+              list="group-options"
               className={inputCls}
+              placeholder={orgId ? "בחר/י קבוצה קיימת או הקלד/י שם חדש" : "בחר/י ארגון תחילה"}
+              disabled={!orgId}
               required
+              autoComplete="off"
             />
+            <datalist id="group-options">
+              {existingGroups.map((g) => <option key={g.id} value={g.name} />)}
+            </datalist>
+            {groupName.trim() && (
+              <p className="mt-1 text-xs text-gray-400">
+                {matchedGroup ? "✓ קבוצה קיימת" : "+ קבוצה חדשה תיווצר"}
+              </p>
+            )}
           </div>
 
           {/* Date + Times */}

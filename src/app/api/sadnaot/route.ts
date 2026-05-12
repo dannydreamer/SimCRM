@@ -44,6 +44,7 @@ export async function POST(req: NextRequest) {
 
   const {
     organizationId,
+    groupId,
     groupName,
     date,
     startTime,
@@ -57,20 +58,31 @@ export async function POST(req: NextRequest) {
     notes,
   } = await req.json()
 
-  if (!organizationId)        return NextResponse.json({ error: "יש לבחור ארגון" }, { status: 400 })
-  if (!groupName?.trim())     return NextResponse.json({ error: "יש להזין שם קבוצה" }, { status: 400 })
-  if (!date)                  return NextResponse.json({ error: "יש לבחור תאריך" }, { status: 400 })
-  if (!startTime)             return NextResponse.json({ error: "יש להזין שעת התחלה" }, { status: 400 })
-  if (!endTime)               return NextResponse.json({ error: "יש להזין שעת סיום" }, { status: 400 })
+  if (!organizationId)           return NextResponse.json({ error: "יש לבחור ארגון" }, { status: 400 })
+  if (!groupId && !groupName?.trim()) return NextResponse.json({ error: "יש להזין שם קבוצה" }, { status: 400 })
+  if (!date)                     return NextResponse.json({ error: "יש לבחור תאריך" }, { status: 400 })
+  if (!startTime)                return NextResponse.json({ error: "יש להזין שעת התחלה" }, { status: 400 })
+  if (!endTime)                  return NextResponse.json({ error: "יש להזין שעת סיום" }, { status: 400 })
   if (!numRooms || numRooms < 1) return NextResponse.json({ error: "יש להזין מספר חדרים" }, { status: 400 })
 
-  const group = await prisma.participantGroup.create({
-    data: { organizationId, name: groupName.trim() },
-  })
+  let participantGroupId: string
+  if (groupId) {
+    participantGroupId = groupId
+  } else {
+    const trimmed = groupName.trim()
+    const existing = await prisma.participantGroup.findMany({ where: { organizationId } })
+    const match = existing.find((g) => g.name.trim().toLowerCase() === trimmed.toLowerCase())
+    if (match) {
+      participantGroupId = match.id
+    } else {
+      const newGroup = await prisma.participantGroup.create({ data: { organizationId, name: trimmed } })
+      participantGroupId = newGroup.id
+    }
+  }
 
   const workshop = await prisma.workshop.create({
     data: {
-      participantGroupId: group.id,
+      participantGroupId,
       date:               new Date(date),
       startTime,
       endTime,
