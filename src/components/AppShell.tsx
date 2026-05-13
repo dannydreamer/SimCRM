@@ -24,7 +24,6 @@ export function AppShell({ user, version, children }: AppShellProps) {
   )
 
   const roleLabels = user.roles
-    .filter((r) => r !== "FACILITATOR")
     .map((r) => ROLE_LABELS[r] ?? r)
     .join(", ")
 
