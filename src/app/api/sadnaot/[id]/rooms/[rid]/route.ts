@@ -1,9 +1,15 @@
-﻿import { NextRequest, NextResponse } from "next/server"
+import { NextRequest, NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
 
 const FROZEN_STATUSES = ["CLOSING", "CLOSED", "CANCELLED"]
+
+function dayOnly(d: Date) {
+  const out = new Date(d)
+  out.setHours(0, 0, 0, 0)
+  return out
+}
 
 export async function PATCH(
   req: NextRequest,
@@ -19,33 +25,70 @@ export async function PATCH(
     return NextResponse.json({ error: "Forbidden" }, { status: 403 })
 
   const { id, rid } = await params
-  const w = await prisma.workshop.findUnique({ where: { id }, select: { status: true } })
-  if (!w) return NextResponse.json({ error: "Not found" }, { status: 404 })
-  const frozen = FROZEN_STATUSES.includes(w.status)
+  const workshop = await prisma.workshop.findUnique({ where: { id }, select: { status: true, date: true } })
+  if (!workshop) return NextResponse.json({ error: "Not found" }, { status: 404 })
+  const frozen = FROZEN_STATUSES.includes(workshop.status)
 
   const room = await prisma.room.findUnique({ where: { id: rid } })
   if (!room || room.workshopId !== id) return NextResponse.json({ error: "Not found" }, { status: 404 })
 
-  const { facilitatorId, facilitatorTentative, pptReceived, letterReceived } = await req.json()
+  const body = await req.json()
+  const { facilitatorId, facilitatorTentative, pptReceived, letterReceived } = body
 
   const data: Record<string, unknown> = {}
 
-  // Manager only: assign facilitator
+  // Manager only: assign/unassign facilitator
   if (facilitatorId !== undefined) {
     if (!isManager) return NextResponse.json({ error: "Forbidden" }, { status: 403 })
     if (!frozen) {
       data.facilitatorId = facilitatorId || null
+      // Auto-uncheck PPT and letter when facilitator is removed
+      if (!facilitatorId) {
+        data.pptReceived = false
+        data.letterReceived = false
+      }
     }
   }
   if (facilitatorTentative !== undefined && isManager && !frozen) {
     data.facilitatorTentative = facilitatorTentative
   }
 
-  // Manager + Tech: PPT and letter
-  if (pptReceived !== undefined) data.pptReceived = pptReceived
-  if (letterReceived !== undefined) data.letterReceived = letterReceived
+  // PPT / Letter — Manager + Tech
+  if (pptReceived !== undefined) {
+    if (pptReceived === true) {
+      // Must have a facilitator assigned
+      const effectiveFacilitatorId = facilitatorId !== undefined ? (facilitatorId || null) : room.facilitatorId
+      if (!effectiveFacilitatorId)
+        return NextResponse.json({ error: "יש לשבץ מתחקר/ת לפני סימון מצגת" }, { status: 400 })
+      // PPT only allowed before or on workshop date
+      const today = dayOnly(new Date())
+      const wDate = dayOnly(new Date(workshop.date))
+      if (today > wDate)
+        return NextResponse.json({ error: "לא ניתן לסמן מצגת לאחר תאריך הסדנה" }, { status: 400 })
+    }
+    data.pptReceived = pptReceived
+  }
 
-  const updated = await prisma.room.update({ where: { id: rid }, data, include: { facilitator: { select: { id: true, name: true } } } })
+  if (letterReceived !== undefined) {
+    if (letterReceived === true) {
+      // Must have a facilitator assigned
+      const effectiveFacilitatorId = facilitatorId !== undefined ? (facilitatorId || null) : room.facilitatorId
+      if (!effectiveFacilitatorId)
+        return NextResponse.json({ error: "יש לשבץ מתחקר/ת לפני סימון מכתב" }, { status: 400 })
+      // Letter only allowed on or after workshop date
+      const today = dayOnly(new Date())
+      const wDate = dayOnly(new Date(workshop.date))
+      if (today < wDate)
+        return NextResponse.json({ error: "לא ניתן לסמן מכתב לפני תאריך הסדנה" }, { status: 400 })
+    }
+    data.letterReceived = letterReceived
+  }
+
+  const updated = await prisma.room.update({
+    where: { id: rid },
+    data,
+    include: { facilitator: { select: { id: true, name: true } } },
+  })
   return NextResponse.json({
     id: updated.id,
     roomNumber: updated.roomNumber,

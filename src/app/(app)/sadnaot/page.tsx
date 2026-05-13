@@ -55,12 +55,13 @@ function CheckBadge({ ok, warn, href }: { ok: boolean; warn?: boolean; href?: st
   return <span className="text-gray-300 text-xs">—</span>
 }
 
-function FractionBadge({ filled, total, href }: { filled: number; total: number; href?: string }) {
+function FractionBadge({ filled, total, href, alwaysFraction }: { filled: number; total: number; href?: string; alwaysFraction?: boolean }) {
   if (total === 0) return <span className="text-gray-300 text-xs">—</span>
   const complete = filled === total
+  const showCheck = complete && !alwaysFraction
   const inner = (
     <span className={`text-xs font-medium ${complete ? "text-brand-green" : "text-amber-700"}`}>
-      {complete ? "✓" : `${filled}/${total}`}
+      {showCheck ? "✓" : `${filled}/${total}`}
     </span>
   )
   if (!complete && href) return <Link href={href} className="hover:underline" onClick={(e) => e.stopPropagation()}>{inner}</Link>
@@ -262,7 +263,7 @@ export default function SadnaotPage() {
                     {/* Slotting */}
                     <td className="px-3 py-2.5 text-center">
                       <div className="flex items-center justify-center gap-1">
-                        <FractionBadge filled={w.slottingFilled} total={w.slottingTotal} href={`/sadnaot/${w.id}#rooms`} />
+                        <FractionBadge filled={w.slottingFilled} total={w.slottingTotal} href={`/sadnaot/${w.id}#rooms`} alwaysFraction />
                         {w.slottingTentative && (
                           <span className="px-1 py-0.5 rounded bg-amber-100 text-amber-700 text-xs font-semibold leading-none">?</span>
                         )}

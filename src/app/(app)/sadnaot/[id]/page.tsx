@@ -240,13 +240,14 @@ function ScenarioRow({
 // ─── RoomRow ──────────────────────────────────────────────────────────────────
 
 function RoomRow({
-  r, canAssign, canCheckPptLetter, facilitators, workshopId, onUpdate,
+  r, canAssign, canCheckPptLetter, facilitators, workshopId, workshopDate, onUpdate,
 }: {
   r: Room
   canAssign: boolean
   canCheckPptLetter: boolean
   facilitators: Facilitator[]
   workshopId: string
+  workshopDate: string   // ISO string
   onUpdate: (rid: string, data: Partial<Room>) => void
 }) {
   async function patchRoom(data: Partial<Room>) {
@@ -261,6 +262,38 @@ function RoomRow({
     }
   }
 
+  async function changeFacilitator(facilitatorId: string | null) {
+    // Auto-uncheck PPT and letter when facilitator is removed
+    const patch: Partial<Room> = { facilitatorId } as Partial<Room>
+    if (!facilitatorId) {
+      patch.pptReceived = false
+      patch.letterReceived = false
+    }
+    await patchRoom(patch)
+  }
+
+  // Date comparisons (date-only, no time)
+  const today = new Date(); today.setHours(0, 0, 0, 0)
+  const wDate = new Date(workshopDate); wDate.setHours(0, 0, 0, 0)
+  const workshopPast = today > wDate      // day after workshop date
+  const workshopFuture = today < wDate    // before workshop date
+
+  // PPT: allowed before or on workshop date; blocked after
+  const pptBlockReason = !r.facilitatorId
+    ? "יש לשבץ מתחקר/ת לפני סימון מצגת"
+    : workshopPast
+    ? "לא ניתן לסמן מצגת לאחר תאריך הסדנה"
+    : null
+  const pptDisabled = !!pptBlockReason
+
+  // Letter: allowed on or after workshop date; blocked before
+  const letterBlockReason = !r.facilitatorId
+    ? "יש לשבץ מתחקר/ת לפני סימון מכתב"
+    : workshopFuture
+    ? "לא ניתן לסמן מכתב לפני תאריך הסדנה"
+    : null
+  const letterDisabled = !!letterBlockReason
+
   return (
     <tr className={`border-b border-gray-100 text-sm ${r.cancelled ? "opacity-40" : ""}`}>
       <td className="py-2 px-3 font-medium">
@@ -272,7 +305,7 @@ function RoomRow({
         {canAssign && !r.cancelled ? (
           <select
             value={r.facilitatorId ?? ""}
-            onChange={(e) => patchRoom({ facilitatorId: e.target.value || null } as Partial<Room>)}
+            onChange={(e) => changeFacilitator(e.target.value || null)}
             className="border border-gray-200 rounded px-2 py-1 text-sm w-full"
           >
             <option value="">— לא שובץ —</option>
@@ -291,16 +324,22 @@ function RoomRow({
       </td>
       <td className="py-2 px-3 text-center">
         {canCheckPptLetter && !r.cancelled ? (
-          <input type="checkbox" checked={r.pptReceived}
-            onChange={(e) => patchRoom({ pptReceived: e.target.checked })}
-            className="w-4 h-4 accent-navy cursor-pointer" />
+          <span title={pptBlockReason ?? undefined} className="inline-block">
+            <input type="checkbox" checked={r.pptReceived}
+              disabled={pptDisabled}
+              onChange={(e) => !pptDisabled && patchRoom({ pptReceived: e.target.checked })}
+              className={`w-4 h-4 accent-navy ${pptDisabled ? "opacity-40 cursor-not-allowed" : "cursor-pointer"}`} />
+          </span>
         ) : <Check on={r.pptReceived} />}
       </td>
       <td className="py-2 px-3 text-center">
         {canCheckPptLetter && !r.cancelled ? (
-          <input type="checkbox" checked={r.letterReceived}
-            onChange={(e) => patchRoom({ letterReceived: e.target.checked })}
-            className="w-4 h-4 accent-navy cursor-pointer" />
+          <span title={letterBlockReason ?? undefined} className="inline-block">
+            <input type="checkbox" checked={r.letterReceived}
+              disabled={letterDisabled}
+              onChange={(e) => !letterDisabled && patchRoom({ letterReceived: e.target.checked })}
+              className={`w-4 h-4 accent-navy ${letterDisabled ? "opacity-40 cursor-not-allowed" : "cursor-pointer"}`} />
+          </span>
         ) : <Check on={r.letterReceived} />}
       </td>
     </tr>
@@ -364,7 +403,7 @@ export default function WorkshopDetailPage() {
   useEffect(() => { load() }, [load])
 
   const canEdit = isManager && w !== null && !w.frozen && !w.cancelled
-  const canAddScenario = canEditScenarios && w !== null && !w.frozen && !w.cancelled
+  const canAddScenario = canEditScenarios && w !== null && !w.frozen && !w.cancelled && w.status !== "NEW"
   const canCancelScenario = isManager && w !== null && !w.frozen && !w.cancelled
 
   // ── Header edit ────────────────────────────────────────────────────────────
@@ -747,6 +786,9 @@ export default function WorkshopDetailPage() {
                 className="text-xs text-navy hover:underline">+ הוספת תרחיש</button>
             )}
           </div>
+          {canEditScenarios && w.status === "NEW" && !w.frozen && !w.cancelled && (
+            <p className="text-xs text-gray-400 mb-3 italic">ניתן להוסיף תרחישים לאחר ביצוע איתור צרכים</p>
+          )}
 
           {/* Author — section-level */}
           <div className="flex items-center gap-3 mb-3 text-sm">
@@ -861,6 +903,7 @@ export default function WorkshopDetailPage() {
                       canCheckPptLetter={canCheckPptLetter && !w.cancelled}
                       facilitators={facilitators}
                       workshopId={id}
+                      workshopDate={w.date}
                       onUpdate={updateRoom}
                     />
                   ))}
