@@ -65,17 +65,15 @@ function FractionBadge({ filled, total, href }: { filled: number; total: number;
   return inner
 }
 
-function FeedbackBadge({ missing, href }: { missing: number; href?: string }) {
+function FeedbackBadge({ missing, castingTotal, href }: { missing: number; castingTotal: number; href?: string }) {
+  if (castingTotal === 0) return <span className="text-gray-300 text-xs">—</span>
   if (missing === 0) return <span className="text-brand-green font-bold">✓</span>
-  if (missing > 0) {
-    const inner = (
-      <span className="inline-block px-1.5 py-0.5 rounded bg-amber-100 text-amber-700 text-xs font-semibold">
-        ⚠ {missing}
-      </span>
-    )
-    return href ? <Link href={href}>{inner}</Link> : inner
-  }
-  return <span className="text-gray-300 text-xs">—</span>
+  const inner = (
+    <span className="inline-block px-1.5 py-0.5 rounded bg-amber-100 text-amber-700 text-xs font-semibold">
+      ⚠ {missing}
+    </span>
+  )
+  return href ? <Link href={href}>{inner}</Link> : inner
 }
 
 // ── Main component ─────────────────────────────────────────────────────────────
@@ -294,7 +292,7 @@ export default function SadnaotPage() {
 
                     {/* Feedback */}
                     <td className="px-3 py-2.5 text-center">
-                      <FeedbackBadge missing={w.feedbackMissing} href={`/sadnaot/${w.id}#feedback`} />
+                      <FeedbackBadge missing={w.feedbackMissing} castingTotal={w.castingTotal} href={`/sadnaot/${w.id}#feedback`} />
                     </td>
                   </tr>
                 ))}
