@@ -1,0 +1,60 @@
+﻿import { NextRequest, NextResponse } from "next/server"
+import { prisma } from "@/lib/prisma"
+import { getServerSession } from "next-auth"
+import { authOptions } from "@/lib/auth"
+
+const FROZEN_STATUSES = ["CLOSING", "CLOSED", "CANCELLED"]
+
+export async function PATCH(
+  req: NextRequest,
+  { params }: { params: Promise<{ id: string; sid: string }> }
+) {
+  const session = await getServerSession(authOptions)
+  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+  const roles = session.user.roles
+  const isManager = roles.includes("MANAGER")
+  const isTech = roles.includes("TECH")
+  if (!isManager && !isTech)
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 })
+
+  const { id, sid } = await params
+  const w = await prisma.workshop.findUnique({ where: { id }, select: { status: true } })
+  if (!w) return NextResponse.json({ error: "Not found" }, { status: 404 })
+  if (FROZEN_STATUSES.includes(w.status))
+    return NextResponse.json({ error: "הסדנה נעולה לעריכה" }, { status: 403 })
+
+  const sc = await prisma.scenario.findUnique({ where: { id: sid } })
+  if (!sc || sc.workshopId !== id) return NextResponse.json({ error: "Not found" }, { status: 404 })
+
+  const { topicId, name, actorRequirements, written } = await req.json()
+  const data: Record<string, unknown> = {}
+  if (topicId !== undefined) data.topicId = topicId
+  if (name !== undefined) data.name = name?.trim() || null
+  if (actorRequirements !== undefined) data.actorRequirements = actorRequirements?.trim() || null
+  if (written !== undefined) data.written = written
+
+  const updated = await prisma.scenario.update({ where: { id: sid }, data, include: { topic: { select: { id: true, name: true } } } })
+  return NextResponse.json({ id: updated.id, name: updated.name, topicId: updated.topicId, topicName: updated.topic.name, actorRequirements: updated.actorRequirements, written: updated.written, cancelled: updated.cancelled, orderIndex: updated.orderIndex })
+}
+
+export async function DELETE(
+  _req: NextRequest,
+  { params }: { params: Promise<{ id: string; sid: string }> }
+) {
+  const session = await getServerSession(authOptions)
+  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+  if (!session.user.roles.includes("MANAGER"))
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 })
+
+  const { id, sid } = await params
+  const w = await prisma.workshop.findUnique({ where: { id }, select: { status: true } })
+  if (!w) return NextResponse.json({ error: "Not found" }, { status: 404 })
+  if (FROZEN_STATUSES.includes(w.status))
+    return NextResponse.json({ error: "הסדנה נעולה לעריכה" }, { status: 403 })
+
+  const sc = await prisma.scenario.findUnique({ where: { id: sid } })
+  if (!sc || sc.workshopId !== id) return NextResponse.json({ error: "Not found" }, { status: 404 })
+
+  await prisma.scenario.update({ where: { id: sid }, data: { cancelled: true } })
+  return NextResponse.json({ ok: true })
+}
