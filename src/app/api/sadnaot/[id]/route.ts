@@ -5,6 +5,19 @@ import { authOptions } from "@/lib/auth"
 
 const FROZEN_STATUSES = ["CLOSING", "CLOSED", "CANCELLED"]
 
+function mapRoom(r: { id: string; roomNumber: number; facilitatorId: string | null; facilitator?: { name: string } | null; facilitatorTentative: boolean; pptReceived: boolean; letterReceived: boolean; cancelled: boolean }) {
+  return {
+    id: r.id,
+    roomNumber: r.roomNumber,
+    facilitatorId: r.facilitatorId,
+    facilitatorName: r.facilitator?.name ?? null,
+    facilitatorTentative: r.facilitatorTentative,
+    pptReceived: r.pptReceived,
+    letterReceived: r.letterReceived,
+    cancelled: r.cancelled,
+  }
+}
+
 export async function GET(
   _req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -58,16 +71,7 @@ export async function GET(
     orgShiyuchPedagogi: w.participantGroup.organization.shiyuchPedagogi,
     authorId: w.author?.id ?? null,
     authorName: w.author?.name ?? null,
-    rooms: w.rooms.map((r) => ({
-      id: r.id,
-      roomNumber: r.roomNumber,
-      facilitatorId: r.facilitatorId,
-      facilitatorName: r.facilitator?.name ?? null,
-      facilitatorTentative: r.facilitatorTentative,
-      pptReceived: r.pptReceived,
-      letterReceived: r.letterReceived,
-      cancelled: r.cancelled,
-    })),
+    rooms: w.rooms.map(mapRoom),
     scenarios: w.scenarios.map((s) => ({
       id: s.id,
       name: s.name,
@@ -95,28 +99,21 @@ export async function PATCH(
   if (!w) return NextResponse.json({ error: "Not found" }, { status: 404 })
 
   const body = await req.json()
-
-  // feedbackFormAdded can always be toggled (Manager + handled below for Tech)
-  // All other fields freeze at CLOSING+
   const isFrozen = FROZEN_STATUSES.includes(w.status)
-
-  if (body.feedbackFormAdded !== undefined) {
-    // allow Tech too for feedbackFormAdded — handled in dedicated body key
-  }
 
   const {
     date, startTime, endTime, locationType, locationName,
-    authorId, directorRequested, directorNotes,
+    numRooms, authorId, directorRequested, directorNotes,
     castingMaleNeeded, castingFemaleNeeded, castingNotes,
     tentative, notes, status, cancelled, postponedWarning,
     feedbackFormAdded,
   } = body
 
-  // Status advance: only Manager; validate progression
+  // Status advance: validate progression
   if (status !== undefined) {
     const allowed: Record<string, string[]> = {
-      NEW:      ["SPECIFIED"],
-      SPECIFIED:["NEW"],          // allow undo for now
+      NEW:       ["SPECIFIED"],
+      SPECIFIED: ["NEW"],
     }
     if (!allowed[w.status]?.includes(status))
       return NextResponse.json({ error: "מעבר סטטוס לא חוקי" }, { status: 400 })
@@ -134,6 +131,7 @@ export async function PATCH(
     if (endTime !== undefined) data.endTime = endTime
     if (locationType !== undefined) data.locationType = locationType
     if (locationName !== undefined) data.locationName = locationName?.trim() || null
+    if (numRooms !== undefined) data.numRooms = Number(numRooms)
     if (authorId !== undefined) data.authorId = authorId || null
     if (directorRequested !== undefined) data.directorRequested = directorRequested
     if (directorNotes !== undefined) data.directorNotes = directorNotes?.trim() || null
@@ -145,5 +143,58 @@ export async function PATCH(
   }
 
   const updated = await prisma.workshop.update({ where: { id }, data })
-  return NextResponse.json({ status: updated.status, cancelled: updated.cancelled })
+
+  // Sync rooms when numRooms changed
+  let updatedRooms: ReturnType<typeof mapRoom>[] | undefined
+  if (numRooms !== undefined && !isFrozen) {
+    const newNum = Number(numRooms)
+    const allRooms = await prisma.room.findMany({
+      where: { workshopId: id },
+      orderBy: { roomNumber: "asc" },
+      include: { facilitator: { select: { id: true, name: true } } },
+    })
+    const activeRooms = allRooms.filter((r) => !r.cancelled)
+    const cancelledRooms = allRooms.filter((r) => r.cancelled)
+
+    if (newNum > activeRooms.length) {
+      const needed = newNum - activeRooms.length
+      // Reinstate cancelled rooms first (sorted by roomNumber)
+      const toReinstate = cancelledRooms.slice(0, needed)
+      for (const r of toReinstate) {
+        await prisma.room.update({ where: { id: r.id }, data: { cancelled: false } })
+      }
+      // Create brand-new rooms if still needed
+      const stillNeeded = needed - toReinstate.length
+      const maxNum = allRooms.length > 0 ? Math.max(...allRooms.map((r) => r.roomNumber)) : 0
+      if (stillNeeded > 0) {
+        await prisma.room.createMany({
+          data: Array.from({ length: stillNeeded }, (_, i) => ({
+            workshopId: id,
+            roomNumber: maxNum + i + 1,
+          })),
+        })
+      }
+    } else if (newNum < activeRooms.length) {
+      // Cancel the highest-numbered active rooms
+      const toCancel = activeRooms.slice(newNum)
+      for (const r of toCancel) {
+        await prisma.room.update({ where: { id: r.id }, data: { cancelled: true } })
+      }
+    }
+
+    // Return fresh rooms list
+    const freshRooms = await prisma.room.findMany({
+      where: { workshopId: id },
+      orderBy: { roomNumber: "asc" },
+      include: { facilitator: { select: { id: true, name: true } } },
+    })
+    updatedRooms = freshRooms.map(mapRoom)
+  }
+
+  return NextResponse.json({
+    status: updated.status,
+    cancelled: updated.cancelled,
+    numRooms: updated.numRooms,
+    ...(updatedRooms !== undefined && { rooms: updatedRooms }),
+  })
 }

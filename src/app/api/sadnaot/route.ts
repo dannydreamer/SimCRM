@@ -122,12 +122,13 @@ export async function POST(req: NextRequest) {
     }
   }
 
+  const n = Number(numRooms)
   const workshop = await prisma.workshop.create({
     data: {
       participantGroupId,
       date:              new Date(date),
       startTime, endTime,
-      numRooms:          Number(numRooms),
+      numRooms:          n,
       locationType:      locationType ?? "CENTER",
       locationName:      locationName?.trim() || null,
       authorId:          authorId || null,
@@ -136,6 +137,14 @@ export async function POST(req: NextRequest) {
       notes:             notes?.trim() || null,
       createdById:       session.user.id,
     },
+  })
+
+  // Auto-create room slots
+  await prisma.room.createMany({
+    data: Array.from({ length: n }, (_, i) => ({
+      workshopId: workshop.id,
+      roomNumber: i + 1,
+    })),
   })
 
   return NextResponse.json({ id: workshop.id }, { status: 201 })

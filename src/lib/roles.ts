@@ -6,8 +6,8 @@ export const ROLE_LABELS: Record<string, string> = {
   FACILITATOR: "מתחקר/ת",
 }
 
-// Roles that can log into the system (excludes FACILITATOR — slotted in rooms only)
-export const LOGIN_ROLES = ["MANAGER", "TECH", "CASTER", "FEEDBACK_DOCUMENTER"] as const
+// Roles that can log into the system
+export const LOGIN_ROLES = ["MANAGER", "TECH", "CASTER", "FEEDBACK_DOCUMENTER", "FACILITATOR"] as const
 
 export const NAV_ITEMS = [
   {

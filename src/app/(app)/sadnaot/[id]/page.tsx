@@ -1,4 +1,4 @@
-﻿"use client"
+"use client"
 
 import { useEffect, useState, useCallback } from "react"
 import { useParams } from "next/navigation"
@@ -62,6 +62,18 @@ interface Workshop {
 interface Topic { id: string; name: string; active: boolean }
 interface Facilitator { id: string; name: string }
 
+interface HeaderDraft {
+  date: string
+  startTime: string
+  endTime: string
+  numRooms: number
+  locationType: string
+  locationName: string
+  tentative: boolean
+  directorRequested: boolean
+  directorNotes: string
+}
+
 // ─── Constants ────────────────────────────────────────────────────────────────
 
 const STATUS_LABELS: Record<string, string> = {
@@ -94,6 +106,18 @@ const SHIYUCH_LABELS: Record<string, string> = {
   ACHER: "אחר",
 }
 
+function makeTimes() {
+  const times: string[] = []
+  for (let h = 6; h <= 22; h++) {
+    for (const m of [0, 15, 30, 45]) {
+      if (h === 22 && m > 0) break
+      times.push(`${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`)
+    }
+  }
+  return times
+}
+const TIMES = makeTimes()
+
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
 function fmtDate(iso: string) {
@@ -101,13 +125,17 @@ function fmtDate(iso: string) {
   return d.toLocaleDateString("he-IL", { day: "2-digit", month: "2-digit", year: "numeric" })
 }
 
-function Check({ on, className = "" }: { on: boolean; className?: string }) {
-  return on
-    ? <span className={`text-green-600 font-bold ${className}`}>✓</span>
-    : <span className={`text-gray-300 ${className}`}>—</span>
+function toDateInput(iso: string) {
+  return new Date(iso).toISOString().slice(0, 10)
 }
 
-// ─── Sub-components ───────────────────────────────────────────────────────────
+function Check({ on }: { on: boolean }) {
+  return on
+    ? <span className="text-green-600 font-bold">✓</span>
+    : <span className="text-gray-300">—</span>
+}
+
+// ─── ScenarioRow ──────────────────────────────────────────────────────────────
 
 function ScenarioRow({
   s, workshopId, canEdit, canCancel, topics, onUpdate, onCancel,
@@ -190,20 +218,16 @@ function ScenarioRow({
           <td className="py-2 px-3 text-center">
             {canEdit && !s.cancelled ? (
               <button onClick={toggleWritten} title={s.written ? "סמן כלא כתוב" : "סמן ככתוב"}
-                className="text-lg leading-none">
-                {s.written ? "✓" : "○"}
-              </button>
+                className="text-lg leading-none">{s.written ? "✓" : "○"}</button>
             ) : <Check on={s.written} />}
           </td>
           <td className="py-2 px-3">
             <div className="flex gap-2">
               {canEdit && !s.cancelled && (
-                <button onClick={() => setEditing(true)}
-                  className="text-xs text-navy hover:underline">עריכה</button>
+                <button onClick={() => setEditing(true)} className="text-xs text-navy hover:underline">עריכה</button>
               )}
               {canCancel && !s.cancelled && (
-                <button onClick={() => onCancel(s.id)}
-                  className="text-xs text-red-500 hover:underline">ביטול</button>
+                <button onClick={() => onCancel(s.id)} className="text-xs text-red-500 hover:underline">ביטול</button>
               )}
             </div>
           </td>
@@ -213,17 +237,17 @@ function ScenarioRow({
   )
 }
 
+// ─── RoomRow ──────────────────────────────────────────────────────────────────
+
 function RoomRow({
-  r, canAssign, canCheckPptLetter, canCancel, facilitators, workshopId, onUpdate, onCancel,
+  r, canAssign, canCheckPptLetter, facilitators, workshopId, onUpdate,
 }: {
   r: Room
   canAssign: boolean
   canCheckPptLetter: boolean
-  canCancel: boolean
   facilitators: Facilitator[]
   workshopId: string
   onUpdate: (rid: string, data: Partial<Room>) => void
-  onCancel: (rid: string) => void
 }) {
   async function patchRoom(data: Partial<Room>) {
     const res = await fetch(`/api/sadnaot/${workshopId}/rooms/${r.id}`, {
@@ -237,11 +261,13 @@ function RoomRow({
     }
   }
 
-  const rowClass = r.cancelled ? "opacity-40" : ""
-
   return (
-    <tr className={`border-b border-gray-100 text-sm ${rowClass}`}>
-      <td className="py-2 px-3 font-medium">חדר {r.roomNumber}</td>
+    <tr className={`border-b border-gray-100 text-sm ${r.cancelled ? "opacity-40" : ""}`}>
+      <td className="py-2 px-3 font-medium">
+        {r.cancelled
+          ? <span className="line-through text-gray-400">חדר {r.roomNumber}</span>
+          : `חדר ${r.roomNumber}`}
+      </td>
       <td className="py-2 px-3">
         {canAssign && !r.cancelled ? (
           <select
@@ -257,7 +283,9 @@ function RoomRow({
         ) : (
           <span className={r.facilitatorId ? "" : "text-gray-300"}>
             {r.facilitatorName ?? "—"}
-            {r.facilitatorTentative && <span className="mr-1 px-1 py-0.5 rounded bg-amber-100 text-amber-700 text-xs">?</span>}
+            {r.facilitatorTentative && (
+              <span className="mr-1 px-1 py-0.5 rounded bg-amber-100 text-amber-700 text-xs">?</span>
+            )}
           </span>
         )}
       </td>
@@ -275,12 +303,6 @@ function RoomRow({
             className="w-4 h-4 accent-navy cursor-pointer" />
         ) : <Check on={r.letterReceived} />}
       </td>
-      <td className="py-2 px-3">
-        {canCancel && !r.cancelled && (
-          <button onClick={() => onCancel(r.id)} className="text-xs text-red-500 hover:underline">ביטול</button>
-        )}
-        {r.cancelled && <span className="text-xs text-gray-400 line-through">מבוטל</span>}
-      </td>
     </tr>
   )
 }
@@ -297,7 +319,11 @@ export default function WorkshopDetailPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
-  // Edit state for notes
+  // Header inline edit
+  const [headerDraft, setHeaderDraft] = useState<HeaderDraft | null>(null)
+  const [headerSaving, setHeaderSaving] = useState(false)
+
+  // Notes edit
   const [notesEdit, setNotesEdit] = useState<string | null>(null)
   const [notesSaving, setNotesSaving] = useState(false)
 
@@ -308,7 +334,10 @@ export default function WorkshopDetailPage() {
   const [newScenarioReq, setNewScenarioReq] = useState("")
   const [addingScenario, setAddingScenario] = useState(false)
 
-  // Copy feedback string
+  // Author saving
+  const [authorSaving, setAuthorSaving] = useState(false)
+
+  // Copy
   const [copied, setCopied] = useState(false)
 
   const roles = session?.user?.roles ?? []
@@ -334,14 +363,98 @@ export default function WorkshopDetailPage() {
 
   useEffect(() => { load() }, [load])
 
-  // Permissions
   const canEdit = isManager && w !== null && !w.frozen && !w.cancelled
-  const canAddRoom = canEdit
-  const canCancelRoom = canEdit
   const canAddScenario = canEditScenarios && w !== null && !w.frozen && !w.cancelled
   const canCancelScenario = isManager && w !== null && !w.frozen && !w.cancelled
 
-  // Scenario CRUD
+  // ── Header edit ────────────────────────────────────────────────────────────
+
+  function openHeaderEdit() {
+    if (!w) return
+    setHeaderDraft({
+      date: toDateInput(w.date),
+      startTime: w.startTime,
+      endTime: w.endTime,
+      numRooms: w.numRooms,
+      locationType: w.locationType,
+      locationName: w.locationName ?? "",
+      tentative: w.tentative,
+      directorRequested: w.directorRequested,
+      directorNotes: w.directorNotes ?? "",
+    })
+  }
+
+  async function saveHeader() {
+    if (!headerDraft || !w) return
+
+    const activeRoomCount = w.rooms.filter((r) => !r.cancelled).length
+    if (headerDraft.numRooms < activeRoomCount) {
+      const roomsToCancel = w.rooms
+        .filter((r) => !r.cancelled)
+        .slice(headerDraft.numRooms)
+        .map((r) => `חדר ${r.roomNumber}`)
+        .join(", ")
+      const ok = confirm(`הקטנת מספר החדרים תבטל את: ${roomsToCancel}.\nהאם להמשיך?`)
+      if (!ok) return
+    }
+
+    setHeaderSaving(true)
+    const res = await fetch(`/api/sadnaot/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        date: headerDraft.date,
+        startTime: headerDraft.startTime,
+        endTime: headerDraft.endTime,
+        numRooms: headerDraft.numRooms,
+        locationType: headerDraft.locationType,
+        locationName: headerDraft.locationName,
+        tentative: headerDraft.tentative,
+        directorRequested: headerDraft.directorRequested,
+        directorNotes: headerDraft.directorNotes,
+      }),
+    })
+    if (res.ok) {
+      const updated = await res.json()
+      setW((prev) => {
+        if (!prev) return prev
+        return {
+          ...prev,
+          date: new Date(headerDraft.date).toISOString(),
+          startTime: headerDraft.startTime,
+          endTime: headerDraft.endTime,
+          numRooms: updated.numRooms ?? headerDraft.numRooms,
+          locationType: headerDraft.locationType,
+          locationName: headerDraft.locationName || null,
+          tentative: headerDraft.tentative,
+          directorRequested: headerDraft.directorRequested,
+          directorNotes: headerDraft.directorNotes || null,
+          rooms: updated.rooms ?? prev.rooms,
+        }
+      })
+      setHeaderDraft(null)
+    }
+    setHeaderSaving(false)
+  }
+
+  // ── Author ─────────────────────────────────────────────────────────────────
+
+  async function saveAuthor(authorId: string) {
+    setAuthorSaving(true)
+    const res = await fetch(`/api/sadnaot/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ authorId }),
+    })
+    if (res.ok) {
+      const fac = facilitators.find((f) => f.id === authorId)
+      setW((prev) => prev ? { ...prev, authorId: authorId || null, authorName: fac?.name ?? null } : prev)
+    }
+    setAuthorSaving(false)
+  }
+
+  // ── Scenario CRUD ──────────────────────────────────────────────────────────
+
   function updateScenario(sid: string, data: Partial<Scenario>) {
     setW((prev) => prev ? { ...prev, scenarios: prev.scenarios.map((s) => s.id === sid ? { ...s, ...data } : s) } : prev)
   }
@@ -371,26 +484,14 @@ export default function WorkshopDetailPage() {
     setAddingScenario(false)
   }
 
-  // Room CRUD
+  // ── Room helpers ───────────────────────────────────────────────────────────
+
   function updateRoom(rid: string, data: Partial<Room>) {
     setW((prev) => prev ? { ...prev, rooms: prev.rooms.map((r) => r.id === rid ? { ...r, ...data } : r) } : prev)
   }
 
-  async function cancelRoom(rid: string) {
-    if (!confirm("לבטל חדר זה?")) return
-    const res = await fetch(`/api/sadnaot/${id}/rooms/${rid}`, { method: "DELETE" })
-    if (res.ok) updateRoom(rid, { cancelled: true })
-  }
+  // ── Workshop-level actions ─────────────────────────────────────────────────
 
-  async function addRoom() {
-    const res = await fetch(`/api/sadnaot/${id}/rooms`, { method: "POST" })
-    if (res.ok) {
-      const r = await res.json()
-      setW((prev) => prev ? { ...prev, rooms: [...prev.rooms, r] } : prev)
-    }
-  }
-
-  // Workshop-level actions
   async function patchWorkshop(data: Record<string, unknown>) {
     const res = await fetch(`/api/sadnaot/${id}`, {
       method: "PATCH",
@@ -402,14 +503,6 @@ export default function WorkshopDetailPage() {
       setW((prev) => prev ? { ...prev, ...updated } : prev)
     }
     return res
-  }
-
-  async function advanceStatus() {
-    if (!w) return
-    const next = w.status === "NEW" ? "SPECIFIED" : null
-    if (!next) return
-    await patchWorkshop({ status: next })
-    setW((prev) => prev ? { ...prev, status: next } : prev)
   }
 
   async function cancelWorkshop() {
@@ -437,12 +530,11 @@ export default function WorkshopDetailPage() {
     if (res.ok) setW((prev) => prev ? { ...prev, feedbackFormAdded: !prev.feedbackFormAdded } : prev)
   }
 
-  // Auto-generated form string
   function buildFormString() {
     if (!w) return ""
     const date = fmtDate(w.date)
-    const topics = w.scenarios.filter((s) => !s.cancelled).map((s) => s.topicName)
-    const uniqueTopics = [...new Set(topics)]
+    const topicNames = w.scenarios.filter((s) => !s.cancelled).map((s) => s.topicName)
+    const uniqueTopics = [...new Set(topicNames)]
     const shiyuch = SHIYUCH_LABELS[w.orgShiyuchPedagogi] ?? w.orgShiyuchPedagogi
     return [date, w.groupName, shiyuch, uniqueTopics.join(", ")].filter(Boolean).join(" - ")
   }
@@ -453,13 +545,12 @@ export default function WorkshopDetailPage() {
     setTimeout(() => setCopied(false), 2000)
   }
 
-  // ── Render ──────────────────────────────────────────────────────────────────
+  // ── Render ─────────────────────────────────────────────────────────────────
 
   if (loading) return <div className="p-8 text-sm text-gray-400">טוען...</div>
   if (error || !w) return <div className="p-8 text-sm text-red-500">{error ?? "שגיאה"}</div>
 
-  const activeScenarios = w.scenarios.filter((s) => !s.cancelled)
-  const activeRooms = w.rooms.filter((r) => !r.cancelled)
+  const hd = headerDraft
 
   return (
     <div className="flex flex-col h-full overflow-auto">
@@ -472,14 +563,12 @@ export default function WorkshopDetailPage() {
 
       <div className="px-8 pb-10 flex flex-col gap-6 max-w-4xl w-full">
 
-        {/* Postponement banner */}
+        {/* Banners */}
         {w.postponedWarning && (
           <div className="bg-amber-50 border border-amber-300 rounded-lg px-4 py-3 text-sm text-amber-800 font-medium">
             ⚠️ סדנה זו נדחתה — יש לעדכן תאריך חדש
           </div>
         )}
-
-        {/* Cancelled banner */}
         {w.cancelled && (
           <div className="bg-red-50 border border-red-300 rounded-lg px-4 py-3 text-sm text-red-700 font-medium">
             סדנה זו בוטלה
@@ -488,68 +577,160 @@ export default function WorkshopDetailPage() {
 
         {/* Header card */}
         <div className="bg-white border border-gray-200 rounded-xl p-6 shadow-sm">
-          <div className="flex items-start justify-between gap-4 flex-wrap">
+          {/* Title row */}
+          <div className="flex items-start justify-between gap-4 flex-wrap mb-4">
             <div>
               <h1 className="text-lg font-bold text-gray-900">
                 {w.groupName}
-                {w.tentative && (
+                {(hd ? hd.tentative : w.tentative) && (
                   <span className="mr-2 px-1.5 py-0.5 rounded bg-amber-100 text-amber-700 text-xs font-semibold leading-none">?</span>
                 )}
               </h1>
-              <Link href={`/irgunnim/${w.orgId}`} className="text-sm text-navy hover:underline">
-                {w.orgName}
-              </Link>
+              <Link href={`/irgunnim/${w.orgId}`} className="text-sm text-navy hover:underline">{w.orgName}</Link>
             </div>
-            <span className={`px-3 py-1 rounded-full text-xs font-semibold ${STATUS_COLORS[w.status]}`}>
-              {STATUS_LABELS[w.status]}
-            </span>
-          </div>
-
-          <div className="mt-4 grid grid-cols-2 gap-x-8 gap-y-2 text-sm">
-            <div><span className="text-gray-400">תאריך:</span> <span className="font-medium">{fmtDate(w.date)}</span></div>
-            <div><span className="text-gray-400">שעות:</span> <span className="font-medium">{w.startTime} — {w.endTime}</span></div>
-            <div>
-              <span className="text-gray-400">מיקום:</span>{" "}
-              <span className="font-medium">
-                {w.locationType === "CENTER" ? "מרכז" : `חיצוני${w.locationName ? ` — ${w.locationName}` : ""}`}
+            <div className="flex items-center gap-2">
+              <span className={`px-3 py-1 rounded-full text-xs font-semibold ${STATUS_COLORS[w.status]}`}>
+                {STATUS_LABELS[w.status]}
               </span>
+              {canEdit && !hd && (
+                <button onClick={openHeaderEdit}
+                  className="text-xs text-navy hover:underline border border-gray-200 rounded px-2 py-1">
+                  עריכה
+                </button>
+              )}
             </div>
-            <div><span className="text-gray-400">חדרים:</span> <span className="font-medium">{w.numRooms}</span></div>
-            {w.authorName && (
-              <div><span className="text-gray-400">מתחקר/ת:</span> <span className="font-medium">{w.authorName}</span></div>
-            )}
-            {w.directorRequested && (
-              <div>
-                <span className="px-2 py-0.5 rounded-full bg-purple-100 text-purple-700 text-xs font-medium">במאי/ת נדרש/ת</span>
-                {w.directorNotes && <span className="text-gray-500 mr-2 text-xs">{w.directorNotes}</span>}
-              </div>
-            )}
-            {(w.castingMaleNeeded || w.castingFemaleNeeded) && (
-              <div className="col-span-2 text-gray-500">
-                ליהוק: {w.castingMaleNeeded ? `${w.castingMaleNeeded} גברים` : ""}{w.castingMaleNeeded && w.castingFemaleNeeded ? ", " : ""}{w.castingFemaleNeeded ? `${w.castingFemaleNeeded} נשים` : ""}
-                {w.castingNotes && <span className="mr-2">— {w.castingNotes}</span>}
-              </div>
-            )}
           </div>
 
-          {/* Manager actions */}
-          {isManager && (
+          {/* Fields */}
+          {hd ? (
+            <div className="flex flex-col gap-3">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs text-gray-500 mb-1">תאריך</label>
+                  <input type="date" value={hd.date}
+                    onChange={(e) => setHeaderDraft({ ...hd, date: e.target.value })}
+                    className="border border-gray-300 rounded px-2 py-1.5 text-sm w-full" />
+                </div>
+                <div>
+                  <label className="block text-xs text-gray-500 mb-1">מספר חדרים</label>
+                  <input type="number" min={1} value={hd.numRooms}
+                    onChange={(e) => setHeaderDraft({ ...hd, numRooms: Number(e.target.value) })}
+                    className="border border-gray-300 rounded px-2 py-1.5 text-sm w-full" />
+                </div>
+                <div>
+                  <label className="block text-xs text-gray-500 mb-1">שעת התחלה</label>
+                  <select value={hd.startTime}
+                    onChange={(e) => setHeaderDraft({ ...hd, startTime: e.target.value })}
+                    className="border border-gray-300 rounded px-2 py-1.5 text-sm w-full">
+                    {TIMES.map((t) => <option key={t} value={t}>{t}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs text-gray-500 mb-1">שעת סיום</label>
+                  <select value={hd.endTime}
+                    onChange={(e) => setHeaderDraft({ ...hd, endTime: e.target.value })}
+                    className="border border-gray-300 rounded px-2 py-1.5 text-sm w-full">
+                    {TIMES.filter((t) => t > hd.startTime).map((t) => <option key={t} value={t}>{t}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs text-gray-500 mb-1">מיקום</label>
+                  <select value={hd.locationType}
+                    onChange={(e) => setHeaderDraft({ ...hd, locationType: e.target.value })}
+                    className="border border-gray-300 rounded px-2 py-1.5 text-sm w-full">
+                    <option value="CENTER">מרכז</option>
+                    <option value="EXTERNAL">חיצוני</option>
+                  </select>
+                </div>
+                {hd.locationType === "EXTERNAL" && (
+                  <div>
+                    <label className="block text-xs text-gray-500 mb-1">כתובת</label>
+                    <input value={hd.locationName}
+                      onChange={(e) => setHeaderDraft({ ...hd, locationName: e.target.value })}
+                      className="border border-gray-300 rounded px-2 py-1.5 text-sm w-full" />
+                  </div>
+                )}
+              </div>
+              <div className="flex flex-wrap gap-4">
+                <label className="flex items-center gap-2 text-sm cursor-pointer">
+                  <input type="checkbox" checked={hd.tentative}
+                    onChange={(e) => setHeaderDraft({ ...hd, tentative: e.target.checked })}
+                    className="w-4 h-4 accent-navy" />
+                  טנטטיב (?)
+                </label>
+                <label className="flex items-center gap-2 text-sm cursor-pointer">
+                  <input type="checkbox" checked={hd.directorRequested}
+                    onChange={(e) => setHeaderDraft({ ...hd, directorRequested: e.target.checked })}
+                    className="w-4 h-4 accent-navy" />
+                  במאי/ת נדרש/ת
+                </label>
+              </div>
+              {hd.directorRequested && (
+                <div>
+                  <label className="block text-xs text-gray-500 mb-1">הערות לבמאי/ת</label>
+                  <input value={hd.directorNotes}
+                    onChange={(e) => setHeaderDraft({ ...hd, directorNotes: e.target.value })}
+                    className="border border-gray-300 rounded px-2 py-1.5 text-sm w-full" />
+                </div>
+              )}
+              <div className="flex gap-2 pt-1">
+                <button onClick={saveHeader} disabled={headerSaving}
+                  className="px-3 py-1.5 bg-navy text-white text-sm rounded disabled:opacity-50">שמור</button>
+                <button onClick={() => setHeaderDraft(null)}
+                  className="px-3 py-1.5 border border-gray-300 text-sm rounded">ביטול</button>
+              </div>
+            </div>
+          ) : (
+            <div className="grid grid-cols-2 gap-x-8 gap-y-2 text-sm">
+              <div><span className="text-gray-400">תאריך:</span> <span className="font-medium">{fmtDate(w.date)}</span></div>
+              <div><span className="text-gray-400">שעות:</span> <span className="font-medium">{w.startTime} — {w.endTime}</span></div>
+              <div>
+                <span className="text-gray-400">מיקום:</span>{" "}
+                <span className="font-medium">
+                  {w.locationType === "CENTER" ? "מרכז" : `חיצוני${w.locationName ? ` — ${w.locationName}` : ""}`}
+                </span>
+              </div>
+              <div><span className="text-gray-400">חדרים:</span> <span className="font-medium">{w.numRooms}</span></div>
+              <div className="col-span-2">
+                {w.directorRequested ? (
+                  <span>
+                    <span className="px-2 py-0.5 rounded-full bg-purple-100 text-purple-700 text-xs font-medium">במאי/ת נדרש/ת</span>
+                    {w.directorNotes && <span className="text-gray-500 mr-2 text-xs">{w.directorNotes}</span>}
+                  </span>
+                ) : (
+                  <span className="text-gray-300 text-xs">אין דרישת במאי/ת</span>
+                )}
+              </div>
+              {(w.castingMaleNeeded || w.castingFemaleNeeded) && (
+                <div className="col-span-2 text-gray-500">
+                  ליהוק:{" "}
+                  {w.castingMaleNeeded ? `${w.castingMaleNeeded} גברים` : ""}
+                  {w.castingMaleNeeded && w.castingFemaleNeeded ? ", " : ""}
+                  {w.castingFemaleNeeded ? `${w.castingFemaleNeeded} נשים` : ""}
+                  {w.castingNotes && <span className="mr-2">— {w.castingNotes}</span>}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Manager status actions */}
+          {isManager && !hd && (
             <div className="mt-5 pt-4 border-t border-gray-100 flex items-center gap-3 flex-wrap">
               {w.status === "NEW" && !w.cancelled && (
-                <button onClick={advanceStatus}
+                <button onClick={() => patchWorkshop({ status: "SPECIFIED" })}
                   className="px-4 py-1.5 bg-navy text-white text-sm rounded-lg hover:bg-navy/90 transition-colors">
                   סמן: בוצע איתור צרכים
                 </button>
               )}
               {w.status === "SPECIFIED" && !w.cancelled && (
                 <button onClick={() => patchWorkshop({ status: "NEW" })}
-                  className="px-4 py-1.5 border border-gray-300 text-sm rounded-lg hover:bg-gray-50 transition-colors text-gray-600">
+                  className="px-4 py-1.5 border border-gray-300 text-sm rounded-lg hover:bg-gray-50 text-gray-600">
                   חזור לסדנה חדשה
                 </button>
               )}
               {!w.cancelled && !w.frozen && (
                 <button onClick={cancelWorkshop}
-                  className="px-4 py-1.5 text-sm rounded-lg border border-red-200 text-red-600 hover:bg-red-50 transition-colors">
+                  className="px-4 py-1.5 text-sm rounded-lg border border-red-200 text-red-600 hover:bg-red-50">
                   ביטול סדנה
                 </button>
               )}
@@ -559,11 +740,33 @@ export default function WorkshopDetailPage() {
 
         {/* Scenarios */}
         <section>
-          <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center justify-between mb-2">
             <h2 className="text-sm font-semibold text-gray-700 uppercase tracking-wide">תרחישים</h2>
             {canAddScenario && (
               <button onClick={() => setShowAddScenario(true)}
                 className="text-xs text-navy hover:underline">+ הוספת תרחיש</button>
+            )}
+          </div>
+
+          {/* Author — section-level */}
+          <div className="flex items-center gap-3 mb-3 text-sm">
+            <span className="text-gray-400 shrink-0">כותב/ת התרחיש:</span>
+            {canEdit ? (
+              <select
+                value={w.authorId ?? ""}
+                onChange={(e) => saveAuthor(e.target.value)}
+                disabled={authorSaving}
+                className="border border-gray-200 rounded px-2 py-1 text-sm"
+              >
+                <option value="">— לא הוגדר —</option>
+                {facilitators.map((f) => (
+                  <option key={f.id} value={f.id}>{f.name}</option>
+                ))}
+              </select>
+            ) : (
+              <span className={w.authorName ? "font-medium" : "text-gray-300"}>
+                {w.authorName ?? "—"}
+              </span>
             )}
           </div>
 
@@ -635,14 +838,7 @@ export default function WorkshopDetailPage() {
 
         {/* Rooms */}
         <section>
-          <div className="flex items-center justify-between mb-3">
-            <h2 className="text-sm font-semibold text-gray-700 uppercase tracking-wide">חדרים</h2>
-            {canAddRoom && (
-              <button onClick={addRoom}
-                className="text-xs text-navy hover:underline">+ הוספת חדר</button>
-            )}
-          </div>
-
+          <h2 className="text-sm font-semibold text-gray-700 uppercase tracking-wide mb-3">חדרים</h2>
           {w.rooms.length === 0 ? (
             <p className="text-sm text-gray-400">אין חדרים</p>
           ) : (
@@ -654,7 +850,6 @@ export default function WorkshopDetailPage() {
                     <th className="py-2 px-3 font-medium">מתחקר/ת</th>
                     <th className="py-2 px-3 font-medium text-center">מצגת</th>
                     <th className="py-2 px-3 font-medium text-center">מכתב</th>
-                    <th className="py-2 px-3"></th>
                   </tr>
                 </thead>
                 <tbody>
@@ -664,11 +859,9 @@ export default function WorkshopDetailPage() {
                       r={r}
                       canAssign={canEdit}
                       canCheckPptLetter={canCheckPptLetter && !w.cancelled}
-                      canCancel={canCancelRoom}
                       facilitators={facilitators}
                       workshopId={id}
                       onUpdate={updateRoom}
-                      onCancel={cancelRoom}
                     />
                   ))}
                 </tbody>
@@ -679,7 +872,6 @@ export default function WorkshopDetailPage() {
 
         {/* Checklist + Notes */}
         <section className="border border-gray-200 rounded-xl p-5 bg-white shadow-sm flex flex-col gap-4">
-          {/* Feedback form checkbox */}
           <div className="flex items-center gap-3">
             {(isManager || isTech) ? (
               <input type="checkbox" id="fbForm" checked={w.feedbackFormAdded}
@@ -689,12 +881,9 @@ export default function WorkshopDetailPage() {
               <input type="checkbox" checked={w.feedbackFormAdded} readOnly
                 className="w-4 h-4 accent-navy" />
             )}
-            <label htmlFor="fbForm" className="text-sm font-medium cursor-pointer">
-              טופס פידבק נוסף
-            </label>
+            <label htmlFor="fbForm" className="text-sm font-medium cursor-pointer">טופס פידבק נוסף</label>
           </div>
 
-          {/* Notes */}
           <div>
             <div className="flex items-center justify-between mb-1">
               <span className="text-sm font-medium text-gray-700">הערות</span>
@@ -721,7 +910,6 @@ export default function WorkshopDetailPage() {
             )}
           </div>
 
-          {/* Auto-generated form string */}
           <div>
             <div className="flex items-center justify-between mb-1">
               <span className="text-sm font-medium text-gray-700">מחרוזת לטופס Google</span>
