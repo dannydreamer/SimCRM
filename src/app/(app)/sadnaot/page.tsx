@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react"
 import Link from "next/link"
+import { useRouter } from "next/navigation"
 import { useUser } from "@/app/(app)/user-context"
 
 interface Facilitator { id: string; name: string }
@@ -80,6 +81,7 @@ function FeedbackBadge({ missing, castingTotal, href }: { missing: number; casti
 // ── Main component ─────────────────────────────────────────────────────────────
 
 export default function SadnaotPage() {
+  const router    = useRouter()
   const user      = useUser()
   const isManager = user.roles.includes("MANAGER")
 
@@ -221,7 +223,7 @@ export default function SadnaotPage() {
               <tbody>
                 {active.map((w) => (
                   <tr key={w.id}
-                    onClick={() => window.location.href = `/sadnaot/${w.id}`}
+                    onClick={() => router.push(`/sadnaot/${w.id}`)}
                     className="border-b border-gray-100 last:border-0 hover:bg-gray-50 cursor-pointer transition-colors">
 
                     {/* Date */}
