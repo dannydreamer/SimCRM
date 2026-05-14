@@ -93,7 +93,7 @@ export default function SadnaotPage() {
   const [sortDir,           setSortDir]           = useState<"asc" | "desc">("asc")
 
   useEffect(() => {
-    fetch("/api/sadnaot")
+    fetch("/api/sadnaot", { cache: "no-store" })
       .then((r) => r.json())
       .then((data) => { setWorkshops(data); setLoading(false) })
   }, [])
@@ -212,10 +212,10 @@ export default function SadnaotPage() {
                   <th className="px-3 py-2.5 text-center">ליהוק</th>
                   <th className="px-3 py-2.5 text-center">שובצו מתחקרים</th>
                   <th className="px-3 py-2.5 text-center">תרחישים</th>
-                  <th className="px-3 py-2.5 text-center">טופס פידבק</th>
+                  <th className="px-3 py-2.5 text-center">משוב משתתפים</th>
                   <th className="px-3 py-2.5 text-center">מצגות</th>
                   <th className="px-3 py-2.5 text-center">מכתבים</th>
-                  <th className="px-3 py-2.5 text-center">פידבק</th>
+                  <th className="px-3 py-2.5 text-center">הזנת פידבק</th>
                 </tr>
               </thead>
               <tbody>

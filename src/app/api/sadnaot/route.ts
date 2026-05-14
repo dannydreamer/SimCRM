@@ -82,7 +82,8 @@ export async function GET() {
         letterFilled, letterTotal,
         feedbackMissing,
       }
-    })
+    }),
+    { headers: { "Cache-Control": "no-store" } }
   )
 }
 

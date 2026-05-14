@@ -41,6 +41,14 @@ export async function PATCH(
   if (facilitatorId !== undefined) {
     if (!isManager) return NextResponse.json({ error: "Forbidden" }, { status: 403 })
     if (!frozen) {
+      // Prevent assigning a facilitator already slotted to another active room
+      if (facilitatorId) {
+        const conflict = await prisma.room.findFirst({
+          where: { workshopId: id, facilitatorId, cancelled: false, id: { not: rid } },
+        })
+        if (conflict)
+          return NextResponse.json({ error: "מתחקר/ת זה/זו כבר משובץ/ת בחדר אחר בסדנה זו" }, { status: 400 })
+      }
       data.facilitatorId = facilitatorId || null
       // Auto-uncheck PPT and letter when facilitator is removed
       if (!facilitatorId) {
