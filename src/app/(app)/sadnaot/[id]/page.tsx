@@ -453,7 +453,7 @@ export default function WorkshopDetailPage() {
   }
 
   const canEdit = isManager && w !== null && !w.frozen && !w.cancelled
-  const canAddScenario = canEditScenarios && w !== null && !w.frozen && !w.cancelled && w.status !== "NEW"
+  const canAddScenario = canEditScenarios && w !== null && !w.frozen && !w.cancelled && w.status !== "NEW" && !!w.authorId
   const canCancelScenario = isManager && w !== null && !w.frozen && !w.cancelled
 
   // ── Header edit ────────────────────────────────────────────────────────────
@@ -987,6 +987,9 @@ export default function WorkshopDetailPage() {
           </div>
           {canEditScenarios && w.status === "NEW" && !w.frozen && !w.cancelled && (
             <p className="text-xs text-gray-400 mb-3 italic">ניתן להוסיף תרחישים לאחר ביצוע איתור צרכים</p>
+          )}
+          {canEditScenarios && w.status !== "NEW" && !w.frozen && !w.cancelled && !w.authorId && (
+            <p className="text-xs text-gray-400 mb-3 italic">יש להגדיר כותב/ת תרחיש לפני הוספת תרחישים</p>
           )}
 
           {/* Author — section-level */}
