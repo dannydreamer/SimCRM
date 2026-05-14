@@ -358,6 +358,7 @@ export default function WorkshopDetailPage() {
   const [facilitators, setFacilitators] = useState<Facilitator[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [actionError, setActionError] = useState<string | null>(null)
 
   // Header inline edit
   const [headerDraft, setHeaderDraft] = useState<HeaderDraft | null>(null)
@@ -540,6 +541,7 @@ export default function WorkshopDetailPage() {
   // ── Workshop-level actions ─────────────────────────────────────────────────
 
   async function patchWorkshop(data: Record<string, unknown>) {
+    setActionError(null)
     const res = await fetch(`/api/sadnaot/${id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
@@ -547,7 +549,15 @@ export default function WorkshopDetailPage() {
     })
     if (res.ok) {
       const updated = await res.json()
-      setW((prev) => prev ? { ...prev, ...updated } : prev)
+      // If status changed, reload fully so frozen/derived fields stay in sync
+      if ("status" in data) {
+        await load()
+      } else {
+        setW((prev) => prev ? { ...prev, ...updated } : prev)
+      }
+    } else {
+      const body = await res.json().catch(() => ({}))
+      setActionError(body.error ?? `שגיאה (${res.status})`)
     }
     return res
   }
@@ -797,7 +807,11 @@ export default function WorkshopDetailPage() {
 
           {/* Manager status actions */}
           {isManager && !hd && (
-            <div className="mt-5 pt-4 border-t border-gray-100 flex items-center gap-3 flex-wrap">
+            <div className="mt-5 pt-4 border-t border-gray-100 flex flex-col gap-2">
+            {actionError && (
+              <p className="text-xs text-red-600 font-medium">{actionError}</p>
+            )}
+            <div className="flex items-center gap-3 flex-wrap">
               {w.status === "NEW" && !w.cancelled && (
                 <button onClick={() => patchWorkshop({ status: "SPECIFIED" })}
                   className="px-4 py-1.5 bg-navy text-white text-sm rounded-lg hover:bg-navy/90 transition-colors">
@@ -816,6 +830,7 @@ export default function WorkshopDetailPage() {
                   ביטול סדנה
                 </button>
               )}
+            </div>
             </div>
           )}
         </div>
