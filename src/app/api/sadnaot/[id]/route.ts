@@ -2,6 +2,7 @@
 import { prisma } from "@/lib/prisma"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
+import { checkAndAdvanceStatus } from "@/lib/workshop-status"
 
 const FROZEN_STATUSES = ["CLOSING", "CLOSED", "CANCELLED"]
 
@@ -26,6 +27,10 @@ export async function GET(
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
 
   const { id } = await params
+
+  // Auto-advance status (date-based CLOSING, etc.) before serving response
+  await checkAndAdvanceStatus(id)
+
   const w = await prisma.workshop.findUnique({
     where: { id },
     include: {
@@ -220,8 +225,11 @@ export async function PATCH(
     }
   }
 
+  // Auto-advance after patch (e.g. castingSentAt just set)
+  const advancedStatus = await checkAndAdvanceStatus(id)
+
   return NextResponse.json({
-    status: updated.status,
+    status: advancedStatus ?? updated.status,
     cancelled: updated.cancelled,
     numRooms: updated.numRooms,
     ...(updatedRooms !== undefined && { rooms: updatedRooms }),

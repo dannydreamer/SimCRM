@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
+import { checkAndAdvanceStatus } from "@/lib/workshop-status"
 
 export async function POST(
   req: NextRequest,
@@ -61,6 +62,9 @@ export async function POST(
       detail: isResend ? "עדכון ושליחה חוזרת לליהוק" : "נשלח לליהוק",
     },
   })
+
+  // Auto-advance: sending casting may complete the READY conditions
+  await checkAndAdvanceStatus(id)
 
   return NextResponse.json({
     castingSentAt: now.toISOString(),

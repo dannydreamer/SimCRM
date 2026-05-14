@@ -819,30 +819,84 @@ export default function WorkshopDetailPage() {
 
           {/* Status actions — Manager + Tech */}
           {(isManager || isTech) && !hd && (
-            <div className="mt-5 pt-4 border-t border-gray-100 flex flex-col gap-2">
-            {actionError && (
-              <p className="text-xs text-red-600 font-medium">{actionError}</p>
-            )}
-            <div className="flex items-center gap-3 flex-wrap">
-              {w.status === "NEW" && !w.cancelled && (
-                <button onClick={() => patchWorkshop({ status: "SPECIFIED" })}
-                  className="px-4 py-1.5 bg-navy text-white text-sm rounded-lg hover:bg-navy/90 transition-colors">
-                  סמן: בוצע איתור צרכים
-                </button>
+            <div className="mt-5 pt-4 border-t border-gray-100 flex flex-col gap-3">
+              {actionError && (
+                <p className="text-xs text-red-600 font-medium">{actionError}</p>
               )}
-              {w.status === "SPECIFIED" && !w.cancelled && (
-                <button onClick={() => patchWorkshop({ status: "NEW" })}
-                  className="px-4 py-1.5 border border-gray-300 text-sm rounded-lg hover:bg-gray-50 text-gray-600">
-                  חזור לסדנה חדשה
-                </button>
+
+              {/* Manual action buttons — only for NEW ↔ SPECIFIED */}
+              <div className="flex items-center gap-3 flex-wrap">
+                {w.status === "NEW" && !w.cancelled && (
+                  <button onClick={() => patchWorkshop({ status: "SPECIFIED" })}
+                    className="px-4 py-1.5 bg-navy text-white text-sm rounded-lg hover:bg-navy/90 transition-colors">
+                    סמן: בוצע איתור צרכים
+                  </button>
+                )}
+                {w.status === "SPECIFIED" && !w.cancelled && (
+                  <button onClick={() => patchWorkshop({ status: "NEW" })}
+                    className="px-4 py-1.5 border border-gray-300 text-sm rounded-lg hover:bg-gray-50 text-gray-600">
+                    חזור לסדנה חדשה
+                  </button>
+                )}
+                {isManager && !w.cancelled && !w.frozen && (
+                  <button onClick={cancelWorkshop}
+                    className="px-4 py-1.5 text-sm rounded-lg border border-red-200 text-red-600 hover:bg-red-50">
+                    ביטול סדנה
+                  </button>
+                )}
+              </div>
+
+              {/* Readiness checklist — shown when SPECIFIED */}
+              {w.status === "SPECIFIED" && !w.cancelled && (() => {
+                const activeRooms      = w.rooms.filter((r) => !r.cancelled)
+                const activeScenarios  = w.scenarios.filter((s) => !s.cancelled)
+                const allSlotted       = activeRooms.length > 0 && activeRooms.every((r) => r.facilitatorId)
+                const allWritten       = activeScenarios.length > 0 && activeScenarios.every((s) => s.written)
+                const castingSent      = !!w.castingSentAt
+                const allDone          = allSlotted && allWritten && castingSent
+                const Item = ({ ok, label }: { ok: boolean; label: string }) => (
+                  <div className="flex items-center gap-2 text-xs">
+                    <span className={ok ? "text-brand-green font-bold" : "text-gray-300"}>
+                      {ok ? "✓" : "○"}
+                    </span>
+                    <span className={ok ? "text-gray-600" : "text-gray-400"}>{label}</span>
+                  </div>
+                )
+                return (
+                  <div className="flex flex-col gap-1.5 bg-gray-50 rounded-lg px-4 py-3">
+                    <p className="text-xs font-semibold text-gray-500 mb-1">נדרש למעבר אוטומטי ל״מוכן״:</p>
+                    <Item ok={castingSent} label="נשלח לליהוק" />
+                    <Item ok={allSlotted}  label={`כל החדרים שובצו (${activeRooms.filter(r => r.facilitatorId).length}/${activeRooms.length})`} />
+                    <Item ok={allWritten}  label={`כל התרחישים סומנו כנכתב (${activeScenarios.filter(s => s.written).length}/${activeScenarios.length})`} />
+                    {allDone && (
+                      <p className="text-xs text-brand-green font-medium mt-1">✓ כל התנאים מתקיימים — הסדנה תסומן כ״מוכן״ אוטומטית</p>
+                    )}
+                  </div>
+                )
+              })()}
+
+              {/* System-status explanations */}
+              {w.status === "READY" && !w.cancelled && (
+                <p className="text-xs text-gray-400 italic">הסדנה מוכנה — תועבר ל״בתהליך סגירה״ אוטומטית לאחר תאריך הסדנה</p>
               )}
-              {isManager && !w.cancelled && !w.frozen && (
-                <button onClick={cancelWorkshop}
-                  className="px-4 py-1.5 text-sm rounded-lg border border-red-200 text-red-600 hover:bg-red-50">
-                  ביטול סדנה
-                </button>
-              )}
-            </div>
+              {w.status === "CLOSING" && !w.cancelled && (() => {
+                const activeRooms = w.rooms.filter((r) => !r.cancelled)
+                const allPpt     = activeRooms.every((r) => r.pptReceived)
+                const allLetters = activeRooms.every((r) => r.letterReceived)
+                const Item = ({ ok, label }: { ok: boolean; label: string }) => (
+                  <div className="flex items-center gap-2 text-xs">
+                    <span className={ok ? "text-brand-green font-bold" : "text-gray-300"}>{ok ? "✓" : "○"}</span>
+                    <span className={ok ? "text-gray-600" : "text-gray-400"}>{label}</span>
+                  </div>
+                )
+                return (
+                  <div className="flex flex-col gap-1.5 bg-gray-50 rounded-lg px-4 py-3">
+                    <p className="text-xs font-semibold text-gray-500 mb-1">נדרש למעבר אוטומטי ל״סגור״:</p>
+                    <Item ok={allPpt}     label={`כל המצגות סומנו (${activeRooms.filter(r => r.pptReceived).length}/${activeRooms.length})`} />
+                    <Item ok={allLetters} label={`כל המכתבים סומנו (${activeRooms.filter(r => r.letterReceived).length}/${activeRooms.length})`} />
+                  </div>
+                )
+              })()}
             </div>
           )}
         </div>
