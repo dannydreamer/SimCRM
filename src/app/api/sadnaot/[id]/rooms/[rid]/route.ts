@@ -120,5 +120,18 @@ export async function DELETE(
   if (!room || room.workshopId !== id) return NextResponse.json({ error: "Not found" }, { status: 404 })
 
   await prisma.room.update({ where: { id: rid }, data: { cancelled: true } })
+
+  // Log if casting was already sent
+  const workshop = await prisma.workshop.findUnique({ where: { id }, select: { castingSentAt: true } })
+  if (workshop?.castingSentAt) {
+    await prisma.castingChangeLog.create({
+      data: {
+        workshopId: id,
+        changeType: "ROOM_CANCELLED",
+        detail: `חדר ${room.roomNumber} בוטל`,
+      },
+    })
+  }
+
   return NextResponse.json({ ok: true })
 }

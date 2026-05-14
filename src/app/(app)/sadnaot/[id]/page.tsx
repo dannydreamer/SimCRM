@@ -47,6 +47,7 @@ interface Workshop {
   tentative: boolean
   postponedWarning: boolean
   feedbackFormAdded: boolean
+  castingSentAt: string | null
   notes: string | null
   frozen: boolean
   groupName: string
@@ -379,6 +380,13 @@ export default function WorkshopDetailPage() {
   // Copy
   const [copied, setCopied] = useState(false)
 
+  // Send to casting overlay
+  const [showCastingOverlay, setShowCastingOverlay] = useState(false)
+  const [castingMale, setCastingMale] = useState("")
+  const [castingFemale, setCastingFemale] = useState("")
+  const [castingOverlayNotes, setCastingOverlayNotes] = useState("")
+  const [castingSending, setCastingSending] = useState(false)
+
   const roles = session?.user?.roles ?? []
   const isManager = roles.includes("MANAGER")
   const isTech = roles.includes("TECH")
@@ -582,6 +590,41 @@ export default function WorkshopDetailPage() {
     await navigator.clipboard.writeText(buildFormString())
     setCopied(true)
     setTimeout(() => setCopied(false), 2000)
+  }
+
+  function openCastingOverlay() {
+    if (!w) return
+    // Pre-fill with existing values if re-send
+    setCastingMale(w.castingMaleNeeded != null ? String(w.castingMaleNeeded) : "")
+    setCastingFemale(w.castingFemaleNeeded != null ? String(w.castingFemaleNeeded) : "")
+    setCastingOverlayNotes(w.castingNotes ?? "")
+    setShowCastingOverlay(true)
+  }
+
+  async function confirmSendToCasting() {
+    if (!w) return
+    setCastingSending(true)
+    const res = await fetch(`/api/sadnaot/${id}/send-to-casting`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        castingMaleNeeded: Number(castingMale),
+        castingFemaleNeeded: Number(castingFemale),
+        castingNotes: castingOverlayNotes,
+      }),
+    })
+    if (res.ok) {
+      const data = await res.json()
+      setW((prev) => prev ? {
+        ...prev,
+        castingSentAt: data.castingSentAt,
+        castingMaleNeeded: data.castingMaleNeeded,
+        castingFemaleNeeded: data.castingFemaleNeeded,
+        castingNotes: data.castingNotes,
+      } : prev)
+      setShowCastingOverlay(false)
+    }
+    setCastingSending(false)
   }
 
   // ── Render ─────────────────────────────────────────────────────────────────
@@ -913,8 +956,58 @@ export default function WorkshopDetailPage() {
           )}
         </section>
 
+        {/* Send to casting section */}
+        {(isManager || isTech) && !w.cancelled && (w.status !== "NEW") && (() => {
+          const scenariosWithReq = w.scenarios.filter((s) => !s.cancelled && s.actorRequirements?.trim())
+          const canSend = scenariosWithReq.length > 0
+          const wasSent = !!w.castingSentAt
+          return (
+            <section id="casting" className="border border-gray-200 rounded-xl p-5 bg-white shadow-sm">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h2 className="text-sm font-semibold text-gray-700 uppercase tracking-wide mb-0.5">ליהוק</h2>
+                  {wasSent && (
+                    <p className="text-xs text-brand-green">
+                      נשלח לליהוק ✓ {new Date(w.castingSentAt!).toLocaleDateString("he-IL")}
+                    </p>
+                  )}
+                  {!canSend && (
+                    <p className="text-xs text-gray-400 mt-0.5">יש להזין דרישות שחקנים לפחות לתרחיש אחד</p>
+                  )}
+                </div>
+                <button
+                  onClick={openCastingOverlay}
+                  disabled={!canSend}
+                  className={`px-4 py-2 text-sm font-semibold rounded-lg transition-colors ${
+                    canSend
+                      ? "bg-navy text-white hover:bg-navy/90"
+                      : "bg-gray-100 text-gray-400 cursor-not-allowed"
+                  }`}
+                >
+                  {wasSent ? "עדכן ושלח לליהוק" : "שלח לליהוק"}
+                </button>
+              </div>
+            </section>
+          )
+        })()}
+
         {/* Checklist + Notes */}
         <section className="border border-gray-200 rounded-xl p-5 bg-white shadow-sm flex flex-col gap-4">
+          {/* Casting send status in checklist */}
+          <div className="flex items-center gap-3">
+            <input type="checkbox" checked={!!w.castingSentAt} readOnly
+              className="w-4 h-4 accent-navy" />
+            {w.castingSentAt ? (
+              <span className="text-sm font-medium text-gray-700">נשלח לליהוק ✓</span>
+            ) : (
+              <span className="text-sm text-gray-500">
+                ממתין לשליחה{" "}
+                {(isManager || isTech) && w.status !== "NEW" && (
+                  <a href="#casting" className="text-navy hover:underline text-xs">← לחץ לשליחה</a>
+                )}
+              </span>
+            )}
+          </div>
           <div className="flex items-center gap-3">
             {(isManager || isTech) ? (
               <input type="checkbox" id="fbForm" checked={w.feedbackFormAdded}
@@ -976,6 +1069,80 @@ export default function WorkshopDetailPage() {
         </div>
 
       </div>
+
+      {/* Send to casting overlay */}
+      {showCastingOverlay && w && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+          <div className="bg-white rounded-xl shadow-2xl max-w-lg w-full mx-4 p-6 flex flex-col gap-5" dir="rtl">
+            <h2 className="text-base font-bold text-gray-900">שליחה לליהוק</h2>
+
+            {/* Scenario requirements — read-only context */}
+            <div className="bg-gray-50 border border-gray-200 rounded-lg p-4 flex flex-col gap-2 max-h-48 overflow-y-auto">
+              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">דרישות שחקנים לתרחישים</p>
+              {w.scenarios.filter((s) => !s.cancelled).map((s) => (
+                <div key={s.id} className="text-sm">
+                  <span className="font-medium text-gray-700">{s.topicName}{s.name ? ` — ${s.name}` : ""}:</span>{" "}
+                  <span className="text-gray-600">{s.actorRequirements || <span className="text-gray-300 italic">ללא דרישות</span>}</span>
+                </div>
+              ))}
+            </div>
+
+            {/* Integers */}
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  סה״כ שחקנים נדרשים (פיזי) <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="number" min={0} value={castingMale}
+                  onChange={(e) => setCastingMale(e.target.value)}
+                  className="border border-gray-300 rounded px-3 py-2 text-sm w-full"
+                  placeholder="0"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  סה״כ שחקניות נדרשות (פיזי) <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="number" min={0} value={castingFemale}
+                  onChange={(e) => setCastingFemale(e.target.value)}
+                  className="border border-gray-300 rounded px-3 py-2 text-sm w-full"
+                  placeholder="0"
+                />
+              </div>
+            </div>
+
+            {/* Notes */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">הערות למלהקת (אופציונלי)</label>
+              <textarea
+                value={castingOverlayNotes}
+                onChange={(e) => setCastingOverlayNotes(e.target.value)}
+                rows={2}
+                className="border border-gray-300 rounded px-3 py-2 text-sm w-full"
+              />
+            </div>
+
+            {/* Actions */}
+            <div className="flex gap-3 justify-end">
+              <button
+                onClick={() => setShowCastingOverlay(false)}
+                className="px-4 py-2 border border-gray-300 text-sm rounded-lg hover:bg-gray-50"
+              >
+                ביטול
+              </button>
+              <button
+                onClick={confirmSendToCasting}
+                disabled={castingMale === "" || castingFemale === "" || castingSending}
+                className="px-4 py-2 bg-navy text-white text-sm font-semibold rounded-lg hover:bg-navy/90 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {castingSending ? "שולח..." : "אשר ושלח לליהוק"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

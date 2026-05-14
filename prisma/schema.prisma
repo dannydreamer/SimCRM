@@ -144,6 +144,7 @@ model Workshop {
   castingMaleNeeded   Int?
   castingFemaleNeeded Int?
   castingNotes        String?
+  castingSentAt       DateTime?
   notes               String?
   createdAt           DateTime       @default(now())
   createdById         String?
@@ -156,6 +157,7 @@ model Workshop {
   castings            Casting[]
   actorAvailabilities ActorWorkshopAvailability[]
   feedbacks           Feedback[]
+  castingChangeLogs   CastingChangeLog[]
 }
 
 // ─── Room ─────────────────────────────────────────────────────────────────────
@@ -253,6 +255,19 @@ model ActorWorkshopAvailability {
   workshop Workshop @relation(fields: [workshopId], references: [id])
 
   @@unique([actorId, workshopId])
+}
+
+// ─── Casting Change Log ───────────────────────────────────────────────────────
+
+model CastingChangeLog {
+  id         String   @id @default(uuid())
+  workshopId String
+  changeType String   // SENT | RESENT | SCENARIO_REQ | SCENARIO_CANCELLED | ROOM_CANCELLED | COUNTS_CHANGED
+  detail     String   // Hebrew description, e.g. "תרחיש 2 בוטל"
+  dismissed  Boolean  @default(false)
+  createdAt  DateTime @default(now())
+
+  workshop Workshop @relation(fields: [workshopId], references: [id])
 }
 
 // ─── Feedback ─────────────────────────────────────────────────────────────────

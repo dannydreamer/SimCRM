@@ -1,9 +1,16 @@
-﻿import { NextRequest, NextResponse } from "next/server"
+import { NextRequest, NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
 
 const FROZEN_STATUSES = ["CLOSING", "CLOSED", "CANCELLED"]
+
+async function logIfCastingSent(workshopId: string, changeType: string, detail: string) {
+  const w = await prisma.workshop.findUnique({ where: { id: workshopId }, select: { castingSentAt: true } })
+  if (w?.castingSentAt) {
+    await prisma.castingChangeLog.create({ data: { workshopId, changeType, detail } })
+  }
+}
 
 export async function PATCH(
   req: NextRequest,
@@ -18,7 +25,7 @@ export async function PATCH(
     return NextResponse.json({ error: "Forbidden" }, { status: 403 })
 
   const { id, sid } = await params
-  const w = await prisma.workshop.findUnique({ where: { id }, select: { status: true } })
+  const w = await prisma.workshop.findUnique({ where: { id }, select: { status: true, castingSentAt: true } })
   if (!w) return NextResponse.json({ error: "Not found" }, { status: 404 })
   if (FROZEN_STATUSES.includes(w.status))
     return NextResponse.json({ error: "הסדנה נעולה לעריכה" }, { status: 403 })
@@ -33,8 +40,38 @@ export async function PATCH(
   if (actorRequirements !== undefined) data.actorRequirements = actorRequirements?.trim() || null
   if (written !== undefined) data.written = written
 
-  const updated = await prisma.scenario.update({ where: { id: sid }, data, include: { topic: { select: { id: true, name: true } } } })
-  return NextResponse.json({ id: updated.id, name: updated.name, topicId: updated.topicId, topicName: updated.topic.name, actorRequirements: updated.actorRequirements, written: updated.written, cancelled: updated.cancelled, orderIndex: updated.orderIndex })
+  const updated = await prisma.scenario.update({
+    where: { id: sid },
+    data,
+    include: { topic: { select: { id: true, name: true } } },
+  })
+
+  // Log if requirements changed after casting was sent
+  if (
+    w.castingSentAt &&
+    actorRequirements !== undefined &&
+    (actorRequirements?.trim() || null) !== sc.actorRequirements
+  ) {
+    const label = sc.name ? `תרחיש "${sc.name}"` : `תרחיש ${sc.orderIndex + 1}`
+    await prisma.castingChangeLog.create({
+      data: {
+        workshopId: id,
+        changeType: "SCENARIO_REQ",
+        detail: `דרישות ${label} עודכנו`,
+      },
+    })
+  }
+
+  return NextResponse.json({
+    id: updated.id,
+    name: updated.name,
+    topicId: updated.topicId,
+    topicName: updated.topic.name,
+    actorRequirements: updated.actorRequirements,
+    written: updated.written,
+    cancelled: updated.cancelled,
+    orderIndex: updated.orderIndex,
+  })
 }
 
 export async function DELETE(
@@ -56,5 +93,10 @@ export async function DELETE(
   if (!sc || sc.workshopId !== id) return NextResponse.json({ error: "Not found" }, { status: 404 })
 
   await prisma.scenario.update({ where: { id: sid }, data: { cancelled: true } })
+
+  // Log if casting was already sent
+  const label = sc.name ? `תרחיש "${sc.name}"` : `תרחיש ${sc.orderIndex + 1}`
+  await logIfCastingSent(id, "SCENARIO_CANCELLED", `${label} בוטל`)
+
   return NextResponse.json({ ok: true })
 }

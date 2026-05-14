@@ -62,6 +62,7 @@ export async function GET(
     tentative: w.tentative,
     postponedWarning: w.postponedWarning,
     feedbackFormAdded: w.feedbackFormAdded,
+    castingSentAt: w.castingSentAt?.toISOString() ?? null,
     notes: w.notes,
     frozen: FROZEN_STATUSES.includes(w.status),
     groupId: w.participantGroup.id,
@@ -95,7 +96,7 @@ export async function PATCH(
     return NextResponse.json({ error: "Forbidden" }, { status: 403 })
 
   const { id } = await params
-  const w = await prisma.workshop.findUnique({ where: { id }, select: { status: true, cancelled: true } })
+  const w = await prisma.workshop.findUnique({ where: { id }, select: { status: true, cancelled: true, castingSentAt: true, castingMaleNeeded: true, castingFemaleNeeded: true } })
   if (!w) return NextResponse.json({ error: "Not found" }, { status: 404 })
 
   const body = await req.json()
@@ -189,6 +190,21 @@ export async function PATCH(
       include: { facilitator: { select: { id: true, name: true } } },
     })
     updatedRooms = freshRooms.map(mapRoom)
+  }
+
+  // Log if casting integers changed after casting was sent
+  if (w.castingSentAt) {
+    const maleChanged = castingMaleNeeded !== undefined && Number(castingMaleNeeded) !== w.castingMaleNeeded
+    const femaleChanged = castingFemaleNeeded !== undefined && Number(castingFemaleNeeded) !== w.castingFemaleNeeded
+    if (maleChanged || femaleChanged) {
+      await prisma.castingChangeLog.create({
+        data: {
+          workshopId: id,
+          changeType: "COUNTS_CHANGED",
+          detail: "המספרים הכמותיים עודכנו",
+        },
+      })
+    }
   }
 
   return NextResponse.json({
