@@ -518,6 +518,7 @@ export default function WorkshopDetailPage() {
           tentative: headerDraft.tentative,
           directorRequested: headerDraft.directorRequested,
           directorNotes: headerDraft.directorNotes || null,
+          postponedWarning: updated.postponedWarning ?? prev.postponedWarning,
           rooms: updated.rooms ?? prev.rooms,
         }
       })
@@ -702,8 +703,8 @@ export default function WorkshopDetailPage() {
 
         {/* Banners */}
         {w.postponedWarning && !postponedDismissed && (
-          <div className="bg-amber-50 border border-amber-300 rounded-lg px-4 py-3 text-sm text-amber-800 font-medium flex items-center justify-between gap-3">
-            <span>⚠️ סדנה זו נדחתה — יש לעדכן תאריך חדש</span>
+          <div className="bg-amber-100 border border-amber-400 rounded-lg px-4 py-3 text-sm text-amber-800 font-semibold flex items-center justify-between gap-3">
+            <span>⚠️ הסדנה נדחתה — יש להודיע למתחקרים ולמלהקת</span>
             <button onClick={dismissPostponedBanner}
               className="text-amber-600 hover:text-amber-800 text-lg leading-none shrink-0" title="סגור">×</button>
           </div>

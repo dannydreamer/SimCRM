@@ -243,6 +243,7 @@ export async function PATCH(
     status: advancedStatus ?? updated.status,
     cancelled: updated.cancelled,
     numRooms: updated.numRooms,
+    postponedWarning: updated.postponedWarning,
     ...(updatedRooms !== undefined && { rooms: updatedRooms }),
   })
 }
