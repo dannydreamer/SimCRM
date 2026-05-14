@@ -241,12 +241,13 @@ function ScenarioRow({
 // ─── RoomRow ──────────────────────────────────────────────────────────────────
 
 function RoomRow({
-  r, canAssign, canCheckPptLetter, facilitators, workshopId, workshopDate, onUpdate,
+  r, canAssign, canCheckPptLetter, facilitators, allRooms, workshopId, workshopDate, onUpdate,
 }: {
   r: Room
   canAssign: boolean
   canCheckPptLetter: boolean
   facilitators: Facilitator[]
+  allRooms: Room[]
   workshopId: string
   workshopDate: string   // ISO string
   onUpdate: (rid: string, data: Partial<Room>) => void
@@ -310,9 +311,16 @@ function RoomRow({
             className="border border-gray-200 rounded px-2 py-1 text-sm w-full"
           >
             <option value="">— לא שובץ —</option>
-            {facilitators.map((f) => (
-              <option key={f.id} value={f.id}>{f.name}</option>
-            ))}
+            {facilitators.map((f) => {
+              const takenByOther = allRooms.some(
+                (other) => !other.cancelled && other.id !== r.id && other.facilitatorId === f.id
+              )
+              return (
+                <option key={f.id} value={f.id} disabled={takenByOther}>
+                  {f.name}{takenByOther ? " (משובץ)" : ""}
+                </option>
+              )
+            })}
           </select>
         ) : (
           <span className={r.facilitatorId ? "" : "text-gray-300"}>
@@ -489,14 +497,18 @@ export default function WorkshopDetailPage() {
 
   async function saveAuthor(authorId: string) {
     setAuthorSaving(true)
+    setActionError(null)
     const res = await fetch(`/api/sadnaot/${id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ authorId }),
+      body: JSON.stringify({ authorId: authorId || null }),
     })
     if (res.ok) {
       const fac = facilitators.find((f) => f.id === authorId)
       setW((prev) => prev ? { ...prev, authorId: authorId || null, authorName: fac?.name ?? null } : prev)
+    } else {
+      const body = await res.json().catch(() => ({}))
+      setActionError(body.error ?? `שגיאה (${res.status})`)
     }
     setAuthorSaving(false)
   }
@@ -593,7 +605,7 @@ export default function WorkshopDetailPage() {
     const topicNames = w.scenarios.filter((s) => !s.cancelled).map((s) => s.topicName)
     const uniqueTopics = [...new Set(topicNames)]
     const shiyuch = SHIYUCH_LABELS[w.orgShiyuchPedagogi] ?? w.orgShiyuchPedagogi
-    return [date, w.groupName, shiyuch, uniqueTopics.join(", ")].filter(Boolean).join(" - ")
+    return [date, w.orgName, w.groupName, shiyuch, uniqueTopics.join(", ")].filter(Boolean).join(" - ")
   }
 
   async function copyFormString() {
@@ -805,8 +817,8 @@ export default function WorkshopDetailPage() {
             </div>
           )}
 
-          {/* Manager status actions */}
-          {isManager && !hd && (
+          {/* Status actions — Manager + Tech */}
+          {(isManager || isTech) && !hd && (
             <div className="mt-5 pt-4 border-t border-gray-100 flex flex-col gap-2">
             {actionError && (
               <p className="text-xs text-red-600 font-medium">{actionError}</p>
@@ -824,7 +836,7 @@ export default function WorkshopDetailPage() {
                   חזור לסדנה חדשה
                 </button>
               )}
-              {!w.cancelled && !w.frozen && (
+              {isManager && !w.cancelled && !w.frozen && (
                 <button onClick={cancelWorkshop}
                   className="px-4 py-1.5 text-sm rounded-lg border border-red-200 text-red-600 hover:bg-red-50">
                   ביטול סדנה
@@ -834,6 +846,42 @@ export default function WorkshopDetailPage() {
             </div>
           )}
         </div>
+
+        {/* Rooms */}
+        <section>
+          <h2 className="text-sm font-semibold text-gray-700 uppercase tracking-wide mb-3">חדרים</h2>
+          {w.rooms.length === 0 ? (
+            <p className="text-sm text-gray-400">אין חדרים</p>
+          ) : (
+            <div className="border border-gray-200 rounded-lg overflow-hidden">
+              <table className="w-full text-right">
+                <thead className="bg-gray-50 text-xs text-gray-500 uppercase">
+                  <tr>
+                    <th className="py-2 px-3 font-medium">חדר</th>
+                    <th className="py-2 px-3 font-medium">מתחקר/ת</th>
+                    <th className="py-2 px-3 font-medium text-center">מצגת</th>
+                    <th className="py-2 px-3 font-medium text-center">מכתב</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {w.rooms.map((r) => (
+                    <RoomRow
+                      key={r.id}
+                      r={r}
+                      canAssign={canEdit}
+                      canCheckPptLetter={canCheckPptLetter && !w.cancelled}
+                      facilitators={facilitators}
+                      allRooms={w.rooms}
+                      workshopId={id}
+                      workshopDate={w.date}
+                      onUpdate={updateRoom}
+                    />
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </section>
 
         {/* Scenarios */}
         <section>
@@ -936,41 +984,6 @@ export default function WorkshopDetailPage() {
           )}
         </section>
 
-        {/* Rooms */}
-        <section>
-          <h2 className="text-sm font-semibold text-gray-700 uppercase tracking-wide mb-3">חדרים</h2>
-          {w.rooms.length === 0 ? (
-            <p className="text-sm text-gray-400">אין חדרים</p>
-          ) : (
-            <div className="border border-gray-200 rounded-lg overflow-hidden">
-              <table className="w-full text-right">
-                <thead className="bg-gray-50 text-xs text-gray-500 uppercase">
-                  <tr>
-                    <th className="py-2 px-3 font-medium">חדר</th>
-                    <th className="py-2 px-3 font-medium">מתחקר/ת</th>
-                    <th className="py-2 px-3 font-medium text-center">מצגת</th>
-                    <th className="py-2 px-3 font-medium text-center">מכתב</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {w.rooms.map((r) => (
-                    <RoomRow
-                      key={r.id}
-                      r={r}
-                      canAssign={canEdit}
-                      canCheckPptLetter={canCheckPptLetter && !w.cancelled}
-                      facilitators={facilitators}
-                      workshopId={id}
-                      workshopDate={w.date}
-                      onUpdate={updateRoom}
-                    />
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </section>
-
         {/* Send to casting section */}
         {(isManager || isTech) && !w.cancelled && (w.status !== "NEW") && (() => {
           const scenariosWithReq = w.scenarios.filter((s) => !s.cancelled && s.actorRequirements?.trim())
@@ -1006,73 +1019,77 @@ export default function WorkshopDetailPage() {
           )
         })()}
 
-        {/* Checklist + Notes */}
-        <section className="border border-gray-200 rounded-xl p-5 bg-white shadow-sm flex flex-col gap-4">
-          {/* Casting send status in checklist */}
-          <div className="flex items-center gap-3">
-            <input type="checkbox" checked={!!w.castingSentAt} readOnly
-              className="w-4 h-4 accent-navy" />
-            {w.castingSentAt ? (
-              <span className="text-sm font-medium text-gray-700">נשלח לליהוק ✓</span>
-            ) : (
-              <span className="text-sm text-gray-500">
-                ממתין לשליחה{" "}
-                {(isManager || isTech) && w.status !== "NEW" && (
-                  <a href="#casting" className="text-navy hover:underline text-xs">← לחץ לשליחה</a>
-                )}
-              </span>
-            )}
-          </div>
-          <div className="flex items-center gap-3">
-            {(isManager || isTech) ? (
-              <input type="checkbox" id="fbForm" checked={w.feedbackFormAdded}
-                onChange={toggleFeedbackForm}
-                className="w-4 h-4 accent-navy cursor-pointer" />
-            ) : (
-              <input type="checkbox" checked={w.feedbackFormAdded} readOnly
-                className="w-4 h-4 accent-navy" />
-            )}
-            <label htmlFor="fbForm" className="text-sm font-medium cursor-pointer">טופס פידבק נוסף</label>
-          </div>
+        {/* משוב משתתפים */}
+        {(() => {
+          const hasScenario = w.scenarios.some((s) => !s.cancelled && s.topicId)
+          return (
+            <section className="border border-gray-200 rounded-xl p-5 bg-white shadow-sm flex flex-col gap-3">
+              <h2 className="text-sm font-semibold text-gray-700 uppercase tracking-wide">משוב משתתפים</h2>
 
-          <div>
-            <div className="flex items-center justify-between mb-1">
-              <span className="text-sm font-medium text-gray-700">הערות</span>
-              {canEdit && notesEdit === null && (
-                <button onClick={() => setNotesEdit(w.notes ?? "")}
-                  className="text-xs text-navy hover:underline">עריכה</button>
-              )}
-            </div>
-            {notesEdit !== null ? (
-              <div className="flex flex-col gap-2">
-                <textarea value={notesEdit} onChange={(e) => setNotesEdit(e.target.value)} rows={3}
-                  className="border border-gray-300 rounded px-3 py-2 text-sm w-full" />
-                <div className="flex gap-2">
-                  <button onClick={saveNotes} disabled={notesSaving}
-                    className="px-3 py-1.5 bg-navy text-white text-sm rounded disabled:opacity-50">שמור</button>
-                  <button onClick={() => setNotesEdit(null)}
-                    className="px-3 py-1.5 border border-gray-300 text-sm rounded">ביטול</button>
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <span className="text-xs text-gray-500">מחרוזת לטופס Google</span>
+                  {hasScenario && (
+                    <button onClick={copyFormString}
+                      className={`text-xs px-2 py-1 rounded border transition-colors ${copied ? "bg-green-100 border-green-300 text-green-700" : "border-gray-300 text-gray-600 hover:bg-gray-50"}`}>
+                      {copied ? "הועתק ✓" : "העתק"}
+                    </button>
+                  )}
                 </div>
+                {hasScenario ? (
+                  <div className="bg-gray-50 border border-gray-200 rounded px-3 py-2 text-sm text-gray-700 font-mono select-all">
+                    {buildFormString()}
+                  </div>
+                ) : (
+                  <p className="text-sm text-gray-400 italic">המחרוזת תיווצר לאחר הזנת תרחיש עם נושא</p>
+                )}
               </div>
-            ) : (
-              <p className="text-sm text-gray-600 whitespace-pre-wrap">
-                {w.notes ?? <span className="text-gray-300">אין הערות</span>}
-              </p>
+
+              <div className="flex items-center gap-3">
+                {(isManager || isTech) ? (
+                  <span title={!hasScenario ? "יש להזין תרחיש עם נושא תחילה" : undefined} className="inline-block">
+                    <input type="checkbox" id="fbForm" checked={w.feedbackFormAdded}
+                      disabled={!hasScenario}
+                      onChange={toggleFeedbackForm}
+                      className={`w-4 h-4 accent-navy ${hasScenario ? "cursor-pointer" : "opacity-40 cursor-not-allowed"}`} />
+                  </span>
+                ) : (
+                  <input type="checkbox" checked={w.feedbackFormAdded} readOnly
+                    className="w-4 h-4 accent-navy" />
+                )}
+                <label htmlFor="fbForm" className={`text-sm ${hasScenario ? "cursor-pointer" : "text-gray-400"}`}>
+                  משוב משתתפים נוסף לטופס
+                </label>
+              </div>
+            </section>
+          )
+        })()}
+
+        {/* Notes */}
+        <section className="border border-gray-200 rounded-xl p-5 bg-white shadow-sm">
+          <div className="flex items-center justify-between mb-2">
+            <h2 className="text-sm font-semibold text-gray-700 uppercase tracking-wide">הערות</h2>
+            {canEdit && notesEdit === null && (
+              <button onClick={() => setNotesEdit(w.notes ?? "")}
+                className="text-xs text-navy hover:underline">עריכה</button>
             )}
           </div>
-
-          <div>
-            <div className="flex items-center justify-between mb-1">
-              <span className="text-sm font-medium text-gray-700">מחרוזת לטופס Google</span>
-              <button onClick={copyFormString}
-                className={`text-xs px-2 py-1 rounded border transition-colors ${copied ? "bg-green-100 border-green-300 text-green-700" : "border-gray-300 text-gray-600 hover:bg-gray-50"}`}>
-                {copied ? "הועתק ✓" : "העתק"}
-              </button>
+          {notesEdit !== null ? (
+            <div className="flex flex-col gap-2">
+              <textarea value={notesEdit} onChange={(e) => setNotesEdit(e.target.value)} rows={3}
+                className="border border-gray-300 rounded px-3 py-2 text-sm w-full" />
+              <div className="flex gap-2">
+                <button onClick={saveNotes} disabled={notesSaving}
+                  className="px-3 py-1.5 bg-navy text-white text-sm rounded disabled:opacity-50">שמור</button>
+                <button onClick={() => setNotesEdit(null)}
+                  className="px-3 py-1.5 border border-gray-300 text-sm rounded">ביטול</button>
+              </div>
             </div>
-            <div className="bg-gray-50 border border-gray-200 rounded px-3 py-2 text-sm text-gray-700 font-mono select-all">
-              {buildFormString() || <span className="text-gray-300">— הוסף תרחישים לקבלת המחרוזת —</span>}
-            </div>
-          </div>
+          ) : (
+            <p className="text-sm text-gray-600 whitespace-pre-wrap">
+              {w.notes ?? <span className="text-gray-300">אין הערות</span>}
+            </p>
+          )}
         </section>
 
         {/* Feedback shortcut */}
@@ -1090,6 +1107,12 @@ export default function WorkshopDetailPage() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
           <div className="bg-white rounded-xl shadow-2xl max-w-lg w-full mx-4 p-6 flex flex-col gap-5" dir="rtl">
             <h2 className="text-base font-bold text-gray-900">שליחה לליהוק</h2>
+
+            {/* Room count */}
+            <div className="flex items-center gap-2 text-sm text-gray-700">
+              <span className="text-gray-400">מספר חדרים:</span>
+              <span className="font-semibold">{w.rooms.filter((r) => !r.cancelled).length}</span>
+            </div>
 
             {/* Scenario requirements — read-only context */}
             <div className="bg-gray-50 border border-gray-200 rounded-lg p-4 flex flex-col gap-2 max-h-48 overflow-y-auto">
@@ -1138,6 +1161,14 @@ export default function WorkshopDetailPage() {
                 className="border border-gray-300 rounded px-3 py-2 text-sm w-full"
               />
             </div>
+
+            {/* Director requested */}
+            {w.directorRequested && (
+              <div className="flex items-center gap-2 bg-amber-50 border border-amber-200 rounded-lg px-4 py-2 text-sm text-amber-800">
+                <span className="font-semibold">⚠️ נדרש/ת במאי/ת</span>
+                {w.directorNotes && <span className="text-amber-700">— {w.directorNotes}</span>}
+              </div>
+            )}
 
             {/* Actions */}
             <div className="flex gap-3 justify-end">

@@ -92,7 +92,9 @@ export async function PATCH(
 ) {
   const session = await getServerSession(authOptions)
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-  if (!session.user.roles.includes("MANAGER"))
+  const isManager = session.user.roles.includes("MANAGER")
+  const isTech    = session.user.roles.includes("TECH")
+  if (!isManager && !isTech)
     return NextResponse.json({ error: "Forbidden" }, { status: 403 })
 
   const { id } = await params
@@ -121,33 +123,44 @@ export async function PATCH(
   }
 
   const data: Record<string, unknown> = {}
-  if (feedbackFormAdded !== undefined) data.feedbackFormAdded = feedbackFormAdded
+  // Status is allowed for both Manager and Tech
   if (status !== undefined) data.status = status
-  if (cancelled !== undefined) data.cancelled = cancelled
-  if (postponedWarning !== undefined) data.postponedWarning = postponedWarning
 
-  if (!isFrozen) {
-    if (date !== undefined) data.date = new Date(date)
-    if (startTime !== undefined) data.startTime = startTime
-    if (endTime !== undefined) data.endTime = endTime
-    if (locationType !== undefined) data.locationType = locationType
-    if (locationName !== undefined) data.locationName = locationName?.trim() || null
-    if (numRooms !== undefined) data.numRooms = Number(numRooms)
-    if (authorId !== undefined) data.authorId = authorId || null
-    if (directorRequested !== undefined) data.directorRequested = directorRequested
-    if (directorNotes !== undefined) data.directorNotes = directorNotes?.trim() || null
-    if (castingMaleNeeded !== undefined) data.castingMaleNeeded = castingMaleNeeded === "" ? null : Number(castingMaleNeeded)
-    if (castingFemaleNeeded !== undefined) data.castingFemaleNeeded = castingFemaleNeeded === "" ? null : Number(castingFemaleNeeded)
-    if (castingNotes !== undefined) data.castingNotes = castingNotes?.trim() || null
-    if (tentative !== undefined) data.tentative = tentative
-    if (notes !== undefined) data.notes = notes?.trim() || null
+  // All other fields: Manager only
+  if (isManager) {
+    if (feedbackFormAdded !== undefined) data.feedbackFormAdded = feedbackFormAdded
+    if (cancelled !== undefined) data.cancelled = cancelled
+    if (postponedWarning !== undefined) data.postponedWarning = postponedWarning
+
+    if (!isFrozen) {
+      if (date !== undefined) data.date = new Date(date)
+      if (startTime !== undefined) data.startTime = startTime
+      if (endTime !== undefined) data.endTime = endTime
+      if (locationType !== undefined) data.locationType = locationType
+      if (locationName !== undefined) data.locationName = locationName?.trim() || null
+      if (numRooms !== undefined) data.numRooms = Number(numRooms)
+      if (authorId !== undefined) data.authorId = authorId || null
+      if (directorRequested !== undefined) data.directorRequested = directorRequested
+      if (directorNotes !== undefined) data.directorNotes = directorNotes?.trim() || null
+      if (castingMaleNeeded !== undefined) data.castingMaleNeeded = castingMaleNeeded === "" ? null : Number(castingMaleNeeded)
+      if (castingFemaleNeeded !== undefined) data.castingFemaleNeeded = castingFemaleNeeded === "" ? null : Number(castingFemaleNeeded)
+      if (castingNotes !== undefined) data.castingNotes = castingNotes?.trim() || null
+      if (tentative !== undefined) data.tentative = tentative
+      if (notes !== undefined) data.notes = notes?.trim() || null
+    }
   }
 
-  const updated = await prisma.workshop.update({ where: { id }, data })
+  let updated: Awaited<ReturnType<typeof prisma.workshop.update>>
+  try {
+    updated = await prisma.workshop.update({ where: { id }, data })
+  } catch (e) {
+    console.error("[PATCH /api/sadnaot/[id]] Prisma error:", e)
+    return NextResponse.json({ error: String(e) }, { status: 500 })
+  }
 
-  // Sync rooms when numRooms changed
+  // Sync rooms when numRooms changed (Manager only)
   let updatedRooms: ReturnType<typeof mapRoom>[] | undefined
-  if (numRooms !== undefined && !isFrozen) {
+  if (isManager && numRooms !== undefined && !isFrozen) {
     const newNum = Number(numRooms)
     const allRooms = await prisma.room.findMany({
       where: { workshopId: id },
