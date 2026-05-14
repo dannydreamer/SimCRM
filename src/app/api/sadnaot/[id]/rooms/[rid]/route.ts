@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
+import { checkAndAdvanceStatus } from "@/lib/workshop-status"
 
 const FROZEN_STATUSES = ["CLOSING", "CLOSED", "CANCELLED"]
 
@@ -25,7 +26,14 @@ export async function PATCH(
     return NextResponse.json({ error: "Forbidden" }, { status: 403 })
 
   const { id, rid } = await params
-  const workshop = await prisma.workshop.findUnique({ where: { id }, select: { status: true, date: true } })
+  const workshop = await prisma.workshop.findUnique({
+    where: { id },
+    select: {
+      status: true,
+      date: true,
+      scenarios: { where: { cancelled: false }, select: { written: true } },
+    },
+  })
   if (!workshop) return NextResponse.json({ error: "Not found" }, { status: 404 })
   const frozen = FROZEN_STATUSES.includes(workshop.status)
 
@@ -73,6 +81,10 @@ export async function PATCH(
       const wDate = dayOnly(new Date(workshop.date))
       if (today > wDate)
         return NextResponse.json({ error: "לא ניתן לסמן מצגת לאחר תאריך הסדנה" }, { status: 400 })
+      // Must have at least one written scenario
+      const anyWritten = workshop.scenarios.some((s) => s.written)
+      if (!anyWritten)
+        return NextResponse.json({ error: "יש לסמן לפחות תרחיש אחד כנכתב לפני סימון מצגת" }, { status: 400 })
     }
     data.pptReceived = pptReceived
   }
@@ -97,6 +109,10 @@ export async function PATCH(
     data,
     include: { facilitator: { select: { id: true, name: true } } },
   })
+
+  // Auto-advance workshop status (slotting → READY, PPT+letter → CLOSED)
+  await checkAndAdvanceStatus(id)
+
   return NextResponse.json({
     id: updated.id,
     roomNumber: updated.roomNumber,

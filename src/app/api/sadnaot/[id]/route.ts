@@ -2,6 +2,7 @@
 import { prisma } from "@/lib/prisma"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
+import { checkAndAdvanceStatus } from "@/lib/workshop-status"
 
 const FROZEN_STATUSES = ["CLOSING", "CLOSED", "CANCELLED"]
 
@@ -26,6 +27,10 @@ export async function GET(
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
 
   const { id } = await params
+
+  // Auto-advance status (date-based CLOSING, etc.) before serving response
+  await checkAndAdvanceStatus(id)
+
   const w = await prisma.workshop.findUnique({
     where: { id },
     include: {
@@ -98,7 +103,14 @@ export async function PATCH(
     return NextResponse.json({ error: "Forbidden" }, { status: 403 })
 
   const { id } = await params
-  const w = await prisma.workshop.findUnique({ where: { id }, select: { status: true, cancelled: true, castingSentAt: true, castingMaleNeeded: true, castingFemaleNeeded: true } })
+  const w = await prisma.workshop.findUnique({
+    where: { id },
+    select: {
+      status: true, cancelled: true,
+      castingSentAt: true, castingMaleNeeded: true, castingFemaleNeeded: true,
+      rooms: { where: { cancelled: false }, select: { facilitatorId: true } },
+    },
+  })
   if (!w) return NextResponse.json({ error: "Not found" }, { status: 404 })
 
   const body = await req.json()
@@ -115,8 +127,7 @@ export async function PATCH(
   // Status advance: validate progression
   if (status !== undefined) {
     const allowed: Record<string, string[]> = {
-      NEW:       ["SPECIFIED"],
-      SPECIFIED: ["NEW"],
+      NEW: ["SPECIFIED"],
     }
     if (!allowed[w.status]?.includes(status))
       return NextResponse.json({ error: "מעבר סטטוס לא חוקי" }, { status: 400 })
@@ -133,7 +144,12 @@ export async function PATCH(
     if (postponedWarning !== undefined) data.postponedWarning = postponedWarning
 
     if (!isFrozen) {
-      if (date !== undefined) data.date = new Date(date)
+      if (date !== undefined) {
+        data.date = new Date(date)
+        // Auto-set postponed warning if workshop has assigned resources
+        const hasResources = !!w.castingSentAt || w.rooms.some((r) => r.facilitatorId)
+        if (hasResources) data.postponedWarning = true
+      }
       if (startTime !== undefined) data.startTime = startTime
       if (endTime !== undefined) data.endTime = endTime
       if (locationType !== undefined) data.locationType = locationType
@@ -220,10 +236,14 @@ export async function PATCH(
     }
   }
 
+  // Auto-advance after patch (e.g. castingSentAt just set)
+  const advancedStatus = await checkAndAdvanceStatus(id)
+
   return NextResponse.json({
-    status: updated.status,
+    status: advancedStatus ?? updated.status,
     cancelled: updated.cancelled,
     numRooms: updated.numRooms,
+    postponedWarning: updated.postponedWarning,
     ...(updatedRooms !== undefined && { rooms: updatedRooms }),
   })
 }

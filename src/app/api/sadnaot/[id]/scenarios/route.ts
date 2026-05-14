@@ -16,10 +16,12 @@ export async function POST(
     return NextResponse.json({ error: "Forbidden" }, { status: 403 })
 
   const { id } = await params
-  const w = await prisma.workshop.findUnique({ where: { id }, select: { status: true } })
+  const w = await prisma.workshop.findUnique({ where: { id }, select: { status: true, authorId: true } })
   if (!w) return NextResponse.json({ error: "Not found" }, { status: 404 })
   if (FROZEN_STATUSES.includes(w.status))
     return NextResponse.json({ error: "הסדנה נעולה לעריכה" }, { status: 403 })
+  if (!w.authorId)
+    return NextResponse.json({ error: "יש להגדיר כותב/ת תרחיש לפני הוספת תרחישים" }, { status: 400 })
 
   const { topicId, name, actorRequirements } = await req.json()
   if (!topicId) return NextResponse.json({ error: "יש לבחור נושא" }, { status: 400 })

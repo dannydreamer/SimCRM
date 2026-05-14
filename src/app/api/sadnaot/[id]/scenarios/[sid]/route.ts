@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
+import { checkAndAdvanceStatus } from "@/lib/workshop-status"
 
 const FROZEN_STATUSES = ["CLOSING", "CLOSED", "CANCELLED"]
 
@@ -61,6 +62,9 @@ export async function PATCH(
       },
     })
   }
+
+  // Auto-advance workshop status (all written → READY)
+  if (written !== undefined) await checkAndAdvanceStatus(id)
 
   return NextResponse.json({
     id: updated.id,
