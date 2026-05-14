@@ -33,7 +33,7 @@ export const NAV_ITEMS = [
   {
     href: "/luach",
     label: "לוח שנה",
-    roles: ["MANAGER", "TECH"],
+    roles: ["MANAGER", "TECH", "CASTER", "FEEDBACK_DOCUMENTER", "FACILITATOR"],
   },
   {
     href: "/yaadot",
