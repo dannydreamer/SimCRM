@@ -52,9 +52,8 @@ export async function checkAndAdvanceStatus(workshopId: string): Promise<string 
 
   } else if (w.status === "CLOSING") {
     const hasRooms    = w.rooms.length > 0
-    const allPpt      = hasRooms && w.rooms.every((r) => r.pptReceived)
     const allLetters  = hasRooms && w.rooms.every((r) => r.letterReceived)
-    if (allPpt && allLetters) newStatus = "CLOSED"
+    if (allLetters) newStatus = "CLOSED"
   }
 
   if (newStatus) {

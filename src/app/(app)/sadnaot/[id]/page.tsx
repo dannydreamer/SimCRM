@@ -241,7 +241,7 @@ function ScenarioRow({
 // ─── RoomRow ──────────────────────────────────────────────────────────────────
 
 function RoomRow({
-  r, canAssign, canCheckPptLetter, facilitators, allRooms, workshopId, workshopDate, onUpdate,
+  r, canAssign, canCheckPptLetter, facilitators, allRooms, workshopId, workshopDate, anyScenarioWritten, onUpdate,
 }: {
   r: Room
   canAssign: boolean
@@ -250,6 +250,7 @@ function RoomRow({
   allRooms: Room[]
   workshopId: string
   workshopDate: string   // ISO string
+  anyScenarioWritten: boolean
   onUpdate: (rid: string, data: Partial<Room>) => void
 }) {
   async function patchRoom(data: Partial<Room>) {
@@ -280,11 +281,13 @@ function RoomRow({
   const workshopPast = today > wDate      // day after workshop date
   const workshopFuture = today < wDate    // before workshop date
 
-  // PPT: allowed before or on workshop date; blocked after
+  // PPT: allowed before or on workshop date; blocked after; requires written scenario
   const pptBlockReason = !r.facilitatorId
     ? "יש לשבץ מתחקר/ת לפני סימון מצגת"
     : workshopPast
     ? "לא ניתן לסמן מצגת לאחר תאריך הסדנה"
+    : !anyScenarioWritten
+    ? "יש לסמן לפחות תרחיש אחד כנכתב לפני סימון מצגת"
     : null
   const pptDisabled = !!pptBlockReason
 
@@ -389,10 +392,14 @@ export default function WorkshopDetailPage() {
   // Copy
   const [copied, setCopied] = useState(false)
 
+  // Per-user banner dismissal (localStorage)
+  const [postponedDismissed, setPostponedDismissed] = useState(false)
+  const [cancelledDismissed, setCancelledDismissed] = useState(false)
+
   // Send to casting overlay
   const [showCastingOverlay, setShowCastingOverlay] = useState(false)
-  const [castingMale, setCastingMale] = useState("")
-  const [castingFemale, setCastingFemale] = useState("")
+  const [castingMale, setCastingMale] = useState("0")
+  const [castingFemale, setCastingFemale] = useState("0")
   const [castingOverlayNotes, setCastingOverlayNotes] = useState("")
   const [castingSending, setCastingSending] = useState(false)
 
@@ -418,6 +425,32 @@ export default function WorkshopDetailPage() {
   }, [id])
 
   useEffect(() => { load() }, [load])
+
+  // Sync localStorage-based banner dismissal whenever w or session changes
+  useEffect(() => {
+    if (!w || !session?.user?.id) return
+    const uid = session.user.id
+
+    const postponedKey = `simcrm:banner:postponed:${uid}:${w.id}`
+    const storedDate = localStorage.getItem(postponedKey)
+    // Dismissed only if stored date matches current workshop date
+    setPostponedDismissed(storedDate === w.date)
+
+    const cancelledKey = `simcrm:banner:cancelled:${uid}:${w.id}`
+    setCancelledDismissed(localStorage.getItem(cancelledKey) === "true")
+  }, [w?.id, w?.date, w?.cancelled, session?.user?.id])
+
+  function dismissPostponedBanner() {
+    if (!w || !session?.user?.id) return
+    localStorage.setItem(`simcrm:banner:postponed:${session.user.id}:${w.id}`, w.date)
+    setPostponedDismissed(true)
+  }
+
+  function dismissCancelledBanner() {
+    if (!w || !session?.user?.id) return
+    localStorage.setItem(`simcrm:banner:cancelled:${session.user.id}:${w.id}`, "true")
+    setCancelledDismissed(true)
+  }
 
   const canEdit = isManager && w !== null && !w.frozen && !w.cancelled
   const canAddScenario = canEditScenarios && w !== null && !w.frozen && !w.cancelled && w.status !== "NEW"
@@ -617,8 +650,8 @@ export default function WorkshopDetailPage() {
   function openCastingOverlay() {
     if (!w) return
     // Pre-fill with existing values if re-send
-    setCastingMale(w.castingMaleNeeded != null ? String(w.castingMaleNeeded) : "")
-    setCastingFemale(w.castingFemaleNeeded != null ? String(w.castingFemaleNeeded) : "")
+    setCastingMale(w.castingMaleNeeded != null ? String(w.castingMaleNeeded) : "0")
+    setCastingFemale(w.castingFemaleNeeded != null ? String(w.castingFemaleNeeded) : "0")
     setCastingOverlayNotes(w.castingNotes ?? "")
     setShowCastingOverlay(true)
   }
@@ -668,9 +701,11 @@ export default function WorkshopDetailPage() {
       <div className="px-8 pb-10 flex flex-col gap-6 max-w-4xl w-full">
 
         {/* Banners */}
-        {w.postponedWarning && (
-          <div className="bg-amber-50 border border-amber-300 rounded-lg px-4 py-3 text-sm text-amber-800 font-medium">
-            ⚠️ סדנה זו נדחתה — יש לעדכן תאריך חדש
+        {w.postponedWarning && !postponedDismissed && (
+          <div className="bg-amber-50 border border-amber-300 rounded-lg px-4 py-3 text-sm text-amber-800 font-medium flex items-center justify-between gap-3">
+            <span>⚠️ סדנה זו נדחתה — יש לעדכן תאריך חדש</span>
+            <button onClick={dismissPostponedBanner}
+              className="text-amber-600 hover:text-amber-800 text-lg leading-none shrink-0" title="סגור">×</button>
           </div>
         )}
         {w.cancelled && (
@@ -678,6 +713,17 @@ export default function WorkshopDetailPage() {
             סדנה זו בוטלה
           </div>
         )}
+        {w.cancelled && !cancelledDismissed && (() => {
+          const hasResources = !!w.castingSentAt || w.rooms.some((r) => !r.cancelled && r.facilitatorId)
+          if (!hasResources) return null
+          return (
+            <div className="bg-red-100 border border-red-400 rounded-lg px-4 py-3 text-sm text-red-800 font-semibold flex items-center justify-between gap-3">
+              <span>⚠️ הסדנה בוטלה — יש להודיע למתחקרים ולמלהקת</span>
+              <button onClick={dismissCancelledBanner}
+                className="text-red-600 hover:text-red-800 text-lg leading-none shrink-0" title="סגור">×</button>
+            </div>
+          )
+        })()}
 
         {/* Header card */}
         <div className="bg-white border border-gray-200 rounded-xl p-6 shadow-sm">
@@ -832,12 +878,6 @@ export default function WorkshopDetailPage() {
                     סמן: בוצע איתור צרכים
                   </button>
                 )}
-                {w.status === "SPECIFIED" && !w.cancelled && (
-                  <button onClick={() => patchWorkshop({ status: "NEW" })}
-                    className="px-4 py-1.5 border border-gray-300 text-sm rounded-lg hover:bg-gray-50 text-gray-600">
-                    חזור לסדנה חדשה
-                  </button>
-                )}
                 {isManager && !w.cancelled && !w.frozen && (
                   <button onClick={cancelWorkshop}
                     className="px-4 py-1.5 text-sm rounded-lg border border-red-200 text-red-600 hover:bg-red-50">
@@ -881,8 +921,7 @@ export default function WorkshopDetailPage() {
               )}
               {w.status === "CLOSING" && !w.cancelled && (() => {
                 const activeRooms = w.rooms.filter((r) => !r.cancelled)
-                const allPpt     = activeRooms.every((r) => r.pptReceived)
-                const allLetters = activeRooms.every((r) => r.letterReceived)
+                const allLetters = activeRooms.length > 0 && activeRooms.every((r) => r.letterReceived)
                 const Item = ({ ok, label }: { ok: boolean; label: string }) => (
                   <div className="flex items-center gap-2 text-xs">
                     <span className={ok ? "text-brand-green font-bold" : "text-gray-300"}>{ok ? "✓" : "○"}</span>
@@ -892,7 +931,6 @@ export default function WorkshopDetailPage() {
                 return (
                   <div className="flex flex-col gap-1.5 bg-gray-50 rounded-lg px-4 py-3">
                     <p className="text-xs font-semibold text-gray-500 mb-1">נדרש למעבר אוטומטי ל״סגור״:</p>
-                    <Item ok={allPpt}     label={`כל המצגות סומנו (${activeRooms.filter(r => r.pptReceived).length}/${activeRooms.length})`} />
                     <Item ok={allLetters} label={`כל המכתבים סומנו (${activeRooms.filter(r => r.letterReceived).length}/${activeRooms.length})`} />
                   </div>
                 )
@@ -928,6 +966,7 @@ export default function WorkshopDetailPage() {
                       allRooms={w.rooms}
                       workshopId={id}
                       workshopDate={w.date}
+                      anyScenarioWritten={w.scenarios.some((s) => !s.cancelled && s.written)}
                       onUpdate={updateRoom}
                     />
                   ))}
@@ -1234,7 +1273,7 @@ export default function WorkshopDetailPage() {
               </button>
               <button
                 onClick={confirmSendToCasting}
-                disabled={castingMale === "" || castingFemale === "" || castingSending}
+                disabled={(Number(castingMale) <= 0 && Number(castingFemale) <= 0) || castingSending}
                 className="px-4 py-2 bg-navy text-white text-sm font-semibold rounded-lg hover:bg-navy/90 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {castingSending ? "שולח..." : "אשר ושלח לליהוק"}

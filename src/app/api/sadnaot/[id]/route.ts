@@ -103,7 +103,14 @@ export async function PATCH(
     return NextResponse.json({ error: "Forbidden" }, { status: 403 })
 
   const { id } = await params
-  const w = await prisma.workshop.findUnique({ where: { id }, select: { status: true, cancelled: true, castingSentAt: true, castingMaleNeeded: true, castingFemaleNeeded: true } })
+  const w = await prisma.workshop.findUnique({
+    where: { id },
+    select: {
+      status: true, cancelled: true,
+      castingSentAt: true, castingMaleNeeded: true, castingFemaleNeeded: true,
+      rooms: { where: { cancelled: false }, select: { facilitatorId: true } },
+    },
+  })
   if (!w) return NextResponse.json({ error: "Not found" }, { status: 404 })
 
   const body = await req.json()
@@ -120,8 +127,7 @@ export async function PATCH(
   // Status advance: validate progression
   if (status !== undefined) {
     const allowed: Record<string, string[]> = {
-      NEW:       ["SPECIFIED"],
-      SPECIFIED: ["NEW"],
+      NEW: ["SPECIFIED"],
     }
     if (!allowed[w.status]?.includes(status))
       return NextResponse.json({ error: "מעבר סטטוס לא חוקי" }, { status: 400 })
@@ -138,7 +144,12 @@ export async function PATCH(
     if (postponedWarning !== undefined) data.postponedWarning = postponedWarning
 
     if (!isFrozen) {
-      if (date !== undefined) data.date = new Date(date)
+      if (date !== undefined) {
+        data.date = new Date(date)
+        // Auto-set postponed warning if workshop has assigned resources
+        const hasResources = !!w.castingSentAt || w.rooms.some((r) => r.facilitatorId)
+        if (hasResources) data.postponedWarning = true
+      }
       if (startTime !== undefined) data.startTime = startTime
       if (endTime !== undefined) data.endTime = endTime
       if (locationType !== undefined) data.locationType = locationType

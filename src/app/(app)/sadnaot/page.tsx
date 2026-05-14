@@ -312,13 +312,13 @@ export default function SadnaotPage() {
                 <table className="w-full text-sm">
                   <tbody>
                     {cancelled.map((w) => (
-                      <tr key={w.id} className="border-b border-gray-100 last:border-0 opacity-40">
-                        <td className="px-3 py-2 line-through text-gray-500 whitespace-nowrap">{fmtDate(w.date)}</td>
+                      <tr key={w.id} className="border-b border-gray-100 last:border-0 bg-red-50/20">
+                        <td className="px-3 py-2 line-through text-gray-500 whitespace-nowrap font-medium">{fmtDate(w.date)}</td>
                         <td className="px-3 py-2 line-through text-gray-500">
                           {w.orgName} — {w.groupName}
                         </td>
                         <td className="px-3 py-2 text-center text-gray-400" colSpan={9}>
-                          <span className="inline-block px-2 py-0.5 rounded-full text-xs bg-red-50 text-red-400">בוטל</span>
+                          <span className="inline-block px-2 py-0.5 rounded-full text-xs bg-red-100 text-red-500 font-medium">בוטל</span>
                         </td>
                       </tr>
                     ))}

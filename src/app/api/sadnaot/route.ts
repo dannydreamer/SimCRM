@@ -43,7 +43,7 @@ export async function GET() {
 
       const scenarioWritten = activeScenarios.length > 0 && activeScenarios.every((s) => s.written)
 
-      const pptTotal  = activeRooms.filter((r) => r.facilitatorId).length
+      const pptTotal  = activeRooms.length
       const pptFilled = activeRooms.filter((r) => r.pptReceived).length
 
       const letterTotal  = activeRooms.length
