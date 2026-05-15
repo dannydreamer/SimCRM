@@ -80,6 +80,7 @@ export async function GET() {
         feedbackFormAdded: w.feedbackFormAdded,
         pptFilled, pptTotal,
         letterFilled, letterTotal,
+        castingSentAt: w.castingSentAt?.toISOString() ?? null,
         feedbackMissing,
       }
     }),

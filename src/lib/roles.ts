@@ -31,6 +31,11 @@ export const NAV_ITEMS = [
     roles: ["MANAGER", "TECH", "CASTER", "FEEDBACK_DOCUMENTER"],
   },
   {
+    href: "/lihukim",
+    label: "ליהוק",
+    roles: ["MANAGER", "CASTER"],
+  },
+  {
     href: "/luach",
     label: "לוח שנה",
     roles: ["MANAGER", "TECH", "CASTER", "FEEDBACK_DOCUMENTER", "FACILITATOR"],

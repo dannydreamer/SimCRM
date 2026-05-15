@@ -20,6 +20,7 @@ interface WorkshopRow {
   pptFilled: number; pptTotal: number
   letterFilled: number; letterTotal: number
   feedbackMissing: number
+  castingSentAt: string | null
 }
 
 const STATUS_HE: Record<string, string> = {
@@ -84,6 +85,7 @@ export default function SadnaotPage() {
   const router    = useRouter()
   const user      = useUser()
   const isManager = user.roles.includes("MANAGER")
+  const isCaster  = user.roles.includes("CASTER")
 
   const [workshops, setWorkshops] = useState<WorkshopRow[]>([])
   const [loading, setLoading]     = useState(true)
@@ -259,7 +261,11 @@ export default function SadnaotPage() {
 
                     {/* Casting */}
                     <td className="px-3 py-2.5 text-center">
-                      <FractionBadge filled={w.castingFilled} total={w.castingTotal} href={`/sadnaot/${w.id}#casting`} />
+                      <FractionBadge
+                        filled={w.castingFilled}
+                        total={w.castingTotal}
+                        href={(isCaster || isManager) && w.castingSentAt ? `/lihukim/${w.id}` : `/sadnaot/${w.id}#casting`}
+                      />
                     </td>
 
                     {/* Slotting */}
