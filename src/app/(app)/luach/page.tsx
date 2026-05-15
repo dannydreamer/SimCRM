@@ -98,17 +98,20 @@ function Block({ w, onClick }: { w: WorkshopBlock; onClick: () => void }) {
   const color = w.cancelled ? STATUS_COLORS.CANCELLED : (STATUS_COLORS[w.status] ?? STATUS_COLORS.NEW)
   return (
     <button onClick={onClick}
-      className={`w-full text-right border rounded px-2 py-1 mb-1 last:mb-0 text-xs leading-snug hover:brightness-95 transition-all ${color} ${w.cancelled ? "opacity-50" : ""}`}>
+      className={`w-full text-right border rounded px-2 py-1 mb-1 last:mb-0 text-xs leading-snug hover:brightness-95 transition-all ${color}`}>
       <div className="flex items-center gap-1 font-semibold truncate">
         {w.tentative && (
           <span className="shrink-0 px-1 rounded bg-amber-100 text-amber-700 font-bold text-xs">?</span>
         )}
-        <span className="truncate">{w.groupName}</span>
+        <span className={`truncate ${w.cancelled ? "line-through" : ""}`}>{w.groupName}</span>
+        {w.cancelled && (
+          <span className="shrink-0 px-1 rounded bg-red-100 text-red-500 font-medium text-xs">בוטל</span>
+        )}
       </div>
       <div className="truncate text-gray-500">{w.orgName}</div>
       <div className="text-gray-400">{w.startTime}–{w.endTime} · {w.numRooms} חד׳</div>
       <div className="truncate text-gray-400">
-        {w.facilitators.length > 0 ? w.facilitators.join(", ") : "לא שובץ"}
+        {w.facilitators.length > 0 ? w.facilitators.join(", ") : "לא שובצו מתחקרים"}
       </div>
     </button>
   )
