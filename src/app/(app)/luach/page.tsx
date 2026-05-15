@@ -129,12 +129,22 @@ export default function LuachPage() {
     const s = localStorage.getItem("simcrm:calendar:range")
     return (s === "week" || s === "twoWeeks" || s === "month") ? s : "week"
   })
-  const [anchor, setAnchor]       = useState<Date>(() => new Date())
+  const [anchor, setAnchor]       = useState<Date>(() => {
+    if (typeof window === "undefined") return new Date()
+    const s = localStorage.getItem("simcrm:calendar:anchor")
+    if (s) { const d = new Date(s); if (!isNaN(d.getTime())) return d }
+    return new Date()
+  })
   const [facilitatorFilter, setFacilitatorFilter] = useState<string>("all")
 
   function changeRange(r: RangeType) {
     localStorage.setItem("simcrm:calendar:range", r)
     setRange(r)
+  }
+
+  function changeAnchor(d: Date) {
+    localStorage.setItem("simcrm:calendar:anchor", d.toISOString())
+    setAnchor(d)
   }
 
   useEffect(() => {
@@ -219,21 +229,21 @@ export default function LuachPage() {
           </div>
 
           {/* "היום" — standalone */}
-          <button onClick={() => setAnchor(new Date())}
+          <button onClick={() => changeAnchor(new Date())}
             className="px-3 h-8 rounded border border-gray-200 text-xs hover:bg-gray-50 text-gray-600">
             היום
           </button>
 
-          {/* Navigation arrows flanking the date label (RTL: › prev on right, ‹ next on left) */}
+          {/* Navigation arrows flanking the date label (RTL: right button = prev, left button = next) */}
           <div className="flex items-center gap-1">
-            <button onClick={() => setAnchor((a) => navigateAnchor(a, range, -1))}
-              className="w-8 h-8 flex items-center justify-center rounded border border-gray-200 hover:bg-gray-50 text-gray-600 text-base">
-              &rsaquo;
-            </button>
-            <span className="text-sm font-semibold text-gray-700 min-w-[140px] text-center">{rangeLabel}</span>
-            <button onClick={() => setAnchor((a) => navigateAnchor(a, range, 1))}
+            <button onClick={() => changeAnchor(navigateAnchor(anchor, range, -1))}
               className="w-8 h-8 flex items-center justify-center rounded border border-gray-200 hover:bg-gray-50 text-gray-600 text-base">
               &lsaquo;
+            </button>
+            <span className="text-sm font-semibold text-gray-700 min-w-[140px] text-center">{rangeLabel}</span>
+            <button onClick={() => changeAnchor(navigateAnchor(anchor, range, 1))}
+              className="w-8 h-8 flex items-center justify-center rounded border border-gray-200 hover:bg-gray-50 text-gray-600 text-base">
+              &rsaquo;
             </button>
           </div>
 
