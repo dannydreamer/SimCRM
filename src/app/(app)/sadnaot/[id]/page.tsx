@@ -24,6 +24,8 @@ interface Scenario {
   topicId: string
   topicName: string
   actorRequirements: string | null
+  maleActorsNeeded: number
+  femaleActorsNeeded: number
   written: boolean
   cancelled: boolean
   orderIndex: number
@@ -163,6 +165,8 @@ function ScenarioRow({
   const [topicId, setTopicId] = useState(s.topicId)
   const [name, setName] = useState(s.name ?? "")
   const [req, setReq] = useState(s.actorRequirements ?? "")
+  const [maleCount,   setMaleCount]   = useState(String(s.maleActorsNeeded))
+  const [femaleCount, setFemaleCount] = useState(String(s.femaleActorsNeeded))
   const [saving, setSaving] = useState(false)
 
   async function save() {
@@ -170,7 +174,11 @@ function ScenarioRow({
     const res = await fetch(`/api/sadnaot/${workshopId}/scenarios/${s.id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ topicId, name, actorRequirements: req }),
+      body: JSON.stringify({
+        topicId, name, actorRequirements: req,
+        maleActorsNeeded:   Math.max(0, Number(maleCount)   || 0),
+        femaleActorsNeeded: Math.max(0, Number(femaleCount) || 0),
+      }),
     })
     if (res.ok) {
       const updated = await res.json()
@@ -210,6 +218,20 @@ function ScenarioRow({
           <td className="py-2 px-3">
             <textarea value={req} onChange={(e) => setReq(e.target.value)} rows={2}
               className="border border-gray-300 rounded px-2 py-1 text-sm w-full" placeholder="דרישות שחקנים" />
+            <div className="flex items-center gap-3 mt-1.5">
+              <label className="flex items-center gap-1 text-xs text-gray-600">
+                ♂
+                <input type="number" min={0} value={maleCount}
+                  onChange={(e) => setMaleCount(e.target.value)}
+                  className="border border-gray-300 rounded px-1.5 py-0.5 text-xs w-12 text-center" />
+              </label>
+              <label className="flex items-center gap-1 text-xs text-gray-600">
+                ♀
+                <input type="number" min={0} value={femaleCount}
+                  onChange={(e) => setFemaleCount(e.target.value)}
+                  className="border border-gray-300 rounded px-1.5 py-0.5 text-xs w-12 text-center" />
+              </label>
+            </div>
           </td>
           <td className="py-2 px-3 text-center"><Check on={s.written} /></td>
           <td className="py-2 px-3">
@@ -225,7 +247,15 @@ function ScenarioRow({
         <>
           <td className="py-2 px-3 font-medium">{s.topicName}</td>
           <td className="py-2 px-3 text-gray-600">{s.name ?? <span className="text-gray-300">—</span>}</td>
-          <td className="py-2 px-3 text-gray-600 whitespace-pre-wrap">{s.actorRequirements ?? <span className="text-gray-300">—</span>}</td>
+          <td className="py-2 px-3 text-gray-600 whitespace-pre-wrap">
+            {s.actorRequirements ?? <span className="text-gray-300">—</span>}
+            {(s.maleActorsNeeded > 0 || s.femaleActorsNeeded > 0) && (
+              <div className="mt-1 flex gap-2 text-xs text-gray-500">
+                {s.maleActorsNeeded > 0 && <span>♂ {s.maleActorsNeeded}</span>}
+                {s.femaleActorsNeeded > 0 && <span>♀ {s.femaleActorsNeeded}</span>}
+              </div>
+            )}
+          </td>
           <td className="py-2 px-3 text-center">
             {canEdit && !s.cancelled ? (
               <button onClick={toggleWritten} title={s.written ? "סמן כלא כתוב" : "סמן ככתוב"}

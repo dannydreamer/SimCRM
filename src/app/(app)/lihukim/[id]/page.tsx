@@ -21,6 +21,8 @@ interface Scenario {
   name: string | null
   topicName: string
   actorRequirements: string | null
+  maleActorsNeeded: number
+  femaleActorsNeeded: number
   orderIndex: number
 }
 
@@ -45,6 +47,8 @@ interface Assignment {
   actorId: string
   actorName: string
   isDirector: boolean
+  slotGender: string | null
+  slotIndex: number
 }
 
 interface ChangeLog {
@@ -151,12 +155,12 @@ export default function LihukimPage() {
     return list
   }, [actors, genderFilter, availOnly, actorSearch])
 
-  // Assignment lookup maps
+  // Assignment lookup maps — key: scenarioId:roomId:gender:slotIndex
   const assignmentBySlot = useMemo(() => {
     const map = new Map<string, Assignment>()
     data?.assignments.forEach((a) => {
-      if (!a.isDirector && a.scenarioId && a.roomId) {
-        map.set(`${a.scenarioId}:${a.roomId}`, a)
+      if (!a.isDirector && a.scenarioId && a.roomId && a.slotGender !== null) {
+        map.set(`${a.scenarioId}:${a.roomId}:${a.slotGender}:${a.slotIndex}`, a)
       }
     })
     return map
@@ -191,22 +195,28 @@ export default function LihukimPage() {
     setSaving(false)
   }
 
-  async function assign(scenarioId: string | null, roomId: string | null, actorId: string, isDirector: boolean) {
+  async function assign(
+    scenarioId: string | null, roomId: string | null,
+    actorId: string, isDirector: boolean,
+    slotGender?: string, slotIndex?: number
+  ) {
     if (!isCaster || saving) return
     setSaving(true)
     const r = await fetch(`/api/lihukim/${workshopId}/assignments`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ scenarioId, roomId, actorId, isDirector }),
+      body: JSON.stringify({ scenarioId, roomId, actorId, isDirector, slotGender, slotIndex }),
     })
     if (r.ok) {
       const newAssignment: Assignment = await r.json()
       setData((prev) => {
         if (!prev) return prev
-        // Remove any existing assignment for this slot
         const filtered = prev.assignments.filter((a) => {
           if (isDirector) return !a.isDirector
-          return !(a.scenarioId === scenarioId && a.roomId === roomId && !a.isDirector)
+          return !(
+            a.scenarioId === scenarioId && a.roomId === roomId &&
+            a.slotGender === slotGender && a.slotIndex === slotIndex && !a.isDirector
+          )
         })
         return { ...prev, assignments: [...filtered, newAssignment] }
       })
@@ -507,55 +517,84 @@ export default function LihukimPage() {
             {/* Scenarios × Rooms grid */}
             {scenarios.length === 0 ? (
               <p className="text-sm text-gray-400">אין תרחישים פעילים</p>
-            ) : scenarios.map((scenario, si) => (
-              <div key={scenario.id}>
-                <p className="text-xs font-semibold text-gray-600 uppercase tracking-wide mb-2">
-                  תרחיש {si + 1}{scenario.name ? ` — ${scenario.name}` : ""} · {scenario.topicName}
-                </p>
-                <div className="border border-gray-100 rounded-lg overflow-hidden">
-                  <table className="w-full text-sm">
-                    <thead>
-                      <tr className="bg-gray-50 border-b border-gray-100 text-xs text-gray-500 font-medium text-right">
-                        <th className="px-4 py-2 w-16">חדר</th>
-                        <th className="px-4 py-2">שחקן/ית</th>
-                        {isCaster && <th className="px-4 py-2 w-10" />}
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {rooms.map((room) => {
-                        const slotKey    = `${scenario.id}:${room.id}`
-                        const assignment = assignmentBySlot.get(slotKey) ?? null
-                        return (
-                          <tr key={room.id} className="border-b border-gray-50 last:border-0">
-                            <td className="px-4 py-2.5 text-gray-500 font-medium">{room.roomNumber}</td>
-                            <td className="px-4 py-2.5">
-                              <ActorPicker
-                                actors={availableActors}
-                                current={assignment}
-                                canEdit={isCaster}
-                                saving={saving}
-                                onAssign={(actorId) => assign(scenario.id, room.id, actorId, false)}
-                              />
-                            </td>
-                            {isCaster && (
-                              <td className="px-4 py-2.5 text-center">
-                                {assignment && (
-                                  <button onClick={() => unassign(assignment.id)}
-                                    disabled={saving}
-                                    className="text-gray-300 hover:text-red-400 transition-colors font-bold text-lg leading-none">
-                                    ×
-                                  </button>
-                                )}
-                              </td>
-                            )}
+            ) : scenarios.map((scenario, si) => {
+              const noSlots = scenario.maleActorsNeeded === 0 && scenario.femaleActorsNeeded === 0
+              return (
+                <div key={scenario.id}>
+                  <p className="text-xs font-semibold text-gray-600 uppercase tracking-wide mb-2">
+                    תרחיש {si + 1}{scenario.name ? ` — ${scenario.name}` : ""} · {scenario.topicName}
+                  </p>
+
+                  {noSlots ? (
+                    <div className="border border-amber-200 bg-amber-50 rounded-lg px-4 py-3 text-xs text-amber-700">
+                      לא הוזנו כמויות שחקנים לתרחיש זה — יש לעדכן בדף הסדנה
+                    </div>
+                  ) : (
+                    <div className="border border-gray-100 rounded-lg overflow-hidden">
+                      <table className="w-full text-sm">
+                        <thead>
+                          <tr className="bg-gray-50 border-b border-gray-100 text-xs text-gray-500 font-medium text-right">
+                            <th className="px-4 py-2 w-16">חדר</th>
+                            <th className="px-4 py-2">שחקנים</th>
                           </tr>
-                        )
-                      })}
-                    </tbody>
-                  </table>
+                        </thead>
+                        <tbody>
+                          {rooms.map((room) => (
+                            <tr key={room.id} className="border-b border-gray-50 last:border-0">
+                              <td className="px-4 py-2.5 text-gray-500 font-medium align-top pt-3">
+                                {room.roomNumber}
+                              </td>
+                              <td className="px-4 py-2.5">
+                                <div className="flex flex-wrap gap-2">
+                                  {/* Male slots */}
+                                  {Array.from({ length: scenario.maleActorsNeeded }, (_, idx) => {
+                                    const key        = `${scenario.id}:${room.id}:MALE:${idx}`
+                                    const assignment = assignmentBySlot.get(key) ?? null
+                                    const maleActors = availableActors.filter((a) => a.gender === "MALE")
+                                    return (
+                                      <div key={key} className="flex items-center gap-1">
+                                        <span className="text-xs text-blue-500 font-semibold">♂</span>
+                                        <GenderedPicker
+                                          actors={maleActors}
+                                          current={assignment}
+                                          canEdit={isCaster}
+                                          saving={saving}
+                                          onAssign={(actorId) => assign(scenario.id, room.id, actorId, false, "MALE", idx)}
+                                          onClear={() => assignment && unassign(assignment.id)}
+                                        />
+                                      </div>
+                                    )
+                                  })}
+                                  {/* Female slots */}
+                                  {Array.from({ length: scenario.femaleActorsNeeded }, (_, idx) => {
+                                    const key        = `${scenario.id}:${room.id}:FEMALE:${idx}`
+                                    const assignment = assignmentBySlot.get(key) ?? null
+                                    const femaleActors = availableActors.filter((a) => a.gender === "FEMALE")
+                                    return (
+                                      <div key={key} className="flex items-center gap-1">
+                                        <span className="text-xs text-pink-500 font-semibold">♀</span>
+                                        <GenderedPicker
+                                          actors={femaleActors}
+                                          current={assignment}
+                                          canEdit={isCaster}
+                                          saving={saving}
+                                          onAssign={(actorId) => assign(scenario.id, room.id, actorId, false, "FEMALE", idx)}
+                                          onClear={() => assignment && unassign(assignment.id)}
+                                        />
+                                      </div>
+                                    )
+                                  })}
+                                </div>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
                 </div>
-              </div>
-            ))}
+              )
+            })}
           </div>
         </section>
 
@@ -564,16 +603,17 @@ export default function LihukimPage() {
   )
 }
 
-// ─── Actor Picker (regular slot) ──────────────────────────────────────────────
+// ─── Gendered Picker (per-slot, pre-filtered by gender) ──────────────────────
 
-function ActorPicker({
-  actors, current, canEdit, saving, onAssign,
+function GenderedPicker({
+  actors, current, canEdit, saving, onAssign, onClear,
 }: {
-  actors: Actor[]
+  actors: Actor[]          // already filtered to the correct gender
   current: Assignment | null
   canEdit: boolean
   saving: boolean
   onAssign: (actorId: string) => void
+  onClear: () => void
 }) {
   if (!canEdit) {
     return (
@@ -583,19 +623,26 @@ function ActorPicker({
     )
   }
   return (
-    <select
-      value={current?.actorId ?? ""}
-      onChange={(e) => { if (e.target.value) onAssign(e.target.value) }}
-      disabled={saving}
-      className="border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-navy/30 w-full max-w-xs min-h-[44px]">
-      <option value="">— בחר/י שחקן/ית —</option>
-      {actors.map((a) => (
-        <option key={a.id} value={a.id}>
-          {a.name} ({a.gender === "MALE" ? "זכר" : "נקבה"})
-          {a.canDirect ? " · במאי/ת" : ""}
-        </option>
-      ))}
-    </select>
+    <div className="flex items-center gap-1">
+      <select
+        value={current?.actorId ?? ""}
+        onChange={(e) => { if (e.target.value) onAssign(e.target.value) }}
+        disabled={saving}
+        className="border border-gray-200 rounded-lg px-2 py-2 text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-navy/30 min-h-[44px]">
+        <option value="">— בחר/י —</option>
+        {actors.map((a) => (
+          <option key={a.id} value={a.id}>
+            {a.name}{a.canDirect ? " · במאי/ת" : ""}
+          </option>
+        ))}
+      </select>
+      {current && (
+        <button onClick={onClear} disabled={saving}
+          className="text-gray-300 hover:text-red-400 transition-colors font-bold text-lg leading-none">
+          ×
+        </button>
+      )}
+    </div>
   )
 }
 

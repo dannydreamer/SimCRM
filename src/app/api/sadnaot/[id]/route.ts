@@ -87,6 +87,8 @@ export async function GET(
       topicId: s.topicId,
       topicName: s.topic.name,
       actorRequirements: s.actorRequirements,
+      maleActorsNeeded: s.maleActorsNeeded,
+      femaleActorsNeeded: s.femaleActorsNeeded,
       written: s.written,
       cancelled: s.cancelled,
       orderIndex: s.orderIndex,

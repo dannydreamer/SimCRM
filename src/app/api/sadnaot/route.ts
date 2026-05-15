@@ -21,7 +21,7 @@ export async function GET() {
           facilitator: { select: { id: true, name: true } },
         },
       },
-      scenarios: { select: { id: true, cancelled: true, written: true } },
+      scenarios: { select: { id: true, cancelled: true, written: true, maleActorsNeeded: true, femaleActorsNeeded: true } },
       castings:  { select: { actorId: true, isDirector: true, roomId: true } },
       feedbacks: { select: { actorId: true, roomId: true } },
     },
@@ -38,8 +38,9 @@ export async function GET() {
       const slottingFilled   = activeRooms.filter((r) => r.facilitatorId).length
       const slottingTentative = activeRooms.some((r) => r.facilitatorTentative)
 
-      const castingTotal  = activeScenarios.length * activeRooms.length + (w.directorRequested ? 1 : 0)
-      const castingFilled = nonDirCastings.length + (w.directorRequested && directorCasting ? 1 : 0)
+      const slotsPerRoom  = activeScenarios.reduce((sum, s) => sum + s.maleActorsNeeded + s.femaleActorsNeeded, 0)
+      const castingTotal  = slotsPerRoom * activeRooms.length + (w.directorRequested ? 1 : 0)
+      const castingFilled = nonDirCastings.filter((c) => c.actorId).length + (w.directorRequested && directorCasting ? 1 : 0)
 
       const scenarioWritten = activeScenarios.length > 0 && activeScenarios.every((s) => s.written)
 

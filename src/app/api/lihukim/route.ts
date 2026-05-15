@@ -25,7 +25,7 @@ export async function GET() {
       participantGroup: {
         include: { organization: { select: { name: true } } },
       },
-      scenarios: { where: { cancelled: false }, select: { id: true } },
+      scenarios: { where: { cancelled: false }, select: { id: true, maleActorsNeeded: true, femaleActorsNeeded: true } },
       rooms:     { where: { cancelled: false }, select: { id: true } },
       castings:  { select: { id: true, isDirector: true } },
     },
@@ -33,9 +33,9 @@ export async function GET() {
 
   return NextResponse.json(
     workshops.map((w) => {
-      const activeScenarios = w.scenarios.length
       const activeRooms     = w.rooms.length
-      const castingTotal    = activeScenarios * activeRooms + (w.directorRequested ? 1 : 0)
+      const slotsPerRoom    = w.scenarios.reduce((sum, s) => sum + s.maleActorsNeeded + s.femaleActorsNeeded, 0)
+      const castingTotal    = slotsPerRoom * activeRooms + (w.directorRequested ? 1 : 0)
       const nonDir          = w.castings.filter((c) => !c.isDirector).length
       const hasDir          = w.castings.some((c) => c.isDirector)
       const castingFilled   = nonDir + (w.directorRequested && hasDir ? 1 : 0)

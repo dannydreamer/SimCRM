@@ -14,7 +14,7 @@ export async function POST(
     return NextResponse.json({ error: "Forbidden" }, { status: 403 })
 
   const { id: workshopId } = await params
-  const { scenarioId, roomId, actorId, isDirector } = await req.json()
+  const { scenarioId, roomId, actorId, isDirector, slotGender, slotIndex = 0 } = await req.json()
 
   if (!actorId) return NextResponse.json({ error: "actorId required" }, { status: 400 })
 
@@ -25,34 +25,33 @@ export async function POST(
   if (!avail?.available)
     return NextResponse.json({ error: "שחקן/ית זה/זו אינו/ה מסומן/ת כמעוניין/ת בסדנה זו" }, { status: 400 })
 
+  const actor = await prisma.actor.findUnique({ where: { id: actorId }, select: { name: true } })
+
   if (isDirector) {
     // One director slot per workshop — replace if exists
     const existing = await prisma.casting.findFirst({ where: { workshopId, isDirector: true } })
     if (existing) {
       await prisma.casting.update({ where: { id: existing.id }, data: { actorId } })
-      const actor = await prisma.actor.findUnique({ where: { id: actorId }, select: { name: true } })
-      return NextResponse.json({ id: existing.id, scenarioId: null, roomId: null, actorId, actorName: actor?.name, isDirector: true })
+      return NextResponse.json({ id: existing.id, scenarioId: null, roomId: null, actorId, actorName: actor?.name, isDirector: true, slotGender: null, slotIndex: 0 })
     } else {
-      const created = await prisma.casting.create({ data: { workshopId, actorId, isDirector: true } })
-      const actor = await prisma.actor.findUnique({ where: { id: actorId }, select: { name: true } })
-      return NextResponse.json({ id: created.id, scenarioId: null, roomId: null, actorId, actorName: actor?.name, isDirector: true })
+      const created = await prisma.casting.create({ data: { workshopId, actorId, isDirector: true, slotGender: null, slotIndex: 0 } })
+      return NextResponse.json({ id: created.id, scenarioId: null, roomId: null, actorId, actorName: actor?.name, isDirector: true, slotGender: null, slotIndex: 0 })
     }
   } else {
-    if (!scenarioId || !roomId)
-      return NextResponse.json({ error: "scenarioId and roomId required" }, { status: 400 })
+    if (!scenarioId || !roomId || !slotGender)
+      return NextResponse.json({ error: "scenarioId, roomId and slotGender required" }, { status: 400 })
 
-    // One actor per scenario+room — replace if exists
+    // One actor per (scenario, room, gender, slotIndex)
     const existing = await prisma.casting.findFirst({
-      where: { workshopId, scenarioId, roomId, isDirector: false },
+      where: { workshopId, scenarioId, roomId, slotGender, slotIndex: Number(slotIndex), isDirector: false },
     })
-    const actor = await prisma.actor.findUnique({ where: { id: actorId }, select: { name: true } })
 
     if (existing) {
       await prisma.casting.update({ where: { id: existing.id }, data: { actorId } })
-      return NextResponse.json({ id: existing.id, scenarioId, roomId, actorId, actorName: actor?.name, isDirector: false })
+      return NextResponse.json({ id: existing.id, scenarioId, roomId, actorId, actorName: actor?.name, isDirector: false, slotGender, slotIndex: Number(slotIndex) })
     } else {
-      const created = await prisma.casting.create({ data: { workshopId, scenarioId, roomId, actorId, isDirector: false } })
-      return NextResponse.json({ id: created.id, scenarioId, roomId, actorId, actorName: actor?.name, isDirector: false })
+      const created = await prisma.casting.create({ data: { workshopId, scenarioId, roomId, actorId, isDirector: false, slotGender, slotIndex: Number(slotIndex) } })
+      return NextResponse.json({ id: created.id, scenarioId, roomId, actorId, actorName: actor?.name, isDirector: false, slotGender, slotIndex: Number(slotIndex) })
     }
   }
 }

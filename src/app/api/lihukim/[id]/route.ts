@@ -72,11 +72,13 @@ export async function GET(
     cancelled:        w.cancelled,
 
     scenarios: w.scenarios.map((s) => ({
-      id:               s.id,
-      name:             s.name,
-      topicName:        s.topic.name,
+      id:                s.id,
+      name:              s.name,
+      topicName:         s.topic.name,
       actorRequirements: s.actorRequirements,
-      orderIndex:       s.orderIndex,
+      maleActorsNeeded:  s.maleActorsNeeded,
+      femaleActorsNeeded: s.femaleActorsNeeded,
+      orderIndex:        s.orderIndex,
     })),
 
     rooms: w.rooms.map((r) => ({
@@ -100,6 +102,8 @@ export async function GET(
       actorId:    c.actorId,
       actorName:  c.actor.name,
       isDirector: c.isDirector,
+      slotGender: c.slotGender,
+      slotIndex:  c.slotIndex,
     })),
 
     changeLogs: w.castingChangeLogs.map((l) => ({
