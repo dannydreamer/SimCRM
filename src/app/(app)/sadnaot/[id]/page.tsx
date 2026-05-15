@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState, useCallback } from "react"
+import { useEffect, useState, useCallback, type ReactNode } from "react"
 import { useParams } from "next/navigation"
 import Link from "next/link"
 import { useSession } from "next-auth/react"
@@ -58,6 +58,16 @@ interface Workshop {
   authorName: string | null
   rooms: Room[]
   scenarios: Scenario[]
+  castings: CastingSlot[]
+}
+
+interface CastingSlot {
+  id: string
+  scenarioId: string | null
+  roomId: string | null
+  actorId: string
+  actorName: string
+  isDirector: boolean
 }
 
 interface Topic { id: string; name: string; active: boolean }
@@ -395,6 +405,9 @@ export default function WorkshopDetailPage() {
   // Per-user banner dismissal (localStorage)
   const [postponedDismissed, setPostponedDismissed] = useState(false)
   const [cancelledDismissed, setCancelledDismissed] = useState(false)
+
+  // Casting actor summary collapsible
+  const [castingOpen, setCastingOpen] = useState(false)
 
   // Send to casting overlay
   const [showCastingOverlay, setShowCastingOverlay] = useState(false)
@@ -1112,6 +1125,71 @@ export default function WorkshopDetailPage() {
                   {wasSent ? "עדכן ושלח לליהוק" : "שלח לליהוק"}
                 </button>
               </div>
+
+              {/* Collapsible actor summary — visible once casting is sent */}
+              {wasSent && (() => {
+                const activeScenarios = w.scenarios.filter((s) => !s.cancelled)
+                const activeRooms     = w.rooms.filter((r) => !r.cancelled)
+                const slotMap = new Map<string, string>()
+                w.castings.forEach((c) => {
+                  if (!c.isDirector && c.scenarioId && c.roomId) {
+                    slotMap.set(`${c.scenarioId}:${c.roomId}`, c.actorName)
+                  }
+                })
+                const dirCasting = w.castings.find((c) => c.isDirector)
+
+                return (
+                  <div className="mt-3 border-t border-gray-100 pt-3">
+                    <button
+                      onClick={() => setCastingOpen((o) => !o)}
+                      className="text-xs text-navy hover:underline font-medium">
+                      {castingOpen ? "הסתר ▲" : "הצג שחקנים ▼"}
+                    </button>
+
+                    {castingOpen && (
+                      <div className="mt-2 space-y-1.5 text-xs text-gray-700">
+                        {/* Director line */}
+                        {w.directorRequested && (
+                          <div>
+                            <span className="font-semibold text-gray-600">במאי/ת: </span>
+                            {dirCasting
+                              ? <span>{dirCasting.actorName}</span>
+                              : <span className="text-red-500 font-semibold">חסר</span>
+                            }
+                          </div>
+                        )}
+                        {/* Scenario lines */}
+                        {activeScenarios.map((s, si) => {
+                          const parts = activeRooms.map((r) => {
+                            const name = slotMap.get(`${s.id}:${r.id}`)
+                            return (
+                              <span key={r.id}>
+                                <span className="text-gray-400">חדר {r.roomNumber}: </span>
+                                {name
+                                  ? <span>{name}</span>
+                                  : <span className="text-red-500 font-semibold">חסר</span>
+                                }
+                              </span>
+                            )
+                          })
+                          return (
+                            <div key={s.id} className="flex flex-wrap gap-x-3 gap-y-0.5">
+                              <span className="font-semibold text-gray-600 shrink-0">
+                                תרחיש {si + 1}{s.name ? ` — ${s.name}` : ""}:
+                              </span>
+                              {parts.reduce<ReactNode[]>((acc, el, i) => {
+                                if (i > 0) acc.push(<span key={`sep-${i}`} className="text-gray-300">|</span>)
+                                acc.push(el)
+                                return acc
+                              }, [] as ReactNode[])}
+                            </div>
+                          )
+                        })}
+                      </div>
+                    )}
+                  </div>
+                )
+              })()}
             </section>
           )
         })()}

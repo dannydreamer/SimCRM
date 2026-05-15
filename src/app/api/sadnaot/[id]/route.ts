@@ -44,6 +44,9 @@ export async function GET(
         orderBy: { orderIndex: "asc" },
         include: { topic: { select: { id: true, name: true } } },
       },
+      castings: {
+        include: { actor: { select: { id: true, name: true } } },
+      },
     },
   })
 
@@ -87,6 +90,14 @@ export async function GET(
       written: s.written,
       cancelled: s.cancelled,
       orderIndex: s.orderIndex,
+    })),
+    castings: w.castings.map((c) => ({
+      id:         c.id,
+      scenarioId: c.scenarioId,
+      roomId:     c.roomId,
+      actorId:    c.actorId,
+      actorName:  c.actor.name,
+      isDirector: c.isDirector,
     })),
   })
 }
