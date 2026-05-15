@@ -60,6 +60,11 @@ function isSameDay(a: Date, b: Date) {
     a.getDate() === b.getDate()
 }
 
+/** YYYY-MM-DD using LOCAL date components — avoids UTC-offset mismatches */
+function localDateKey(d: Date) {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`
+}
+
 function fmtMonthYear(d: Date) {
   return d.toLocaleDateString("he-IL", { month: "long", year: "numeric" })
 }
@@ -102,9 +107,9 @@ function Block({ w, onClick }: { w: WorkshopBlock; onClick: () => void }) {
       </div>
       <div className="truncate text-gray-500">{w.orgName}</div>
       <div className="text-gray-400">{w.startTime}–{w.endTime} · {w.numRooms} חד׳</div>
-      {w.facilitators.length > 0 && (
-        <div className="truncate text-gray-400">{w.facilitators.join(", ")}</div>
-      )}
+      <div className="truncate text-gray-400">
+        {w.facilitators.length > 0 ? w.facilitators.join(", ") : "לא שובץ"}
+      </div>
     </button>
   )
 }
@@ -116,9 +121,18 @@ export default function LuachPage() {
 
   const [workshops, setWorkshops] = useState<WorkshopBlock[]>([])
   const [loading, setLoading]     = useState(true)
-  const [range, setRange]         = useState<RangeType>("week")
+  const [range, setRange]         = useState<RangeType>(() => {
+    if (typeof window === "undefined") return "week"
+    const s = localStorage.getItem("simcrm:calendar:range")
+    return (s === "week" || s === "twoWeeks" || s === "month") ? s : "week"
+  })
   const [anchor, setAnchor]       = useState<Date>(() => new Date())
   const [facilitatorFilter, setFacilitatorFilter] = useState<string>("all")
+
+  function changeRange(r: RangeType) {
+    localStorage.setItem("simcrm:calendar:range", r)
+    setRange(r)
+  }
 
   useEffect(() => {
     fetch("/api/luach", { cache: "no-store" })
@@ -140,7 +154,8 @@ export default function LuachPage() {
       : workshops.filter((w) => w.facilitators.includes(facilitatorFilter))
     const map = new Map<string, WorkshopBlock[]>()
     filtered.forEach((w) => {
-      const key = w.date.slice(0, 10)
+      // Parse the UTC ISO date into local components to avoid day-offset issues
+      const key = localDateKey(new Date(w.date))
       if (!map.has(key)) map.set(key, [])
       map.get(key)!.push(w)
     })
@@ -191,33 +206,33 @@ export default function LuachPage() {
           {/* Range selector */}
           <div className="flex items-center gap-1 bg-gray-100 rounded-lg p-0.5">
             {(["week", "twoWeeks", "month"] as RangeType[]).map((key) => (
-              <button key={key} onClick={() => setRange(key)}
+              <button key={key} onClick={() => changeRange(key as RangeType)}
                 className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
                   range === key ? "bg-white text-gray-900 shadow-sm" : "text-gray-500 hover:text-gray-700"
                 }`}>
-                {RANGE_LABELS[key]}
+                {RANGE_LABELS[key as RangeType]}
               </button>
             ))}
           </div>
 
-          {/* Navigation */}
+          {/* "היום" — standalone */}
+          <button onClick={() => setAnchor(new Date())}
+            className="px-3 h-8 rounded border border-gray-200 text-xs hover:bg-gray-50 text-gray-600">
+            היום
+          </button>
+
+          {/* Navigation arrows flanking the date label (RTL: › prev on right, ‹ next on left) */}
           <div className="flex items-center gap-1">
             <button onClick={() => setAnchor((a) => navigateAnchor(a, range, -1))}
-              className="w-8 h-8 flex items-center justify-center rounded border border-gray-200 hover:bg-gray-50 text-gray-600">
+              className="w-8 h-8 flex items-center justify-center rounded border border-gray-200 hover:bg-gray-50 text-gray-600 text-base">
               &rsaquo;
             </button>
-            <button onClick={() => setAnchor(new Date())}
-              className="px-3 h-8 rounded border border-gray-200 text-xs hover:bg-gray-50 text-gray-600">
-              היום
-            </button>
+            <span className="text-sm font-semibold text-gray-700 min-w-[140px] text-center">{rangeLabel}</span>
             <button onClick={() => setAnchor((a) => navigateAnchor(a, range, 1))}
-              className="w-8 h-8 flex items-center justify-center rounded border border-gray-200 hover:bg-gray-50 text-gray-600">
+              className="w-8 h-8 flex items-center justify-center rounded border border-gray-200 hover:bg-gray-50 text-gray-600 text-base">
               &lsaquo;
             </button>
           </div>
-
-          {/* Range label */}
-          <span className="text-sm font-semibold text-gray-700 min-w-[140px] text-center">{rangeLabel}</span>
 
           {/* Facilitator filter */}
           {facilitatorOptions.length > 0 && (
@@ -251,8 +266,8 @@ export default function LuachPage() {
               <div key={wi} className="grid grid-cols-7 border-b border-gray-200 last:border-b-0">
                 {week.map((day, di) => {
                   const isToday = day ? isSameDay(day, today) : false
-                  const key     = day ? day.toISOString().slice(0, 10) : `empty-${wi}-${di}`
-                  const blocks  = day ? (workshopsByDay.get(day.toISOString().slice(0, 10)) ?? []) : []
+                  const key     = day ? localDateKey(day) : `empty-${wi}-${di}`
+                  const blocks  = day ? (workshopsByDay.get(localDateKey(day)) ?? []) : []
                   return (
                     <div key={key}
                       className={`border-l border-gray-200 first:border-l-0 p-1.5 min-h-[96px] align-top ${!day ? "bg-gray-50/50" : ""}`}>
