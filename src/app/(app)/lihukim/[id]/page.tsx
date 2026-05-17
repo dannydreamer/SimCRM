@@ -432,6 +432,102 @@ export default function LihukimPage() {
         )}
 
         {/* ══════════════════════════════════════════════════════════════════
+            Requirements reference (collapsible)
+        ══════════════════════════════════════════════════════════════════ */}
+        <RequirementsPanel data={data} scenarios={scenarios} />
+
+        {/* ══════════════════════════════════════════════════════════════════
+            Actor pool — availability management
+        ══════════════════════════════════════════════════════════════════ */}
+        <section className="bg-white border border-gray-200 rounded-xl overflow-hidden">
+          <div className="px-5 py-3 bg-gray-50 border-b border-gray-200 flex flex-wrap items-center gap-3 justify-between">
+            <h2 className="font-semibold text-gray-800 text-sm">
+              👥 מאגר שחקנים
+              <span className="mr-2 text-xs font-normal text-gray-500">
+                {availableActors.length} מעוניינים מתוך {actors.length}
+              </span>
+            </h2>
+            <div className="flex flex-wrap items-center gap-2">
+              <div className="flex items-center gap-1 bg-gray-100 rounded-lg p-0.5 text-xs">
+                {(["all", "MALE", "FEMALE"] as const).map((g) => (
+                  <button key={g} onClick={() => setGenderFilter(g)}
+                    className={`px-2.5 py-1 rounded-md transition-colors ${
+                      genderFilter === g ? "bg-white shadow-sm text-gray-900 font-medium" : "text-gray-500 hover:text-gray-700"
+                    }`}>
+                    {g === "all" ? "הכל" : g === "MALE" ? "♂ זכר" : "♀ נקבה"}
+                  </button>
+                ))}
+              </div>
+              <label className="flex items-center gap-1.5 text-xs text-gray-600 cursor-pointer select-none">
+                <input type="checkbox" checked={availOnly} onChange={(e) => setAvailOnly(e.target.checked)} className="rounded" />
+                מעוניינים בלבד
+              </label>
+              <input
+                type="text" value={actorSearch}
+                onChange={(e) => setActorSearch(e.target.value)}
+                placeholder="חיפוש לפי שם..."
+                className="border border-gray-200 rounded px-2 py-1 text-xs text-gray-700 focus:outline-none focus:ring-2 focus:ring-navy/30 w-32"
+              />
+            </div>
+          </div>
+
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-gray-100 text-right text-xs text-gray-500 font-medium bg-gray-50/50">
+                  <th className="px-4 py-2">שם</th>
+                  <th className="px-4 py-2">מגדר</th>
+                  <th className="px-4 py-2">התמחויות</th>
+                  <th className="px-4 py-2 text-center">במאי/ת</th>
+                  <th className="px-4 py-2 text-center">מעוניין/ת</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filteredActors.length === 0 ? (
+                  <tr>
+                    <td colSpan={5} className="px-4 py-6 text-center text-xs text-gray-400">אין שחקנים</td>
+                  </tr>
+                ) : filteredActors.map((actor) => (
+                  <tr key={actor.id}
+                    className={`border-b border-gray-50 last:border-0 transition-colors ${actor.available ? "bg-green-50/30" : ""}`}>
+                    <td className="px-4 py-2.5 font-medium text-gray-800">{actor.name}</td>
+                    <td className="px-4 py-2.5 text-gray-500 text-xs">
+                      {actor.gender === "MALE" ? "♂ זכר" : "♀ נקבה"}
+                    </td>
+                    <td className="px-4 py-2.5 text-gray-500 text-xs max-w-[200px] truncate">
+                      {actor.specialties ?? "—"}
+                    </td>
+                    <td className="px-4 py-2.5 text-center">
+                      {actor.canDirect
+                        ? <span className="text-purple-600 font-bold text-xs">✓</span>
+                        : <span className="text-gray-300 text-xs">—</span>}
+                    </td>
+                    <td className="px-4 py-2.5 text-center">
+                      {isCaster ? (
+                        <button
+                          onClick={() => toggleAvailability(actor.id, actor.available)}
+                          disabled={saving}
+                          className={`px-3 py-1.5 rounded-full text-xs font-semibold min-w-[80px] transition-colors ${
+                            actor.available
+                              ? "bg-green-100 text-green-700 hover:bg-green-200"
+                              : "bg-gray-100 text-gray-500 hover:bg-gray-200"
+                          }`}>
+                          {actor.available ? "מעוניין/ת ✓" : "לא זמין"}
+                        </button>
+                      ) : (
+                        <span className={`text-xs font-medium ${actor.available ? "text-green-600" : "text-gray-400"}`}>
+                          {actor.available ? "מעוניין/ת" : "לא זמין"}
+                        </span>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+        {/* ══════════════════════════════════════════════════════════════════
             STEP 1 — Actor confirmation
         ══════════════════════════════════════════════════════════════════ */}
         <section className="bg-white border border-gray-200 rounded-xl overflow-hidden">
@@ -663,101 +759,6 @@ export default function LihukimPage() {
           )}
         </section>
 
-        {/* ══════════════════════════════════════════════════════════════════
-            Requirements reference (collapsible)
-        ══════════════════════════════════════════════════════════════════ */}
-        <RequirementsPanel data={data} scenarios={scenarios} />
-
-        {/* ══════════════════════════════════════════════════════════════════
-            Actor pool — availability management
-        ══════════════════════════════════════════════════════════════════ */}
-        <section className="bg-white border border-gray-200 rounded-xl overflow-hidden">
-          <div className="px-5 py-3 bg-gray-50 border-b border-gray-200 flex flex-wrap items-center gap-3 justify-between">
-            <h2 className="font-semibold text-gray-800 text-sm">
-              👥 מאגר שחקנים
-              <span className="mr-2 text-xs font-normal text-gray-500">
-                {availableActors.length} מעוניינים מתוך {actors.length}
-              </span>
-            </h2>
-            <div className="flex flex-wrap items-center gap-2">
-              <div className="flex items-center gap-1 bg-gray-100 rounded-lg p-0.5 text-xs">
-                {(["all", "MALE", "FEMALE"] as const).map((g) => (
-                  <button key={g} onClick={() => setGenderFilter(g)}
-                    className={`px-2.5 py-1 rounded-md transition-colors ${
-                      genderFilter === g ? "bg-white shadow-sm text-gray-900 font-medium" : "text-gray-500 hover:text-gray-700"
-                    }`}>
-                    {g === "all" ? "הכל" : g === "MALE" ? "♂ זכר" : "♀ נקבה"}
-                  </button>
-                ))}
-              </div>
-              <label className="flex items-center gap-1.5 text-xs text-gray-600 cursor-pointer select-none">
-                <input type="checkbox" checked={availOnly} onChange={(e) => setAvailOnly(e.target.checked)} className="rounded" />
-                מעוניינים בלבד
-              </label>
-              <input
-                type="text" value={actorSearch}
-                onChange={(e) => setActorSearch(e.target.value)}
-                placeholder="חיפוש לפי שם..."
-                className="border border-gray-200 rounded px-2 py-1 text-xs text-gray-700 focus:outline-none focus:ring-2 focus:ring-navy/30 w-32"
-              />
-            </div>
-          </div>
-
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-gray-100 text-right text-xs text-gray-500 font-medium bg-gray-50/50">
-                  <th className="px-4 py-2">שם</th>
-                  <th className="px-4 py-2">מגדר</th>
-                  <th className="px-4 py-2">התמחויות</th>
-                  <th className="px-4 py-2 text-center">במאי/ת</th>
-                  <th className="px-4 py-2 text-center">מעוניין/ת</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filteredActors.length === 0 ? (
-                  <tr>
-                    <td colSpan={5} className="px-4 py-6 text-center text-xs text-gray-400">אין שחקנים</td>
-                  </tr>
-                ) : filteredActors.map((actor) => (
-                  <tr key={actor.id}
-                    className={`border-b border-gray-50 last:border-0 transition-colors ${actor.available ? "bg-green-50/30" : ""}`}>
-                    <td className="px-4 py-2.5 font-medium text-gray-800">{actor.name}</td>
-                    <td className="px-4 py-2.5 text-gray-500 text-xs">
-                      {actor.gender === "MALE" ? "♂ זכר" : "♀ נקבה"}
-                    </td>
-                    <td className="px-4 py-2.5 text-gray-500 text-xs max-w-[200px] truncate">
-                      {actor.specialties ?? "—"}
-                    </td>
-                    <td className="px-4 py-2.5 text-center">
-                      {actor.canDirect
-                        ? <span className="text-purple-600 font-bold text-xs">✓</span>
-                        : <span className="text-gray-300 text-xs">—</span>}
-                    </td>
-                    <td className="px-4 py-2.5 text-center">
-                      {isCaster ? (
-                        <button
-                          onClick={() => toggleAvailability(actor.id, actor.available)}
-                          disabled={saving}
-                          className={`px-3 py-1.5 rounded-full text-xs font-semibold min-w-[80px] transition-colors ${
-                            actor.available
-                              ? "bg-green-100 text-green-700 hover:bg-green-200"
-                              : "bg-gray-100 text-gray-500 hover:bg-gray-200"
-                          }`}>
-                          {actor.available ? "מעוניין/ת ✓" : "לא זמין"}
-                        </button>
-                      ) : (
-                        <span className={`text-xs font-medium ${actor.available ? "text-green-600" : "text-gray-400"}`}>
-                          {actor.available ? "מעוניין/ת" : "לא זמין"}
-                        </span>
-                      )}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </section>
 
       </div>
     </div>
