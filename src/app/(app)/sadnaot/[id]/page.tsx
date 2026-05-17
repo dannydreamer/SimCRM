@@ -424,6 +424,8 @@ export default function WorkshopDetailPage() {
   const [newTopicId, setNewTopicId] = useState("")
   const [newScenarioName, setNewScenarioName] = useState("")
   const [newScenarioReq, setNewScenarioReq] = useState("")
+  const [newScenarioMale, setNewScenarioMale] = useState("0")
+  const [newScenarioFemale, setNewScenarioFemale] = useState("0")
   const [addingScenario, setAddingScenario] = useState(false)
 
   // Author saving
@@ -608,7 +610,11 @@ export default function WorkshopDetailPage() {
     const res = await fetch(`/api/sadnaot/${id}/scenarios`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ topicId: newTopicId, name: newScenarioName, actorRequirements: newScenarioReq }),
+      body: JSON.stringify({
+        topicId: newTopicId, name: newScenarioName, actorRequirements: newScenarioReq,
+        maleActorsNeeded:   Math.max(0, Number(newScenarioMale)   || 0),
+        femaleActorsNeeded: Math.max(0, Number(newScenarioFemale) || 0),
+      }),
     })
     if (res.ok) {
       const s = await res.json()
@@ -617,6 +623,8 @@ export default function WorkshopDetailPage() {
       setNewTopicId("")
       setNewScenarioName("")
       setNewScenarioReq("")
+      setNewScenarioMale("0")
+      setNewScenarioFemale("0")
     }
     setAddingScenario(false)
   }
@@ -1081,6 +1089,20 @@ export default function WorkshopDetailPage() {
                 <label className="block text-xs text-gray-500 mb-1">דרישות שחקנים</label>
                 <textarea value={newScenarioReq} onChange={(e) => setNewScenarioReq(e.target.value)} rows={2}
                   className="border border-gray-300 rounded px-2 py-1.5 text-sm w-full" />
+                <div className="flex items-center gap-4 mt-1.5">
+                  <label className="flex items-center gap-1.5 text-xs text-gray-600">
+                    ♂ שחקנים נדרשים לחדר
+                    <input type="number" min={0} value={newScenarioMale}
+                      onChange={(e) => setNewScenarioMale(e.target.value)}
+                      className="border border-gray-300 rounded px-1.5 py-0.5 text-xs w-14 text-center" />
+                  </label>
+                  <label className="flex items-center gap-1.5 text-xs text-gray-600">
+                    ♀ שחקניות נדרשות לחדר
+                    <input type="number" min={0} value={newScenarioFemale}
+                      onChange={(e) => setNewScenarioFemale(e.target.value)}
+                      className="border border-gray-300 rounded px-1.5 py-0.5 text-xs w-14 text-center" />
+                  </label>
+                </div>
               </div>
               <div className="flex gap-2">
                 <button onClick={addScenario} disabled={!newTopicId || addingScenario}
