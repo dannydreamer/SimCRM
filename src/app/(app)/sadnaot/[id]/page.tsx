@@ -1396,7 +1396,7 @@ export default function WorkshopDetailPage() {
 
               {/* Workshop-level totals */}
               <div>
-                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">סה״כ פיזי — מה שיגיע ביום הסדנה</p>
+                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">סה"כ שחקנים ושחקניות שיגיעו פיזית ביום הסדנה:</p>
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
