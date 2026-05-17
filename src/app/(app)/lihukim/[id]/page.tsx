@@ -191,9 +191,9 @@ export default function LihukimPage() {
     confirmedFemale.map((c) => actors.find((a) => a.id === c.actorId)).filter(Boolean) as Actor[],
     [confirmedFemale, actors]
   )
-  const confirmedDirectorActors = useMemo(() =>
-    [...confirmedMaleActors, ...confirmedFemaleActors].filter((a) => a.canDirect),
-    [confirmedMaleActors, confirmedFemaleActors]
+  const availableDirectorActors = useMemo(() =>
+    availableActors.filter((a) => a.canDirect),
+    [availableActors]
   )
 
   const assignmentBySlot = useMemo(() => {
@@ -660,11 +660,11 @@ export default function LihukimPage() {
               {data.directorRequested && (
                 <div>
                   <p className="text-xs font-semibold text-purple-700 uppercase tracking-wide mb-2">🎬 במאי/ת</p>
-                  {confirmedDirectorActors.length === 0 ? (
-                    <p className="text-xs text-amber-600">אף אחד מהשחקנים המאושרים אינו מוגדר כבמאי/ת</p>
+                  {availableDirectorActors.length === 0 ? (
+                    <p className="text-xs text-amber-600">אין שחקנים זמינים המוגדרים כבמאי/ת</p>
                   ) : (
                     <DirectorPicker
-                      actors={confirmedDirectorActors}
+                      actors={availableDirectorActors}
                       current={directorAssignment}
                       canEdit={isCaster}
                       saving={saving}
