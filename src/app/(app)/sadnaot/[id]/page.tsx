@@ -1364,9 +1364,9 @@ export default function WorkshopDetailPage() {
                   <p className="font-medium text-gray-700 mb-0.5">
                     {s.topicName}{s.name ? ` — ${s.name}` : ""}
                   </p>
-                  <p className="text-gray-600">
-                    {s.actorRequirements || <span className="text-gray-300 italic">ללא דרישות</span>}
-                  </p>
+                  {s.actorRequirements && (
+                    <p className="text-gray-600">{s.actorRequirements}</p>
+                  )}
                   {(s.maleActorsNeeded > 0 || s.femaleActorsNeeded > 0) && (
                     <p className="mt-0.5 flex gap-3 text-xs text-gray-500">
                       {s.maleActorsNeeded > 0 && <span>♂ {s.maleActorsNeeded} שחקנים לתרחיש</span>}
