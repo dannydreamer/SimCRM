@@ -923,7 +923,7 @@ export default function WorkshopDetailPage() {
               )}
 
               {/* Manual action buttons — only for NEW ↔ SPECIFIED */}
-              <div className="flex items-center gap-3 flex-wrap">
+              <div className="flex items-start gap-3 flex-wrap">
                 {w.status === "NEW" && !w.cancelled && (() => {
                   const hasAuthor = !!w.authorId
                   return (
