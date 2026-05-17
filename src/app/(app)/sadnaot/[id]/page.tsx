@@ -1370,13 +1370,15 @@ export default function WorkshopDetailPage() {
                       תרחיש {i + 1}{s.name ? ` — ${s.name}` : ""} · {s.topicName}
                     </p>
                     {/* Actor counts — prominent */}
-                    <div className="flex gap-5 mb-2">
-                      <span className="text-2xl font-bold text-gray-800">
-                        ♂ {s.maleActorsNeeded}
-                      </span>
-                      <span className="text-2xl font-bold text-gray-800">
-                        ♀ {s.femaleActorsNeeded}
-                      </span>
+                    <div className="flex gap-6 mb-2">
+                      <div className="flex items-baseline gap-1.5">
+                        <span className="text-2xl font-bold text-gray-800">♂ {s.maleActorsNeeded}</span>
+                        <span className="text-sm text-gray-500">שחקנים</span>
+                      </div>
+                      <div className="flex items-baseline gap-1.5">
+                        <span className="text-2xl font-bold text-gray-800">♀ {s.femaleActorsNeeded}</span>
+                        <span className="text-sm text-gray-500">שחקניות</span>
+                      </div>
                     </div>
                     {/* Freetext below counts */}
                     {s.actorRequirements && (
