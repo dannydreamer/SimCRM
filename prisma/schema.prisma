@@ -156,6 +156,7 @@ model Workshop {
   scenarios           Scenario[]
   castings            Casting[]
   actorAvailabilities ActorWorkshopAvailability[]
+  confirmedActors     WorkshopConfirmedActor[]
   feedbacks           Feedback[]
   castingChangeLogs   CastingChangeLog[]
 }
@@ -227,6 +228,7 @@ model Actor {
   feedbacks              Feedback[]
   developmentLogs        ActorDevelopmentLog[]
   workshopAvailabilities ActorWorkshopAvailability[]
+  confirmedInWorkshops   WorkshopConfirmedActor[]
 }
 
 // ─── Casting ──────────────────────────────────────────────────────────────────
@@ -259,6 +261,21 @@ model ActorWorkshopAvailability {
   workshop Workshop @relation(fields: [workshopId], references: [id])
 
   @@unique([actorId, workshopId])
+}
+
+// ─── Workshop Confirmed Actors (Step 1 of casting flow) ──────────────────────
+
+model WorkshopConfirmedActor {
+  id         String @id @default(uuid())
+  workshopId String
+  actorId    String
+  gender     String // "MALE" | "FEMALE"
+  slotIndex  Int    // 0-based within gender
+
+  workshop Workshop @relation(fields: [workshopId], references: [id], onDelete: Cascade)
+  actor    Actor    @relation(fields: [actorId], references: [id])
+
+  @@unique([workshopId, gender, slotIndex])
 }
 
 // ─── Casting Change Log ───────────────────────────────────────────────────────

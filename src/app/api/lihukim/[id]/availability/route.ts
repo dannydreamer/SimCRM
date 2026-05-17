@@ -25,9 +25,10 @@ export async function POST(
     update: { available: Boolean(available) },
   })
 
-  // If marking unavailable, remove any existing assignments for this actor in this workshop
+  // If marking unavailable, remove assignments and confirmed slot for this actor
   if (!available) {
     await prisma.casting.deleteMany({ where: { workshopId, actorId } })
+    await prisma.workshopConfirmedActor.deleteMany({ where: { workshopId, actorId } })
   }
 
   return NextResponse.json({ ok: true })

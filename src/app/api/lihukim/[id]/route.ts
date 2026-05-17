@@ -34,6 +34,9 @@ export async function GET(
       castings: {
         include: { actor: { select: { id: true, name: true } } },
       },
+      confirmedActors: {
+        include: { actor: { select: { id: true, name: true } } },
+      },
       actorAvailabilities: true,
       castingChangeLogs: {
         where: {
@@ -93,6 +96,14 @@ export async function GET(
       specialties: a.specialties,
       canDirect:   a.canDirect,
       available:   availSet.has(a.id),
+    })),
+
+    confirmedActors: w.confirmedActors.map((c) => ({
+      id:        c.id,
+      actorId:   c.actorId,
+      actorName: c.actor.name,
+      gender:    c.gender,
+      slotIndex: c.slotIndex,
     })),
 
     assignments: w.castings.map((c) => ({
