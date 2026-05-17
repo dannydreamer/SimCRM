@@ -924,12 +924,27 @@ export default function WorkshopDetailPage() {
 
               {/* Manual action buttons — only for NEW ↔ SPECIFIED */}
               <div className="flex items-center gap-3 flex-wrap">
-                {w.status === "NEW" && !w.cancelled && (
-                  <button onClick={() => patchWorkshop({ status: "SPECIFIED" })}
-                    className="px-4 py-1.5 bg-navy text-white text-sm rounded-lg hover:bg-navy/90 transition-colors">
-                    סמן: בוצע איתור צרכים
-                  </button>
-                )}
+                {w.status === "NEW" && !w.cancelled && (() => {
+                  const hasAuthor = !!w.authorId
+                  return (
+                    <div className="flex flex-col gap-1">
+                      <button
+                        onClick={() => patchWorkshop({ status: "SPECIFIED" })}
+                        disabled={!hasAuthor}
+                        title={!hasAuthor ? "יש לבחור כותב/ת תרחיש לפני המעבר לשלב זה" : undefined}
+                        className={`px-4 py-1.5 text-sm rounded-lg transition-colors ${
+                          hasAuthor
+                            ? "bg-navy text-white hover:bg-navy/90"
+                            : "bg-gray-100 text-gray-400 cursor-not-allowed"
+                        }`}>
+                        סמן: בוצע איתור צרכים
+                      </button>
+                      {!hasAuthor && (
+                        <p className="text-xs text-amber-600">יש לבחור כותב/ת תרחיש תחילה</p>
+                      )}
+                    </div>
+                  )
+                })()}
                 {isManager && !w.cancelled && !w.frozen && (
                   <button onClick={cancelWorkshop}
                     className="px-4 py-1.5 text-sm rounded-lg border border-red-200 text-red-600 hover:bg-red-50">

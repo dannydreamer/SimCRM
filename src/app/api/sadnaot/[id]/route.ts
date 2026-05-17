@@ -119,7 +119,7 @@ export async function PATCH(
   const w = await prisma.workshop.findUnique({
     where: { id },
     select: {
-      status: true, cancelled: true,
+      status: true, cancelled: true, authorId: true,
       castingSentAt: true, castingMaleNeeded: true, castingFemaleNeeded: true,
       rooms: { where: { cancelled: false }, select: { facilitatorId: true } },
     },
@@ -144,6 +144,9 @@ export async function PATCH(
     }
     if (!allowed[w.status]?.includes(status))
       return NextResponse.json({ error: "מעבר סטטוס לא חוקי" }, { status: 400 })
+    // Must have an author set before advancing to SPECIFIED
+    if (status === "SPECIFIED" && !w.authorId)
+      return NextResponse.json({ error: "יש לבחור כותב/ת תרחיש לפני סימון ביצוע איתור צרכים" }, { status: 400 })
   }
 
   const data: Record<string, unknown> = {}
