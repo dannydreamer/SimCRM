@@ -178,9 +178,16 @@ export default function LihukimPage() {
   const femaleTarget = data?.castingFemaleNeeded ?? 0
   const targetsSet   = data?.castingMaleNeeded !== null && data?.castingFemaleNeeded !== null
 
+  // Director assignment must be known before step1Complete
+  const directorAssignment = useMemo(
+    () => assignments.find((a) => a.isDirector) ?? null,
+    [assignments]
+  )
+
   const step1Complete = targetsSet &&
     confirmedMale.length   === maleTarget &&
-    confirmedFemale.length === femaleTarget
+    confirmedFemale.length === femaleTarget &&
+    (!data?.directorRequested || !!directorAssignment)
 
   // Step 2 derived — dropdowns use confirmed actors only
   const confirmedMaleActors   = useMemo(() =>
@@ -206,11 +213,6 @@ export default function LihukimPage() {
     return map
   }, [assignments])
 
-  const directorAssignment = useMemo(
-    () => assignments.find((a) => a.isDirector) ?? null,
-    [assignments]
-  )
-
   const step2Complete = useMemo(() => {
     if (!data || !step1Complete) return false
     const scenarios = data.scenarios
@@ -225,9 +227,8 @@ export default function LihukimPage() {
         }
       }
     }
-    if (data.directorRequested && !directorAssignment) return false
     return true
-  }, [data, step1Complete, assignmentBySlot, directorAssignment])
+  }, [data, step1Complete, assignmentBySlot])
 
   const castingComplete = step1Complete && step2Complete
 
@@ -540,7 +541,8 @@ export default function LihukimPage() {
                 </span>
               ) : (
                 <span className="px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 text-xs font-semibold">
-                  {confirmedMale.length + confirmedFemale.length}/{maleTarget + femaleTarget} מאושרים
+                  {confirmedMale.length + confirmedFemale.length + (data.directorRequested && directorAssignment ? 1 : 0)}/
+                  {maleTarget + femaleTarget + (data.directorRequested ? 1 : 0)} מאושרים
                 </span>
               )}
             </div>
@@ -613,6 +615,27 @@ export default function LihukimPage() {
                   </div>
                 )}
 
+                {/* Director slot */}
+                {data.directorRequested && (
+                  <div>
+                    <p className="text-xs font-semibold text-purple-700 uppercase tracking-wide mb-3">
+                      🎬 במאי/ת — מושב נפרד
+                    </p>
+                    {availableDirectorActors.length === 0 ? (
+                      <p className="text-xs text-amber-600">אין שחקנים זמינים המוגדרים כבמאי/ת</p>
+                    ) : (
+                      <DirectorPicker
+                        actors={availableDirectorActors}
+                        current={directorAssignment}
+                        canEdit={isCaster}
+                        saving={saving}
+                        onAssign={(actorId) => assign(null, null, actorId, true)}
+                        onClear={() => directorAssignment && unassign(directorAssignment.id)}
+                      />
+                    )}
+                  </div>
+                )}
+
                 {data.castingNotes && (
                   <p className="text-sm text-gray-600 bg-gray-50 rounded-lg px-3 py-2">{data.castingNotes}</p>
                 )}
@@ -655,25 +678,6 @@ export default function LihukimPage() {
             </div>
           ) : (
             <div className="px-5 py-4 space-y-6">
-
-              {/* Director slot */}
-              {data.directorRequested && (
-                <div>
-                  <p className="text-xs font-semibold text-purple-700 uppercase tracking-wide mb-2">🎬 במאי/ת</p>
-                  {availableDirectorActors.length === 0 ? (
-                    <p className="text-xs text-amber-600">אין שחקנים זמינים המוגדרים כבמאי/ת</p>
-                  ) : (
-                    <DirectorPicker
-                      actors={availableDirectorActors}
-                      current={directorAssignment}
-                      canEdit={isCaster}
-                      saving={saving}
-                      onAssign={(actorId) => assign(null, null, actorId, true)}
-                      onClear={() => directorAssignment && unassign(directorAssignment.id)}
-                    />
-                  )}
-                </div>
-              )}
 
               {/* Scenarios × Rooms grid */}
               {scenarios.length === 0 ? (
