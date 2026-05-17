@@ -1347,80 +1347,97 @@ export default function WorkshopDetailPage() {
       {/* Send to casting overlay */}
       {showCastingOverlay && w && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-          <div className="bg-white rounded-xl shadow-2xl max-w-lg w-full mx-4 p-6 flex flex-col gap-5" dir="rtl">
-            <h2 className="text-base font-bold text-gray-900">שליחה לליהוק</h2>
+          <div className="bg-white rounded-xl shadow-2xl max-w-lg w-full mx-4 flex flex-col max-h-[90vh]" dir="rtl">
 
-            {/* Room count */}
-            <div className="flex items-center gap-2 text-sm text-gray-700">
-              <span className="text-gray-400">מספר חדרים:</span>
-              <span className="font-semibold">{w.rooms.filter((r) => !r.cancelled).length}</span>
+            {/* Header */}
+            <div className="px-6 pt-6 pb-4 border-b border-gray-100 shrink-0">
+              <h2 className="text-base font-bold text-gray-900 mb-3">שליחה לליהוק</h2>
+              <div className="flex gap-6 text-sm">
+                <span className="text-gray-500">מספר חדרים: <strong className="text-gray-800">{w.rooms.filter((r) => !r.cancelled).length}</strong></span>
+                <span className="text-gray-500">מספר תרחישים: <strong className="text-gray-800">{w.scenarios.filter((s) => !s.cancelled).length}</strong></span>
+              </div>
             </div>
 
-            {/* Scenario requirements — read-only context */}
-            <div className="bg-gray-50 border border-gray-200 rounded-lg p-4 flex flex-col gap-2 max-h-48 overflow-y-auto">
-              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">דרישות שחקנים לתרחישים</p>
-              {w.scenarios.filter((s) => !s.cancelled).map((s) => (
-                <div key={s.id} className="text-sm">
-                  <p className="font-medium text-gray-700 mb-0.5">
-                    {s.topicName}{s.name ? ` — ${s.name}` : ""}
-                  </p>
-                  {s.actorRequirements && (
-                    <p className="text-gray-600">{s.actorRequirements}</p>
-                  )}
-                  {(s.maleActorsNeeded > 0 || s.femaleActorsNeeded > 0) && (
-                    <p className="mt-0.5 flex gap-3 text-xs text-gray-500">
-                      {s.maleActorsNeeded > 0 && <span>♂ {s.maleActorsNeeded} שחקנים לתרחיש</span>}
-                      {s.femaleActorsNeeded > 0 && <span>♀ {s.femaleActorsNeeded} שחקניות לתרחיש</span>}
+            {/* Scrollable body */}
+            <div className="flex-1 overflow-y-auto px-6 py-4 flex flex-col gap-5">
+
+              {/* Scenario breakdown */}
+              <div className="flex flex-col gap-3">
+                {w.scenarios.filter((s) => !s.cancelled).map((s, i) => (
+                  <div key={s.id} className="border border-gray-200 rounded-lg p-4">
+                    {/* Scenario label */}
+                    <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">
+                      תרחיש {i + 1}{s.name ? ` — ${s.name}` : ""} · {s.topicName}
                     </p>
-                  )}
+                    {/* Actor counts — prominent */}
+                    <div className="flex gap-5 mb-2">
+                      <span className="text-2xl font-bold text-gray-800">
+                        ♂ {s.maleActorsNeeded}
+                      </span>
+                      <span className="text-2xl font-bold text-gray-800">
+                        ♀ {s.femaleActorsNeeded}
+                      </span>
+                    </div>
+                    {/* Freetext below counts */}
+                    {s.actorRequirements && (
+                      <p className="text-sm text-gray-600 whitespace-pre-wrap">{s.actorRequirements}</p>
+                    )}
+                  </div>
+                ))}
+              </div>
+
+              {/* Director requested */}
+              {w.directorRequested && (
+                <div className="flex items-center gap-2 bg-amber-50 border border-amber-200 rounded-lg px-4 py-2 text-sm text-amber-800">
+                  <span className="font-semibold">⚠️ נדרש/ת במאי/ת</span>
+                  {w.directorNotes && <span className="text-amber-700">— {w.directorNotes}</span>}
                 </div>
-              ))}
-            </div>
+              )}
 
-            {/* Integers */}
-            <div className="grid grid-cols-2 gap-4">
+              {/* Workshop-level totals */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  סה״כ שחקנים נדרשים (פיזי) <span className="text-red-500">*</span>
-                </label>
-                <input
-                  type="number" min={0} value={castingMale}
-                  onChange={(e) => setCastingMale(e.target.value)}
+                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">סה״כ פיזי — מה שיגיע ביום הסדנה</p>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      שחקנים (זכר) <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      type="number" min={0} value={castingMale}
+                      onChange={(e) => setCastingMale(e.target.value)}
+                      className="border border-gray-300 rounded px-3 py-2 text-sm w-full"
+                      placeholder="0"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      שחקניות (נקבה) <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      type="number" min={0} value={castingFemale}
+                      onChange={(e) => setCastingFemale(e.target.value)}
+                      className="border border-gray-300 rounded px-3 py-2 text-sm w-full"
+                      placeholder="0"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Notes */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">הערות למלהקת (אופציונלי)</label>
+                <textarea
+                  value={castingOverlayNotes}
+                  onChange={(e) => setCastingOverlayNotes(e.target.value)}
+                  rows={2}
                   className="border border-gray-300 rounded px-3 py-2 text-sm w-full"
-                  placeholder="0"
                 />
               </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  סה״כ שחקניות נדרשות (פיזי) <span className="text-red-500">*</span>
-                </label>
-                <input
-                  type="number" min={0} value={castingFemale}
-                  onChange={(e) => setCastingFemale(e.target.value)}
-                  className="border border-gray-300 rounded px-3 py-2 text-sm w-full"
-                  placeholder="0"
-                />
-              </div>
+
             </div>
 
-            {/* Notes */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">הערות למלהקת (אופציונלי)</label>
-              <textarea
-                value={castingOverlayNotes}
-                onChange={(e) => setCastingOverlayNotes(e.target.value)}
-                rows={2}
-                className="border border-gray-300 rounded px-3 py-2 text-sm w-full"
-              />
-            </div>
-
-            {/* Director requested */}
-            {w.directorRequested && (
-              <div className="flex items-center gap-2 bg-amber-50 border border-amber-200 rounded-lg px-4 py-2 text-sm text-amber-800">
-                <span className="font-semibold">⚠️ נדרש/ת במאי/ת</span>
-                {w.directorNotes && <span className="text-amber-700">— {w.directorNotes}</span>}
-              </div>
-            )}
+            {/* Footer actions */}
+            <div className="px-6 py-4 border-t border-gray-100 flex gap-3 justify-end shrink-0">
 
             {/* Actions */}
             <div className="flex gap-3 justify-end">
@@ -1439,6 +1456,7 @@ export default function WorkshopDetailPage() {
               </button>
             </div>
           </div>
+        </div>
         </div>
       )}
     </div>
