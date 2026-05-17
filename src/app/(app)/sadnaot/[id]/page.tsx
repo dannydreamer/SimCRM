@@ -1091,13 +1091,13 @@ export default function WorkshopDetailPage() {
                   className="border border-gray-300 rounded px-2 py-1.5 text-sm w-full" />
                 <div className="flex items-center gap-4 mt-1.5">
                   <label className="flex items-center gap-1.5 text-xs text-gray-600">
-                    ♂ שחקנים נדרשים לחדר
+                    ♂ שחקנים נדרשים לתרחיש
                     <input type="number" min={0} value={newScenarioMale}
                       onChange={(e) => setNewScenarioMale(e.target.value)}
                       className="border border-gray-300 rounded px-1.5 py-0.5 text-xs w-14 text-center" />
                   </label>
                   <label className="flex items-center gap-1.5 text-xs text-gray-600">
-                    ♀ שחקניות נדרשות לחדר
+                    ♀ שחקניות נדרשות לתרחיש
                     <input type="number" min={0} value={newScenarioFemale}
                       onChange={(e) => setNewScenarioFemale(e.target.value)}
                       className="border border-gray-300 rounded px-1.5 py-0.5 text-xs w-14 text-center" />
@@ -1346,8 +1346,18 @@ export default function WorkshopDetailPage() {
               <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">דרישות שחקנים לתרחישים</p>
               {w.scenarios.filter((s) => !s.cancelled).map((s) => (
                 <div key={s.id} className="text-sm">
-                  <span className="font-medium text-gray-700">{s.topicName}{s.name ? ` — ${s.name}` : ""}:</span>{" "}
-                  <span className="text-gray-600">{s.actorRequirements || <span className="text-gray-300 italic">ללא דרישות</span>}</span>
+                  <p className="font-medium text-gray-700 mb-0.5">
+                    {s.topicName}{s.name ? ` — ${s.name}` : ""}
+                  </p>
+                  <p className="text-gray-600">
+                    {s.actorRequirements || <span className="text-gray-300 italic">ללא דרישות</span>}
+                  </p>
+                  {(s.maleActorsNeeded > 0 || s.femaleActorsNeeded > 0) && (
+                    <p className="mt-0.5 flex gap-3 text-xs text-gray-500">
+                      {s.maleActorsNeeded > 0 && <span>♂ {s.maleActorsNeeded} שחקנים לתרחיש</span>}
+                      {s.femaleActorsNeeded > 0 && <span>♀ {s.femaleActorsNeeded} שחקניות לתרחיש</span>}
+                    </p>
+                  )}
                 </div>
               ))}
             </div>
