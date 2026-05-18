@@ -101,7 +101,10 @@ const CHANGE_TYPE_LABELS: Record<string, string> = {
   SCENARIO_CANCELLED: "תרחיש בוטל",
   ROOM_CANCELLED:     "חדר בוטל",
   COUNTS_CHANGED:     "מספרים כמותיים עודכנו",
+  RESENT:             "עדכון ושליחה חוזרת לליהוק",
 }
+
+const LS_KEY = "simcrm:dismissed-logs"
 
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
@@ -112,10 +115,19 @@ export default function LihukimPage() {
   const isCaster  = user.roles.includes("CASTER")
   const isManager = user.roles.includes("MANAGER")
 
-  const [data,    setData]    = useState<CastingData | null>(null)
-  const [pending, setPending] = useState<PendingWorkshop[]>([])
-  const [loading, setLoading] = useState(true)
-  const [saving,  setSaving]  = useState(false)
+  const [data,         setData]        = useState<CastingData | null>(null)
+  const [pending,      setPending]     = useState<PendingWorkshop[]>([])
+  const [loading,      setLoading]     = useState(true)
+  const [saving,       setSaving]      = useState(false)
+  const [dismissedIds, setDismissedIds] = useState<Set<string>>(new Set())
+
+  // Load per-user dismissed log IDs from localStorage
+  useEffect(() => {
+    try {
+      const stored = JSON.parse(localStorage.getItem(LS_KEY) ?? "[]")
+      setDismissedIds(new Set(Array.isArray(stored) ? stored : []))
+    } catch { /* ignore */ }
+  }, [])
 
   // Actor pool filters
   const [genderFilter, setGenderFilter] = useState<"all" | "MALE" | "FEMALE">("all")
@@ -354,13 +366,10 @@ export default function LihukimPage() {
     setSaving(false)
   }
 
-  async function dismissLog(logId: string) {
-    if (!isCaster) return
-    await fetch(`/api/lihukim/${workshopId}/changelogs/${logId}/dismiss`, { method: "POST" })
-    setData((prev) => prev
-      ? { ...prev, changeLogs: prev.changeLogs.filter((l) => l.id !== logId) }
-      : prev
-    )
+  function dismissLog(logId: string) {
+    const next = new Set([...dismissedIds, logId])
+    setDismissedIds(next)
+    try { localStorage.setItem(LS_KEY, JSON.stringify([...next])) } catch { /* ignore */ }
   }
 
   // ── Render ────────────────────────────────────────────────────────────────
@@ -428,23 +437,40 @@ export default function LihukimPage() {
         )}
 
         {/* ── Change alert banners ──────────────────────────────────────── */}
-        {data.changeLogs.length > 0 && (
-          <div className="space-y-2">
-            {data.changeLogs.map((log) => (
-              <div key={log.id}
-                className="flex items-center justify-between gap-3 bg-amber-50 border border-amber-300 rounded-lg px-4 py-2.5 text-sm text-amber-800">
-                <span>
-                  <span className="font-semibold">{CHANGE_TYPE_LABELS[log.changeType] ?? log.changeType}:</span>
-                  {" "}{log.detail}
-                </span>
-                {isCaster && (
-                  <button onClick={() => dismissLog(log.id)}
-                    className="text-amber-500 hover:text-amber-700 font-bold text-lg leading-none shrink-0">×</button>
-                )}
-              </div>
-            ))}
-          </div>
-        )}
+        {(() => {
+          const castingInProgress = confirmedActors.length > 0 || !!directorAssignment || assignments.length > 0
+          const visibleLogs = data.changeLogs.filter((l) => !dismissedIds.has(l.id))
+          if (!visibleLogs.length) return null
+          return (
+            <div className="space-y-2">
+              {visibleLogs.map((log) => {
+                const isRed = castingInProgress
+                return (
+                  <div key={log.id}
+                    className={`flex items-center justify-between gap-3 rounded-lg px-4 py-2.5 text-sm border ${
+                      isRed
+                        ? "bg-red-50 border-red-300 text-red-800"
+                        : "bg-amber-50 border-amber-300 text-amber-800"
+                    }`}>
+                    <span>
+                      <span className="font-semibold">{CHANGE_TYPE_LABELS[log.changeType] ?? log.changeType}:</span>
+                      {" "}{log.detail}
+                    </span>
+                    <button
+                      onClick={() => dismissLog(log.id)}
+                      className={`text-xs font-semibold px-2.5 py-1 rounded-full shrink-0 border transition-colors ${
+                        isRed
+                          ? "border-red-300 text-red-700 hover:bg-red-100"
+                          : "border-amber-300 text-amber-700 hover:bg-amber-100"
+                      }`}>
+                      הבנתי
+                    </button>
+                  </div>
+                )
+              })}
+            </div>
+          )
+        })()}
 
         {/* ══════════════════════════════════════════════════════════════════
             Requirements reference (collapsible)
