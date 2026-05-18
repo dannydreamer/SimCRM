@@ -1197,10 +1197,12 @@ export default function WorkshopDetailPage() {
               {wasSent && (() => {
                 const activeScenarios = w.scenarios.filter((s) => !s.cancelled)
                 const activeRooms     = w.rooms.filter((r) => !r.cancelled)
-                const slotMap = new Map<string, string>()
+                const slotMap = new Map<string, string[]>()
                 w.castings.forEach((c) => {
                   if (!c.isDirector && c.scenarioId && c.roomId) {
-                    slotMap.set(`${c.scenarioId}:${c.roomId}`, c.actorName)
+                    const key = `${c.scenarioId}:${c.roomId}`
+                    const existing = slotMap.get(key) ?? []
+                    slotMap.set(key, [...existing, c.actorName])
                   }
                 })
                 const dirCasting = w.castings.find((c) => c.isDirector)
@@ -1227,13 +1229,15 @@ export default function WorkshopDetailPage() {
                         )}
                         {/* Scenario lines */}
                         {activeScenarios.map((s, si) => {
+                          const expected = s.maleActorsNeeded + s.femaleActorsNeeded
                           const parts = activeRooms.map((r) => {
-                            const name = slotMap.get(`${s.id}:${r.id}`)
+                            const names = slotMap.get(`${s.id}:${r.id}`) ?? []
+                            const missing = expected > 0 && names.length < expected
                             return (
                               <span key={r.id}>
                                 <span className="text-gray-400">חדר {r.roomNumber}: </span>
-                                {name
-                                  ? <span>{name}</span>
+                                {names.length > 0
+                                  ? <span>{names.join(", ")}{missing && <span className="text-red-500 font-semibold"> + חסר</span>}</span>
                                   : <span className="text-red-500 font-semibold">חסר</span>
                                 }
                               </span>
