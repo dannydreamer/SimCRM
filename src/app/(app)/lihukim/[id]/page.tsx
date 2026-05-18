@@ -882,7 +882,7 @@ function ConfirmSlot({
           )}
           {pool.map((a) => (
             <option key={a.id} value={a.id}>
-              {a.name}{a.canDirect ? " · במאי/ת" : ""}
+              {a.name}
             </option>
           ))}
         </select>
