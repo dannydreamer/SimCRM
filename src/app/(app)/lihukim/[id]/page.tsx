@@ -198,9 +198,13 @@ export default function LihukimPage() {
     confirmedFemale.map((c) => actors.find((a) => a.id === c.actorId)).filter(Boolean) as Actor[],
     [confirmedFemale, actors]
   )
+  const confirmedActorIds = useMemo(
+    () => new Set(confirmedActors.map((c) => c.actorId)),
+    [confirmedActors]
+  )
   const availableDirectorActors = useMemo(() =>
-    availableActors.filter((a) => a.canDirect),
-    [availableActors]
+    availableActors.filter((a) => a.canDirect && !confirmedActorIds.has(a.id)),
+    [availableActors, confirmedActorIds]
   )
 
   const assignmentBySlot = useMemo(() => {
