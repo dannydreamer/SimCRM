@@ -9,6 +9,7 @@ interface PendingWorkshop {
   startTime: string
   groupName: string
   orgName: string
+  cancelled: boolean
   castingTotal: number
   castingFilled: number
 }
@@ -70,8 +71,10 @@ export default function LihukimLandingPage() {
                   const complete = w.castingTotal > 0 && w.castingFilled === w.castingTotal
                   return (
                     <tr key={w.id}
-                      onClick={() => router.push(`/lihukim/${w.id}`)}
-                      className="border-b border-gray-100 last:border-0 hover:bg-gray-50 cursor-pointer transition-colors">
+                      onClick={() => !w.cancelled && router.push(`/lihukim/${w.id}`)}
+                      className={`border-b border-gray-100 last:border-0 transition-colors ${
+                        w.cancelled ? "bg-red-50/40 opacity-70" : "hover:bg-gray-50 cursor-pointer"
+                      }`}>
                       <td className="px-4 py-2.5 whitespace-nowrap font-medium text-gray-900">
                         {fmtDate(w.date)}
                         <span className="block text-xs text-gray-400 font-normal">{w.startTime}</span>
@@ -80,11 +83,18 @@ export default function LihukimLandingPage() {
                         <span className="font-medium text-gray-800">{w.groupName}</span>
                         <span className="text-gray-400"> · </span>
                         <span className="text-gray-500">{w.orgName}</span>
+                        {w.cancelled && (
+                          <span className="mr-2 px-1.5 py-0.5 rounded text-xs font-semibold bg-red-100 text-red-600">בוטל</span>
+                        )}
                       </td>
                       <td className="px-4 py-2.5 text-center">
-                        <span className={`text-sm font-medium ${complete ? "text-green-600" : "text-amber-600"}`}>
-                          {complete ? "✓ הושלם" : `${w.castingFilled}/${w.castingTotal}`}
-                        </span>
+                        {w.cancelled ? (
+                          <span className="text-xs text-red-500 font-medium">בוטל</span>
+                        ) : (
+                          <span className={`text-sm font-medium ${complete ? "text-green-600" : "text-amber-600"}`}>
+                            {complete ? "✓ הושלם" : `${w.castingFilled}/${w.castingTotal}`}
+                          </span>
+                        )}
                       </td>
                     </tr>
                   )

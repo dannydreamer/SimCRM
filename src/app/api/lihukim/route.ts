@@ -13,11 +13,11 @@ export async function GET() {
   if (!isCaster && !isManager)
     return NextResponse.json({ error: "Forbidden" }, { status: 403 })
 
-  // Pending = castingSentAt set, not cancelled, not closed
+  // Include cancelled workshops so casters see the בוטל indicator
+  // Exclude only fully closed/cancelled-status workshops
   const workshops = await prisma.workshop.findMany({
     where: {
       castingSentAt: { not: null },
-      cancelled:     false,
       status:        { notIn: ["CLOSED", "CANCELLED"] },
     },
     orderBy: { date: "asc" },
@@ -27,18 +27,27 @@ export async function GET() {
       },
       scenarios: { where: { cancelled: false }, select: { id: true, maleActorsNeeded: true, femaleActorsNeeded: true } },
       rooms:     { where: { cancelled: false }, select: { id: true } },
-      castings:  { select: { id: true, isDirector: true } },
+      // Only count castings tied to non-cancelled rooms
+      castings:  {
+        where: {
+          OR: [
+            { roomId: null },                              // director has no roomId
+            { room: { cancelled: false } },
+          ],
+        },
+        select: { id: true, isDirector: true },
+      },
     },
   })
 
   return NextResponse.json(
     workshops.map((w) => {
-      const activeRooms     = w.rooms.length
-      const slotsPerRoom    = w.scenarios.reduce((sum, s) => sum + s.maleActorsNeeded + s.femaleActorsNeeded, 0)
-      const castingTotal    = slotsPerRoom * activeRooms + (w.directorRequested ? 1 : 0)
-      const nonDir          = w.castings.filter((c) => !c.isDirector).length
-      const hasDir          = w.castings.some((c) => c.isDirector)
-      const castingFilled   = nonDir + (w.directorRequested && hasDir ? 1 : 0)
+      const activeRooms   = w.rooms.length
+      const slotsPerRoom  = w.scenarios.reduce((sum, s) => sum + s.maleActorsNeeded + s.femaleActorsNeeded, 0)
+      const castingTotal  = slotsPerRoom * activeRooms + (w.directorRequested ? 1 : 0)
+      const nonDir        = w.castings.filter((c) => !c.isDirector).length
+      const hasDir        = w.castings.some((c) => c.isDirector)
+      const castingFilled = nonDir + (w.directorRequested && hasDir ? 1 : 0)
 
       return {
         id:           w.id,
@@ -46,6 +55,7 @@ export async function GET() {
         startTime:    w.startTime,
         groupName:    w.participantGroup.name,
         orgName:      w.participantGroup.organization.name,
+        cancelled:    w.cancelled,
         castingTotal,
         castingFilled,
       }

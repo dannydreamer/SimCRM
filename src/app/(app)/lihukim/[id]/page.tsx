@@ -12,6 +12,7 @@ interface PendingWorkshop {
   startTime: string
   groupName: string
   orgName: string
+  cancelled: boolean
   castingTotal: number
   castingFilled: number
 }
@@ -403,7 +404,9 @@ export default function LihukimPage() {
                       : "bg-gray-50 border-transparent text-gray-500 hover:text-gray-700"
                   }`}>
                   {fmtDate(p.date)} · {p.groupName}
-                  {p.castingTotal > 0 && (
+                  {p.cancelled ? (
+                    <span className="mr-1.5 font-medium text-red-500">(בוטל)</span>
+                  ) : p.castingTotal > 0 && (
                     <span className={`mr-1.5 font-medium ${complete ? "text-green-600" : "text-amber-600"}`}>
                       ({p.castingFilled}/{p.castingTotal})
                     </span>
@@ -416,6 +419,13 @@ export default function LihukimPage() {
       )}
 
       <div className="flex-1 px-4 md:px-8 py-6 space-y-6">
+
+        {/* ── Cancelled workshop banner ─────────────────────────────────── */}
+        {data.cancelled && (
+          <div className="flex items-center gap-3 bg-red-50 border border-red-300 rounded-lg px-4 py-3 text-sm text-red-800 font-semibold">
+            ⛔ סדנה זו בוטלה — יש להפסיק את עבודת הליהוק
+          </div>
+        )}
 
         {/* ── Change alert banners ──────────────────────────────────────── */}
         {data.changeLogs.length > 0 && (

@@ -225,6 +225,18 @@ export async function PATCH(
       const toCancel = activeRooms.slice(newNum)
       for (const r of toCancel) {
         await prisma.room.update({ where: { id: r.id }, data: { cancelled: true } })
+        // Clear castings for this room so counts stay accurate
+        await prisma.casting.deleteMany({ where: { workshopId: id, roomId: r.id } })
+        // Notify caster if casting was already sent
+        if (w.castingSentAt) {
+          await prisma.castingChangeLog.create({
+            data: {
+              workshopId: id,
+              changeType: "ROOM_CANCELLED",
+              detail: `חדר ${r.roomNumber} בוטל`,
+            },
+          })
+        }
       }
     }
 
