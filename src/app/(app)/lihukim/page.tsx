@@ -71,9 +71,9 @@ export default function LihukimLandingPage() {
                   const complete = w.castingTotal > 0 && w.castingFilled === w.castingTotal
                   return (
                     <tr key={w.id}
-                      onClick={() => !w.cancelled && router.push(`/lihukim/${w.id}`)}
-                      className={`border-b border-gray-100 last:border-0 transition-colors ${
-                        w.cancelled ? "bg-red-50/40 opacity-70" : "hover:bg-gray-50 cursor-pointer"
+                      onClick={() => router.push(`/lihukim/${w.id}`)}
+                      className={`border-b border-gray-100 last:border-0 transition-colors cursor-pointer ${
+                        w.cancelled ? "bg-red-50/40 opacity-70 hover:bg-red-50/60" : "hover:bg-gray-50"
                       }`}>
                       <td className="px-4 py-2.5 whitespace-nowrap font-medium text-gray-900">
                         {fmtDate(w.date)}

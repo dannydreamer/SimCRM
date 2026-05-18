@@ -320,13 +320,15 @@ export default function SadnaotPage() {
                 <table className="w-full text-sm">
                   <tbody>
                     {cancelled.map((w) => (
-                      <tr key={w.id} className="border-b border-gray-100 last:border-0 bg-red-50/20">
-                        <td className="px-3 py-2 line-through text-gray-500 whitespace-nowrap font-medium">{fmtDate(w.date)}</td>
-                        <td className="px-3 py-2 line-through text-gray-500">
+                      <tr key={w.id}
+                        onClick={() => router.push(`/sadnaot/${w.id}`)}
+                        className="border-b border-gray-100 last:border-0 bg-red-50/20 cursor-pointer hover:bg-red-50/40 transition-colors">
+                        <td className="px-3 py-2 text-gray-400 whitespace-nowrap font-medium line-through">{fmtDate(w.date)}</td>
+                        <td className="px-3 py-2 text-gray-400 line-through">
                           {w.orgName} — {w.groupName}
                         </td>
-                        <td className="px-3 py-2 text-center text-gray-400" colSpan={9}>
-                          <span className="inline-block px-2 py-0.5 rounded-full text-xs bg-red-100 text-red-500 font-medium">בוטל</span>
+                        <td className="px-3 py-2 text-center" colSpan={9}>
+                          <span className="inline-block px-2 py-0.5 rounded-full text-xs bg-red-100 text-red-600 font-semibold">⛔ בוטל</span>
                         </td>
                       </tr>
                     ))}

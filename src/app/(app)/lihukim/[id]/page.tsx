@@ -121,6 +121,9 @@ export default function LihukimPage() {
   const [saving,       setSaving]      = useState(false)
   const [dismissedIds, setDismissedIds] = useState<Set<string>>(new Set())
 
+  // canCast = may perform edits; false for cancelled workshops (view-only for everyone)
+  const canCast = isCaster && !data?.cancelled
+
   // Load per-user dismissed log IDs from localStorage
   useEffect(() => {
     try {
@@ -252,7 +255,7 @@ export default function LihukimPage() {
   // ── Mutations ─────────────────────────────────────────────────────────────
 
   async function setConfirmedSlot(gender: string, slotIndex: number, actorId: string | null) {
-    if (!isCaster || saving) return
+    if (!canCast || saving) return
     setSaving(true)
     const r = await fetch(`/api/lihukim/${workshopId}/confirmed`, {
       method: "POST",
@@ -303,7 +306,7 @@ export default function LihukimPage() {
   }
 
   async function toggleAvailability(actorId: string, current: boolean) {
-    if (!isCaster || saving) return
+    if (!canCast || saving) return
     setSaving(true)
     const r = await fetch(`/api/lihukim/${workshopId}/availability`, {
       method: "POST",
@@ -329,7 +332,7 @@ export default function LihukimPage() {
     actorId: string, isDirector: boolean,
     slotGender?: string, slotIndex?: number
   ) {
-    if (!isCaster || saving) return
+    if (!canCast || saving) return
     setSaving(true)
     const r = await fetch(`/api/lihukim/${workshopId}/assignments`, {
       method: "POST",
@@ -354,7 +357,7 @@ export default function LihukimPage() {
   }
 
   async function unassign(castingId: string) {
-    if (!isCaster || saving) return
+    if (!canCast || saving) return
     setSaving(true)
     const r = await fetch(`/api/lihukim/${workshopId}/assignments/${castingId}`, { method: "DELETE" })
     if (r.ok) {
@@ -544,7 +547,7 @@ export default function LihukimPage() {
                         : <span className="text-gray-300 text-xs">—</span>}
                     </td>
                     <td className="px-4 py-2.5 text-center">
-                      {isCaster ? (
+                      {canCast ? (
                         <button
                           onClick={() => toggleAvailability(actor.id, actor.available)}
                           disabled={saving}
@@ -616,7 +619,7 @@ export default function LihukimPage() {
                             label={`שחקן ${idx + 1}`}
                             confirmed={confirmed}
                             pool={pool}
-                            canEdit={isCaster}
+                            canEdit={canCast}
                             saving={saving}
                             onSelect={(actorId) => setConfirmedSlot("MALE", idx, actorId)}
                             onClear={() => setConfirmedSlot("MALE", idx, null)}
@@ -644,7 +647,7 @@ export default function LihukimPage() {
                             label={`שחקנית ${idx + 1}`}
                             confirmed={confirmed}
                             pool={pool}
-                            canEdit={isCaster}
+                            canEdit={canCast}
                             saving={saving}
                             onSelect={(actorId) => setConfirmedSlot("FEMALE", idx, actorId)}
                             onClear={() => setConfirmedSlot("FEMALE", idx, null)}
@@ -667,7 +670,7 @@ export default function LihukimPage() {
                       <DirectorPicker
                         actors={availableDirectorActors}
                         current={directorAssignment}
-                        canEdit={isCaster}
+                        canEdit={canCast}
                         saving={saving}
                         onAssign={(actorId) => assign(null, null, actorId, true)}
                         onClear={() => directorAssignment && unassign(directorAssignment.id)}
@@ -771,7 +774,7 @@ export default function LihukimPage() {
                                           <GenderedPicker
                                             actors={pool}
                                             current={assignment}
-                                            canEdit={isCaster}
+                                            canEdit={canCast}
                                             saving={saving}
                                             onAssign={(actorId) => assign(scenario.id, room.id, actorId, false, "MALE", idx)}
                                             onClear={() => assignment && unassign(assignment.id)}
@@ -795,7 +798,7 @@ export default function LihukimPage() {
                                           <GenderedPicker
                                             actors={pool}
                                             current={assignment}
-                                            canEdit={isCaster}
+                                            canEdit={canCast}
                                             saving={saving}
                                             onAssign={(actorId) => assign(scenario.id, room.id, actorId, false, "FEMALE", idx)}
                                             onClear={() => assignment && unassign(assignment.id)}

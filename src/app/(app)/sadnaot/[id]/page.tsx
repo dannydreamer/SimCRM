@@ -436,7 +436,6 @@ export default function WorkshopDetailPage() {
 
   // Per-user banner dismissal (localStorage)
   const [postponedDismissed, setPostponedDismissed] = useState(false)
-  const [cancelledDismissed, setCancelledDismissed] = useState(false)
 
   // Casting actor summary collapsible
   const [castingOpen, setCastingOpen] = useState(false)
@@ -481,20 +480,12 @@ export default function WorkshopDetailPage() {
     // Dismissed only if stored date matches current workshop date
     setPostponedDismissed(storedDate === w.date)
 
-    const cancelledKey = `simcrm:banner:cancelled:${uid}:${w.id}`
-    setCancelledDismissed(localStorage.getItem(cancelledKey) === "true")
   }, [w?.id, w?.date, w?.cancelled, session?.user?.id])
 
   function dismissPostponedBanner() {
     if (!w || !session?.user?.id) return
     localStorage.setItem(`simcrm:banner:postponed:${session.user.id}:${w.id}`, w.date)
     setPostponedDismissed(true)
-  }
-
-  function dismissCancelledBanner() {
-    if (!w || !session?.user?.id) return
-    localStorage.setItem(`simcrm:banner:cancelled:${session.user.id}:${w.id}`, "true")
-    setCancelledDismissed(true)
   }
 
   const canEdit = isManager && w !== null && !w.frozen && !w.cancelled
@@ -762,21 +753,17 @@ export default function WorkshopDetailPage() {
           </div>
         )}
         {w.cancelled && (
-          <div className="bg-red-50 border border-red-300 rounded-lg px-4 py-3 text-sm text-red-700 font-medium">
-            סדנה זו בוטלה
+          <div className="bg-red-100 border-2 border-red-400 rounded-xl px-5 py-4 flex flex-col gap-1">
+            <p className="text-base font-bold text-red-800">⛔ סדנה זו בוטלה — תצוגה בלבד</p>
+            {(() => {
+              const hasResources = !!w.castingSentAt || w.rooms.some((r) => !r.cancelled && r.facilitatorId)
+              if (!hasResources) return null
+              return (
+                <p className="text-sm text-red-700 font-medium">יש להודיע למתחקרים ולמלהקת על הביטול</p>
+              )
+            })()}
           </div>
         )}
-        {w.cancelled && !cancelledDismissed && (() => {
-          const hasResources = !!w.castingSentAt || w.rooms.some((r) => !r.cancelled && r.facilitatorId)
-          if (!hasResources) return null
-          return (
-            <div className="bg-red-100 border border-red-400 rounded-lg px-4 py-3 text-sm text-red-800 font-semibold flex items-center justify-between gap-3">
-              <span>⚠️ הסדנה בוטלה — יש להודיע למתחקרים ולמלהקת</span>
-              <button onClick={dismissCancelledBanner}
-                className="text-red-600 hover:text-red-800 text-lg leading-none shrink-0" title="סגור">×</button>
-            </div>
-          )
-        })()}
 
         {/* Header card */}
         <div className="bg-white border border-gray-200 rounded-xl p-6 shadow-sm">
