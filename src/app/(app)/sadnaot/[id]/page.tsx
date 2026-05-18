@@ -646,8 +646,9 @@ export default function WorkshopDetailPage() {
     })
     if (res.ok) {
       const updated = await res.json()
-      // If status changed, reload fully so frozen/derived fields stay in sync
-      if ("status" in data) {
+      // Reload fully whenever status changed — covers both manual transitions
+      // and server-side auto-advances (checkAndAdvanceStatus on any PATCH)
+      if (updated.status !== w?.status) {
         await load()
       } else {
         setW((prev) => prev ? { ...prev, ...updated } : prev)
