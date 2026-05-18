@@ -520,8 +520,8 @@ export default function LihukimPage() {
               <thead>
                 <tr className="border-b border-gray-100 text-right text-xs text-gray-500 font-medium bg-gray-50/50">
                   <th className="px-4 py-2">שם</th>
-                  <th className="px-4 py-2">מגדר</th>
-                  <th className="px-4 py-2">התמחויות</th>
+                  <th className="px-4 py-2 hidden md:table-cell">מגדר</th>
+                  <th className="px-4 py-2 hidden md:table-cell">התמחויות</th>
                   <th className="px-4 py-2 text-center">במאי/ת</th>
                   <th className="px-4 py-2 text-center">מעוניין/ת</th>
                 </tr>
@@ -535,10 +535,10 @@ export default function LihukimPage() {
                   <tr key={actor.id}
                     className={`border-b border-gray-50 last:border-0 transition-colors ${actor.available ? "bg-green-50/30" : ""}`}>
                     <td className="px-4 py-2.5 font-medium text-gray-800">{actor.name}</td>
-                    <td className="px-4 py-2.5 text-gray-500 text-xs">
+                    <td className="px-4 py-2.5 text-gray-500 text-xs hidden md:table-cell">
                       {actor.gender === "MALE" ? "♂ זכר" : "♀ נקבה"}
                     </td>
-                    <td className="px-4 py-2.5 text-gray-500 text-xs max-w-[200px] truncate">
+                    <td className="px-4 py-2.5 text-gray-500 text-xs max-w-[200px] truncate hidden md:table-cell">
                       {actor.specialties ?? "—"}
                     </td>
                     <td className="px-4 py-2.5 text-center">
