@@ -721,11 +721,19 @@ export default function LihukimPage() {
                                     {Array.from({ length: scenario.maleActorsNeeded }, (_, idx) => {
                                       const key        = `${scenario.id}:${room.id}:MALE:${idx}`
                                       const assignment = assignmentBySlot.get(key) ?? null
+                                      // Exclude actors already used anywhere in this scenario except this slot
+                                      const usedInScenario = new Set(
+                                        assignments.filter((a) =>
+                                          a.scenarioId === scenario.id && !a.isDirector &&
+                                          !(a.roomId === room.id && a.slotGender === "MALE" && a.slotIndex === idx)
+                                        ).map((a) => a.actorId)
+                                      )
+                                      const pool = confirmedMaleActors.filter((a) => !usedInScenario.has(a.id))
                                       return (
                                         <div key={key} className="flex items-center gap-1">
                                           <span className="text-xs text-blue-500 font-semibold">♂</span>
                                           <GenderedPicker
-                                            actors={confirmedMaleActors}
+                                            actors={pool}
                                             current={assignment}
                                             canEdit={isCaster}
                                             saving={saving}
@@ -738,11 +746,18 @@ export default function LihukimPage() {
                                     {Array.from({ length: scenario.femaleActorsNeeded }, (_, idx) => {
                                       const key        = `${scenario.id}:${room.id}:FEMALE:${idx}`
                                       const assignment = assignmentBySlot.get(key) ?? null
+                                      const usedInScenario = new Set(
+                                        assignments.filter((a) =>
+                                          a.scenarioId === scenario.id && !a.isDirector &&
+                                          !(a.roomId === room.id && a.slotGender === "FEMALE" && a.slotIndex === idx)
+                                        ).map((a) => a.actorId)
+                                      )
+                                      const pool = confirmedFemaleActors.filter((a) => !usedInScenario.has(a.id))
                                       return (
                                         <div key={key} className="flex items-center gap-1">
                                           <span className="text-xs text-pink-500 font-semibold">♀</span>
                                           <GenderedPicker
-                                            actors={confirmedFemaleActors}
+                                            actors={pool}
                                             current={assignment}
                                             canEdit={isCaster}
                                             saving={saving}
