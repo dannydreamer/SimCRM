@@ -19,10 +19,19 @@ function fmtDate(iso: string) {
   return `${d.getDate()}.${d.getMonth() + 1}.${String(d.getFullYear()).slice(2)}`
 }
 
+function isComplete(w: PendingWorkshop) {
+  return w.castingTotal > 0 && w.castingFilled === w.castingTotal
+}
+
+function isPending(w: PendingWorkshop) {
+  return !w.cancelled && !isComplete(w)
+}
+
 export default function LihukimLandingPage() {
   const router = useRouter()
   const [workshops, setWorkshops] = useState<PendingWorkshop[]>([])
   const [loading,   setLoading]   = useState(true)
+  const [pendingOnly, setPendingOnly] = useState(false)
 
   useEffect(() => {
     fetch("/api/lihukim", { cache: "no-store" })
@@ -42,19 +51,42 @@ export default function LihukimLandingPage() {
     )
   }
 
+  const pendingCount    = workshops.filter(isPending).length
+  const displayWorkshops = pendingOnly ? workshops.filter(isPending) : workshops
+
   return (
     <div className="flex flex-col h-full">
       <div className="px-8 pt-6 pb-3 shrink-0">
-        <h1 className="text-2xl font-bold text-gray-900">ליהוק</h1>
-        <p className="text-sm text-gray-400 mt-0.5">
-          {workshops.length === 0 ? "אין סדנאות הממתינות לליהוק" : `${workshops.length} סדנאות ממתינות לליהוק`}
-        </p>
+        <div className="flex items-start justify-between gap-4 flex-wrap">
+          <div>
+            <h1 className="text-2xl font-bold text-gray-900">ליהוק</h1>
+            <p className="text-sm text-gray-400 mt-0.5">
+              {pendingCount === 0
+                ? "אין סדנאות הממתינות לליהוק"
+                : `${pendingCount} סדנאות ממתינות לליהוק`}
+              {workshops.length > pendingCount && (
+                <span className="mr-2 text-gray-300">· {workshops.length} סה״כ</span>
+              )}
+            </p>
+          </div>
+          {workshops.length > 0 && (
+            <button
+              onClick={() => setPendingOnly((v) => !v)}
+              className={`px-3 py-1.5 rounded-full text-xs font-semibold border transition-colors ${
+                pendingOnly
+                  ? "bg-navy text-white border-navy"
+                  : "bg-white text-gray-600 border-gray-300 hover:border-gray-400"
+              }`}>
+              {pendingOnly ? "✓ ממתינות בלבד" : "ממתינות בלבד"}
+            </button>
+          )}
+        </div>
       </div>
 
       <div className="flex-1 overflow-auto px-8 pb-8">
-        {workshops.length === 0 ? (
+        {displayWorkshops.length === 0 ? (
           <p className="text-sm text-gray-400 py-8 text-center">
-            כשסדנאות ישלחו לליהוק הן יופיעו כאן.
+            {pendingOnly ? "אין סדנאות ממתינות לליהוק." : "כשסדנאות ישלחו לליהוק הן יופיעו כאן."}
           </p>
         ) : (
           <div className="border border-gray-200 rounded-lg overflow-hidden">
@@ -67,8 +99,8 @@ export default function LihukimLandingPage() {
                 </tr>
               </thead>
               <tbody>
-                {workshops.map((w) => {
-                  const complete = w.castingTotal > 0 && w.castingFilled === w.castingTotal
+                {displayWorkshops.map((w) => {
+                  const complete = isComplete(w)
                   return (
                     <tr key={w.id}
                       onClick={() => router.push(`/lihukim/${w.id}`)}

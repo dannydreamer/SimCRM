@@ -436,6 +436,10 @@ export default function WorkshopDetailPage() {
 
   // Per-user banner dismissal (localStorage)
   const [postponedDismissed, setPostponedDismissed] = useState(false)
+  const [cancelledDismissed, setCancelledDismissed] = useState(false)
+
+  // Transient room-cancellation banner (dismissed in-memory only)
+  const [cancelledRoomsBanner, setCancelledRoomsBanner] = useState<number[]>([])
 
   // Casting actor summary collapsible
   const [castingOpen, setCastingOpen] = useState(false)
@@ -480,12 +484,21 @@ export default function WorkshopDetailPage() {
     // Dismissed only if stored date matches current workshop date
     setPostponedDismissed(storedDate === w.date)
 
+    const cancelledKey = `simcrm:banner:cancelled:${uid}:${w.id}`
+    setCancelledDismissed(localStorage.getItem(cancelledKey) === "1")
+
   }, [w?.id, w?.date, w?.cancelled, session?.user?.id])
 
   function dismissPostponedBanner() {
     if (!w || !session?.user?.id) return
     localStorage.setItem(`simcrm:banner:postponed:${session.user.id}:${w.id}`, w.date)
     setPostponedDismissed(true)
+  }
+
+  function dismissCancelledBanner() {
+    if (!w || !session?.user?.id) return
+    localStorage.setItem(`simcrm:banner:cancelled:${session.user.id}:${w.id}`, "1")
+    setCancelledDismissed(true)
   }
 
   const canEdit = isManager && w !== null && !w.frozen && !w.cancelled
@@ -523,6 +536,9 @@ export default function WorkshopDetailPage() {
       if (!ok) return
     }
 
+    // Capture active rooms before the request so we can detect cancellations
+    const prevActiveRoomIds = new Set(w.rooms.filter((r) => !r.cancelled).map((r) => r.id))
+
     setHeaderSaving(true)
     const res = await fetch(`/api/sadnaot/${id}`, {
       method: "PATCH",
@@ -541,6 +557,14 @@ export default function WorkshopDetailPage() {
     })
     if (res.ok) {
       const updated = await res.json()
+      // Show transient banner for any rooms that became cancelled
+      if (updated.rooms) {
+        const newlyCancelled = (updated.rooms as Room[])
+          .filter((r) => r.cancelled && prevActiveRoomIds.has(r.id))
+          .map((r) => r.roomNumber)
+          .sort((a, b) => a - b)
+        if (newlyCancelled.length > 0) setCancelledRoomsBanner(newlyCancelled)
+      }
       setW((prev) => {
         if (!prev) return prev
         return {
@@ -752,16 +776,29 @@ export default function WorkshopDetailPage() {
               className="text-amber-600 hover:text-amber-800 text-lg leading-none shrink-0" title="סגור">×</button>
           </div>
         )}
-        {w.cancelled && (
-          <div className="bg-red-100 border-2 border-red-400 rounded-xl px-5 py-4 flex flex-col gap-1">
-            <p className="text-base font-bold text-red-800">⛔ סדנה זו בוטלה — תצוגה בלבד</p>
-            {(() => {
-              const hasResources = !!w.castingSentAt || w.rooms.some((r) => !r.cancelled && r.facilitatorId)
-              if (!hasResources) return null
-              return (
-                <p className="text-sm text-red-700 font-medium">יש להודיע למתחקרים ולמלהקת על הביטול</p>
-              )
-            })()}
+        {cancelledRoomsBanner.length > 0 && (
+          <div className="bg-amber-50 border border-amber-300 rounded-lg px-4 py-3 text-sm text-amber-800 flex items-center justify-between gap-3">
+            <span className="font-semibold">
+              חד{cancelledRoomsBanner.length === 1 ? "ר" : "רים"}{" "}
+              {cancelledRoomsBanner.join(", ")} בוטל{cancelledRoomsBanner.length === 1 ? "" : "ו"} —
+              {" "}יש לעדכן את הגורמים הרלוונטיים
+            </span>
+            <button onClick={() => setCancelledRoomsBanner([])}
+              className="text-amber-600 hover:text-amber-800 text-lg leading-none shrink-0" title="סגור">×</button>
+          </div>
+        )}
+        {w.cancelled && !cancelledDismissed && (
+          <div className="bg-red-100 border-2 border-red-400 rounded-xl px-5 py-4">
+            <div className="flex items-start justify-between gap-3">
+              <div className="flex flex-col gap-1">
+                <p className="text-base font-bold text-red-800">⛔ סדנה זו בוטלה — תצוגה בלבד</p>
+                {(!!w.castingSentAt || w.rooms.some((r) => !r.cancelled && r.facilitatorId)) && (
+                  <p className="text-sm text-red-700 font-medium">יש להודיע למתחקרים ולמלהקת על הביטול</p>
+                )}
+              </div>
+              <button onClick={dismissCancelledBanner}
+                className="text-red-500 hover:text-red-700 text-lg leading-none shrink-0 mt-0.5" title="סגור">×</button>
+            </div>
           </div>
         )}
 

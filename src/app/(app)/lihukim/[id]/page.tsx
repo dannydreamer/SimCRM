@@ -120,6 +120,7 @@ export default function LihukimPage() {
   const [loading,      setLoading]     = useState(true)
   const [saving,       setSaving]      = useState(false)
   const [dismissedIds, setDismissedIds] = useState<Set<string>>(new Set())
+  const [cancelledBannerDismissed, setCancelledBannerDismissed] = useState(false)
 
   // canCast = may perform edits; false for cancelled workshops (view-only for everyone)
   const canCast = isCaster && !data?.cancelled
@@ -131,6 +132,20 @@ export default function LihukimPage() {
       setDismissedIds(new Set(Array.isArray(stored) ? stored : []))
     } catch { /* ignore */ }
   }, [])
+
+  // Load cancelled banner dismissal from localStorage once data arrives
+  useEffect(() => {
+    if (!data?.cancelled) return
+    try {
+      const key = `simcrm:banner:cancelled:${user.id}:${workshopId}`
+      setCancelledBannerDismissed(localStorage.getItem(key) === "1")
+    } catch { /* ignore */ }
+  }, [data?.cancelled, user.id, workshopId])
+
+  function dismissCancelledBanner() {
+    try { localStorage.setItem(`simcrm:banner:cancelled:${user.id}:${workshopId}`, "1") } catch { /* ignore */ }
+    setCancelledBannerDismissed(true)
+  }
 
   // Actor pool filters
   const [genderFilter, setGenderFilter] = useState<"all" | "MALE" | "FEMALE">("all")
@@ -433,9 +448,14 @@ export default function LihukimPage() {
       <div className="flex-1 px-4 md:px-8 py-6 space-y-6">
 
         {/* ── Cancelled workshop banner ─────────────────────────────────── */}
-        {data.cancelled && (
-          <div className="flex items-center gap-3 bg-red-50 border border-red-300 rounded-lg px-4 py-3 text-sm text-red-800 font-semibold">
-            ⛔ סדנה זו בוטלה — יש להפסיק את עבודת הליהוק
+        {data.cancelled && !cancelledBannerDismissed && (
+          <div className="flex items-center justify-between gap-3 bg-red-50 border border-red-300 rounded-lg px-4 py-3 text-sm text-red-800 font-semibold">
+            <span>⛔ סדנה זו בוטלה — יש להפסיק את עבודת הליהוק</span>
+            <button
+              onClick={dismissCancelledBanner}
+              className="text-xs font-semibold px-2.5 py-1 rounded-full shrink-0 border border-red-300 text-red-700 hover:bg-red-100 transition-colors">
+              הבנתי
+            </button>
           </div>
         )}
 
