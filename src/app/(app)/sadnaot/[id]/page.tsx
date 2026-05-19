@@ -456,7 +456,7 @@ export default function WorkshopDetailPage() {
   const load = useCallback(async () => {
     setLoading(true)
     const [wRes, tRes, fRes] = await Promise.all([
-      fetch(`/api/sadnaot/${id}`),
+      fetch(`/api/sadnaot/${id}`, { cache: "no-store" }),
       fetch("/api/nosim"),
       fetch("/api/facilitators"),
     ])
