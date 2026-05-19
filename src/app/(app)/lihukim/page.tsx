@@ -148,7 +148,7 @@ export default function LihukimLandingPage() {
         <div className="mx-8 mt-4 bg-red-50 border border-red-300 rounded-lg px-4 py-3 flex items-start justify-between gap-3 text-sm text-red-800 shrink-0">
           <div>
             <p className="font-semibold mb-0.5">
-              {newlyCancelledWorkshops.length === 1 ? "סדנה בוטלה" : `${newlyCancelledWorkshops.length} סדנאות בוטלו`} — יש להפסיק את עבודת הליהוק
+              {newlyCancelledWorkshops.length === 1 ? "סדנה בוטלה" : `${newlyCancelledWorkshops.length} סדנאות בוטלו`} — יש לעדכן את השחקנים שלוהקו
             </p>
             <ul className="text-xs text-red-700 space-y-0.5 mt-1">
               {newlyCancelledWorkshops.map((w) => (
