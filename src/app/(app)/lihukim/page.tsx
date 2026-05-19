@@ -1,7 +1,8 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { useRouter } from "next/navigation"
+import { useUser } from "@/app/(app)/user-context"
 
 interface PendingWorkshop {
   id: string
@@ -27,11 +28,16 @@ function isPending(w: PendingWorkshop) {
   return !w.cancelled && !isComplete(w)
 }
 
+const LS_DISMISSED_CANCELLATIONS = (userId: string) =>
+  `simcrm:dismissed-cancellations:${userId}`
+
 export default function LihukimLandingPage() {
   const router = useRouter()
+  const user   = useUser()
   const [workshops, setWorkshops] = useState<PendingWorkshop[]>([])
   const [loading,   setLoading]   = useState(true)
   const [pendingOnly, setPendingOnly] = useState(false)
+  const [dismissedCancelIds, setDismissedCancelIds] = useState<Set<string>>(new Set())
 
   useEffect(() => {
     fetch("/api/lihukim", { cache: "no-store" })
@@ -42,6 +48,27 @@ export default function LihukimLandingPage() {
         setLoading(false)
       })
   }, [])
+
+  // Load dismissed cancellation IDs from localStorage
+  useEffect(() => {
+    try {
+      const stored = JSON.parse(localStorage.getItem(LS_DISMISSED_CANCELLATIONS(user.id)) ?? "[]")
+      setDismissedCancelIds(new Set(Array.isArray(stored) ? stored : []))
+    } catch { /* ignore */ }
+  }, [user.id])
+
+  const newlyCancelledWorkshops = useMemo(
+    () => workshops.filter((w) => w.cancelled && !dismissedCancelIds.has(w.id)),
+    [workshops, dismissedCancelIds]
+  )
+
+  function dismissCancellations() {
+    const next = new Set([...dismissedCancelIds, ...newlyCancelledWorkshops.map((w) => w.id)])
+    setDismissedCancelIds(next)
+    try {
+      localStorage.setItem(LS_DISMISSED_CANCELLATIONS(user.id), JSON.stringify([...next]))
+    } catch { /* ignore */ }
+  }
 
   if (loading) {
     return (
@@ -56,6 +83,30 @@ export default function LihukimLandingPage() {
 
   return (
     <div className="flex flex-col h-full">
+
+      {/* Dismissed-cancellation banner */}
+      {!loading && newlyCancelledWorkshops.length > 0 && (
+        <div className="mx-8 mt-4 bg-red-50 border border-red-300 rounded-lg px-4 py-3 flex items-start justify-between gap-3 text-sm text-red-800 shrink-0">
+          <div>
+            <p className="font-semibold mb-0.5">
+              {newlyCancelledWorkshops.length === 1 ? "סדנה בוטלה" : `${newlyCancelledWorkshops.length} סדנאות בוטלו`} — יש להפסיק את עבודת הליהוק
+            </p>
+            <ul className="text-xs text-red-700 space-y-0.5 mt-1">
+              {newlyCancelledWorkshops.map((w) => (
+                <li key={w.id}>
+                  {fmtDate(w.date)} · {w.groupName} ({w.orgName})
+                </li>
+              ))}
+            </ul>
+          </div>
+          <button
+            onClick={dismissCancellations}
+            className="text-xs font-semibold px-2.5 py-1 rounded-full shrink-0 border border-red-300 text-red-700 hover:bg-red-100 transition-colors">
+            הבנתי
+          </button>
+        </div>
+      )}
+
       <div className="px-8 pt-6 pb-3 shrink-0">
         <div className="flex items-start justify-between gap-4 flex-wrap">
           <div>
