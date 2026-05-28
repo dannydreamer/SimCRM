@@ -4,6 +4,12 @@ import { useEffect, useMemo, useState } from "react"
 import { useRouter } from "next/navigation"
 import { useUser } from "@/app/(app)/user-context"
 
+interface ChangeLog {
+  id: string
+  changeType: string
+  detail: string
+}
+
 interface PendingWorkshop {
   id: string
   date: string
@@ -13,7 +19,7 @@ interface PendingWorkshop {
   cancelled: boolean
   castingTotal: number
   castingFilled: number
-  roomCancelledLogs: { id: string; detail: string }[]
+  changeLogs: ChangeLog[]
 }
 
 function fmtDate(iso: string) {
@@ -32,8 +38,8 @@ function isPending(w: PendingWorkshop) {
 const LS_DISMISSED_CANCELLATIONS = (userId: string) =>
   `simcrm:dismissed-cancellations:${userId}`
 
-// Same key as the detail page — dismissal is shared
-const LS_DISMISSED_LOGS = "simcrm:dismissed-logs"
+// Bug 3 fix: use a separate key from the detail page so dismissals are independent
+const LS_DISMISSED_LOGS_OVERVIEW = "simcrm:dismissed-logs-overview"
 
 export default function LihukimLandingPage() {
   const router = useRouter()
@@ -42,7 +48,7 @@ export default function LihukimLandingPage() {
   const [loading,   setLoading]   = useState(true)
   const [pendingOnly, setPendingOnly] = useState(false)
   const [dismissedCancelIds, setDismissedCancelIds] = useState<Set<string>>(new Set())
-  // Dismissed change-log IDs (shared with detail page via same LS key)
+  // Dismissed change-log IDs — own key, independent from the detail page
   const [dismissedLogIds, setDismissedLogIds] = useState<Set<string>>(new Set())
 
   useEffect(() => {
@@ -63,10 +69,10 @@ export default function LihukimLandingPage() {
     } catch { /* ignore */ }
   }, [user.id])
 
-  // Load dismissed change-log IDs (shared key with detail page)
+  // Load dismissed change-log IDs (overview-specific key, independent from detail page)
   useEffect(() => {
     try {
-      const stored = JSON.parse(localStorage.getItem(LS_DISMISSED_LOGS) ?? "[]")
+      const stored = JSON.parse(localStorage.getItem(LS_DISMISSED_LOGS_OVERVIEW) ?? "[]")
       setDismissedLogIds(new Set(Array.isArray(stored) ? stored : []))
     } catch { /* ignore */ }
   }, [])
@@ -76,32 +82,55 @@ export default function LihukimLandingPage() {
     [workshops, dismissedCancelIds]
   )
 
-  function dismissCancellations() {
-    const next = new Set([...dismissedCancelIds, ...newlyCancelledWorkshops.map((w) => w.id)])
+  // Bug 2 fix: dismiss a single workshop cancellation
+  function dismissCancellation(workshopId: string) {
+    const next = new Set([...dismissedCancelIds, workshopId])
     setDismissedCancelIds(next)
     try {
       localStorage.setItem(LS_DISMISSED_CANCELLATIONS(user.id), JSON.stringify([...next]))
     } catch { /* ignore */ }
   }
 
-  // Workshops that are complete but have undismissed ROOM_CANCELLED logs
+  // Workshops with undismissed ROOM_CANCELLED logs
   const roomCancelledWarnings = useMemo(
     () => workshops.filter((w) =>
       !w.cancelled &&
-      w.roomCancelledLogs.some((l) => !dismissedLogIds.has(l.id))
+      w.changeLogs.some((l) => l.changeType === "ROOM_CANCELLED" && !dismissedLogIds.has(l.id))
     ),
     [workshops, dismissedLogIds]
   )
 
-  function dismissRoomCancellations() {
-    const logIds = roomCancelledWarnings.flatMap((w) =>
-      w.roomCancelledLogs.filter((l) => !dismissedLogIds.has(l.id)).map((l) => l.id)
-    )
+  // Workshops with undismissed other-type change logs (non-ROOM_CANCELLED)
+  const otherChangeWarnings = useMemo(
+    () => workshops.filter((w) =>
+      !w.cancelled &&
+      w.changeLogs.some((l) => l.changeType !== "ROOM_CANCELLED" && !dismissedLogIds.has(l.id))
+    ),
+    [workshops, dismissedLogIds]
+  )
+
+  // Dismiss logs of a specific type for a workshop
+  function dismissLogsForWorkshop(workshopId: string, filterFn: (l: ChangeLog) => boolean) {
+    const w = workshops.find((ww) => ww.id === workshopId)
+    if (!w) return
+    const logIds = w.changeLogs
+      .filter((l) => filterFn(l) && !dismissedLogIds.has(l.id))
+      .map((l) => l.id)
     const next = new Set([...dismissedLogIds, ...logIds])
     setDismissedLogIds(next)
     try {
-      localStorage.setItem(LS_DISMISSED_LOGS, JSON.stringify([...next]))
+      localStorage.setItem(LS_DISMISSED_LOGS_OVERVIEW, JSON.stringify([...next]))
     } catch { /* ignore */ }
+  }
+
+  // Bug 2 fix: dismiss room-cancellation logs for a single workshop
+  function dismissRoomCancellation(workshopId: string) {
+    dismissLogsForWorkshop(workshopId, (l) => l.changeType === "ROOM_CANCELLED")
+  }
+
+  // Dismiss other change logs for a single workshop
+  function dismissOtherChanges(workshopId: string) {
+    dismissLogsForWorkshop(workshopId, (l) => l.changeType !== "ROOM_CANCELLED")
   }
 
   if (loading) {
@@ -118,53 +147,61 @@ export default function LihukimLandingPage() {
   return (
     <div className="flex flex-col h-full">
 
-      {/* Room-cancellation warning banner */}
-      {!loading && roomCancelledWarnings.length > 0 && (
-        <div className="mx-8 mt-4 bg-amber-50 border border-amber-300 rounded-lg px-4 py-3 flex items-start justify-between gap-3 text-sm text-amber-800 shrink-0">
+      {/* Other-change banners (RESENT / COUNTS_CHANGED / SCENARIO_REQ / SCENARIO_CANCELLED) */}
+      {!loading && otherChangeWarnings.map((ow) => {
+        const logs = ow.changeLogs.filter((l) => l.changeType !== "ROOM_CANCELLED" && !dismissedLogIds.has(l.id))
+        return (
+          <div key={ow.id} className="mx-8 mt-4 bg-blue-50 border border-blue-200 rounded-lg px-4 py-3 flex items-start justify-between gap-3 text-sm text-blue-800 shrink-0">
+            <div>
+              <p className="font-semibold mb-0.5">עדכון בסדנה — יש לבדוק לפני ביצוע ליהוק</p>
+              <p className="text-xs text-blue-700 mt-0.5">
+                {fmtDate(ow.date)} · {ow.groupName} — {logs.map((l) => l.detail).join(", ")}
+              </p>
+            </div>
+            <button
+              onClick={() => dismissOtherChanges(ow.id)}
+              className="text-xs font-semibold px-2.5 py-1 rounded-full shrink-0 border border-blue-300 text-blue-700 hover:bg-blue-100 transition-colors">
+              הבנתי
+            </button>
+          </div>
+        )
+      })}
+
+      {/* Room-cancellation warning banners — one per workshop */}
+      {!loading && roomCancelledWarnings.map((rw) => (
+        <div key={rw.id} className="mx-8 mt-4 bg-amber-50 border border-amber-300 rounded-lg px-4 py-3 flex items-start justify-between gap-3 text-sm text-amber-800 shrink-0">
           <div>
             <p className="font-semibold mb-0.5">חדר בוטל בסדנה שכבר לוהקה — יש לעדכן את השחקנים</p>
-            <ul className="text-xs text-amber-700 space-y-0.5 mt-1">
-              {roomCancelledWarnings.map((w) => (
-                <li key={w.id}>
-                  {fmtDate(w.date)} · {w.groupName} —{" "}
-                  {w.roomCancelledLogs
-                    .filter((l) => !dismissedLogIds.has(l.id))
-                    .map((l) => l.detail)
-                    .join(", ")}
-                </li>
-              ))}
-            </ul>
+            <p className="text-xs text-amber-700 mt-0.5">
+              {fmtDate(rw.date)} · {rw.groupName} —{" "}
+              {rw.changeLogs
+                .filter((l) => l.changeType === "ROOM_CANCELLED" && !dismissedLogIds.has(l.id))
+                .map((l) => l.detail)
+                .join(", ")}
+            </p>
           </div>
           <button
-            onClick={dismissRoomCancellations}
+            onClick={() => dismissRoomCancellation(rw.id)}
             className="text-xs font-semibold px-2.5 py-1 rounded-full shrink-0 border border-amber-300 text-amber-700 hover:bg-amber-100 transition-colors">
             הבנתי
           </button>
         </div>
-      )}
+      ))}
 
-      {/* Workshop-cancellation banner */}
-      {!loading && newlyCancelledWorkshops.length > 0 && (
-        <div className="mx-8 mt-4 bg-red-50 border border-red-300 rounded-lg px-4 py-3 flex items-start justify-between gap-3 text-sm text-red-800 shrink-0">
+      {/* Workshop-cancellation banners — one per workshop */}
+      {!loading && newlyCancelledWorkshops.map((cw) => (
+        <div key={cw.id} className="mx-8 mt-4 bg-red-50 border border-red-300 rounded-lg px-4 py-3 flex items-start justify-between gap-3 text-sm text-red-800 shrink-0">
           <div>
-            <p className="font-semibold mb-0.5">
-              {newlyCancelledWorkshops.length === 1 ? "סדנה בוטלה" : `${newlyCancelledWorkshops.length} סדנאות בוטלו`} — יש לעדכן את השחקנים שלוהקו
-            </p>
-            <ul className="text-xs text-red-700 space-y-0.5 mt-1">
-              {newlyCancelledWorkshops.map((w) => (
-                <li key={w.id}>
-                  {fmtDate(w.date)} · {w.groupName} ({w.orgName})
-                </li>
-              ))}
-            </ul>
+            <p className="font-semibold mb-0.5">סדנה בוטלה — יש לעדכן את השחקנים שלוהקו</p>
+            <p className="text-xs text-red-700">{fmtDate(cw.date)} · {cw.groupName} ({cw.orgName})</p>
           </div>
           <button
-            onClick={dismissCancellations}
+            onClick={() => dismissCancellation(cw.id)}
             className="text-xs font-semibold px-2.5 py-1 rounded-full shrink-0 border border-red-300 text-red-700 hover:bg-red-100 transition-colors">
             הבנתי
           </button>
         </div>
-      )}
+      ))}
 
       <div className="px-8 pt-6 pb-3 shrink-0">
         <div className="flex items-start justify-between gap-4 flex-wrap">
@@ -212,7 +249,9 @@ export default function LihukimLandingPage() {
                 {displayWorkshops.map((w) => {
                   const complete = isComplete(w)
                   const hasRoomWarning = !w.cancelled &&
-                    w.roomCancelledLogs.some((l) => !dismissedLogIds.has(l.id))
+                    w.changeLogs.some((l) => l.changeType === "ROOM_CANCELLED" && !dismissedLogIds.has(l.id))
+                  const hasOtherWarning = !w.cancelled &&
+                    w.changeLogs.some((l) => l.changeType !== "ROOM_CANCELLED" && !dismissedLogIds.has(l.id))
                   return (
                     <tr key={w.id}
                       onClick={() => router.push(`/lihukim/${w.id}`)}
@@ -241,6 +280,9 @@ export default function LihukimLandingPage() {
                             </span>
                             {hasRoomWarning && (
                               <span className="px-1.5 py-0.5 rounded bg-amber-100 text-amber-700 text-xs font-bold leading-none">⚠</span>
+                            )}
+                            {hasOtherWarning && (
+                              <span className="px-1.5 py-0.5 rounded bg-blue-100 text-blue-700 text-xs font-bold leading-none">!</span>
                             )}
                           </span>
                         )}

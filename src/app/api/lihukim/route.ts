@@ -37,10 +37,13 @@ export async function GET() {
         },
         select: { id: true, isDirector: true },
       },
-      // Room-cancellation logs so the landing page can surface a warning badge
+      // All undismissed change logs — landing page shows banners for all types
       castingChangeLogs: {
-        where: { dismissed: false, changeType: "ROOM_CANCELLED" },
-        select: { id: true, detail: true },
+        where: {
+          dismissed: false,
+          changeType: { in: ["SCENARIO_REQ", "SCENARIO_CANCELLED", "ROOM_CANCELLED", "COUNTS_CHANGED", "RESENT"] },
+        },
+        select: { id: true, changeType: true, detail: true },
       },
     },
   })
@@ -63,7 +66,7 @@ export async function GET() {
         cancelled:    w.cancelled,
         castingTotal,
         castingFilled,
-        roomCancelledLogs: w.castingChangeLogs.map((l) => ({ id: l.id, detail: l.detail })),
+        changeLogs: w.castingChangeLogs.map((l) => ({ id: l.id, changeType: l.changeType, detail: l.detail })),
       }
     }),
     { headers: { "Cache-Control": "no-store" } }

@@ -139,8 +139,10 @@ model Workshop {
   status            WorkshopStatus @default(NEW)
   cancelled         Boolean        @default(false)
   tentative         Boolean        @default(false)
-  postponedWarning  Boolean        @default(false)
-  feedbackFormAdded   Boolean        @default(false)
+  postponedWarning     Boolean        @default(false)
+  roomCancelledWarning Boolean        @default(false)
+  roomAddedWarning     Boolean        @default(false)
+  feedbackFormAdded    Boolean        @default(false)
   castingMaleNeeded   Int?
   castingFemaleNeeded Int?
   castingNotes        String?

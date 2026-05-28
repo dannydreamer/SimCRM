@@ -119,8 +119,8 @@ export default function SadnaotPage() {
     [workshops, dismissedCancelIds]
   )
 
-  function dismissCancellations() {
-    const next = new Set([...dismissedCancelIds, ...newlyCancelledWorkshops.map((w) => w.id)])
+  function dismissCancellation(workshopId: string) {
+    const next = new Set([...dismissedCancelIds, workshopId])
     setDismissedCancelIds(next)
     try {
       localStorage.setItem(LS_DISMISSED_CANCELLATIONS(user.id), JSON.stringify([...next]))
@@ -180,28 +180,20 @@ export default function SadnaotPage() {
         )}
       </div>
 
-      {/* Cancellation alert banner */}
-      {!loading && newlyCancelledWorkshops.length > 0 && (
-        <div className="mx-8 mb-1 bg-red-50 border border-red-300 rounded-lg px-4 py-3 flex items-start justify-between gap-3 text-sm text-red-800 shrink-0">
+      {/* Cancellation alert banners — one per workshop */}
+      {!loading && newlyCancelledWorkshops.map((cw) => (
+        <div key={cw.id} className="mx-8 mb-1 bg-red-50 border border-red-300 rounded-lg px-4 py-3 flex items-start justify-between gap-3 text-sm text-red-800 shrink-0">
           <div>
-            <p className="font-semibold mb-0.5">
-              {newlyCancelledWorkshops.length === 1 ? "סדנה בוטלה" : `${newlyCancelledWorkshops.length} סדנאות בוטלו`} — יש לעדכן את כל הגורמים הרלוונטיים
-            </p>
-            <ul className="text-xs text-red-700 space-y-0.5 mt-1">
-              {newlyCancelledWorkshops.map((w) => (
-                <li key={w.id}>
-                  {fmtDate(w.date)} · {w.groupName} ({w.orgName})
-                </li>
-              ))}
-            </ul>
+            <p className="font-semibold mb-0.5">סדנה בוטלה — יש לעדכן את כל הגורמים הרלוונטיים</p>
+            <p className="text-xs text-red-700">{fmtDate(cw.date)} · {cw.groupName} ({cw.orgName})</p>
           </div>
           <button
-            onClick={dismissCancellations}
+            onClick={() => dismissCancellation(cw.id)}
             className="text-xs font-semibold px-2.5 py-1 rounded-full shrink-0 border border-red-300 text-red-700 hover:bg-red-100 transition-colors">
             הבנתי
           </button>
         </div>
-      )}
+      ))}
 
       {/* Filters */}
       <div className="px-8 pb-3 flex flex-wrap items-center gap-3 shrink-0">

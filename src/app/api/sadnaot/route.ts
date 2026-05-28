@@ -108,7 +108,9 @@ export async function POST(req: NextRequest) {
   if (!date)                          return NextResponse.json({ error: "יש לבחור תאריך" }, { status: 400 })
   if (!startTime)                     return NextResponse.json({ error: "יש להזין שעת התחלה" }, { status: 400 })
   if (!endTime)                       return NextResponse.json({ error: "יש להזין שעת סיום" }, { status: 400 })
-  if (!numRooms || numRooms < 1)      return NextResponse.json({ error: "יש להזין מספר חדרים" }, { status: 400 })
+  const n = Math.floor(Number(numRooms))
+  if (!n || n < 1)                    return NextResponse.json({ error: "יש להזין מספר חדרים" }, { status: 400 })
+  console.log(`[POST /api/sadnaot] numRooms received=${numRooms} parsed=${n}`)
 
   let participantGroupId: string
   if (groupId) {
@@ -124,8 +126,6 @@ export async function POST(req: NextRequest) {
       participantGroupId = ng.id
     }
   }
-
-  const n = Number(numRooms)
 
   // Create workshop + rooms atomically so they can never be out of sync
   const workshop = await prisma.$transaction(async (tx) => {

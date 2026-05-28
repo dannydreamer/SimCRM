@@ -42,13 +42,15 @@ export async function POST(
     return NextResponse.json({ error: "יש להזין מספר שחקניות נדרשות" }, { status: 400 })
 
   const isResend = !!workshop.castingSentAt
+  const newMale   = Number(castingMaleNeeded)
+  const newFemale = Number(castingFemaleNeeded)
   const now = new Date()
 
   await prisma.workshop.update({
     where: { id },
     data: {
-      castingMaleNeeded: Number(castingMaleNeeded),
-      castingFemaleNeeded: Number(castingFemaleNeeded),
+      castingMaleNeeded:   newMale,
+      castingFemaleNeeded: newFemale,
       castingNotes: castingNotes?.trim() || null,
       castingSentAt: now,
     },
@@ -62,6 +64,28 @@ export async function POST(
       detail: isResend ? "עדכון ושליחה חוזרת לליהוק" : "נשלח לליהוק",
     },
   })
+
+  // If counts were reduced, trim excess confirmed actors so Step 1 stays consistent
+  if (isResend) {
+    const gendersToCheck: Array<{ gender: string; newCount: number; oldCount: number }> = [
+      { gender: "MALE",   newCount: newMale,   oldCount: workshop.castingMaleNeeded },
+      { gender: "FEMALE", newCount: newFemale, oldCount: workshop.castingFemaleNeeded },
+    ]
+    for (const { gender, newCount, oldCount } of gendersToCheck) {
+      if (newCount >= oldCount) continue
+      // Delete confirmed actors whose slotIndex is now out of range (>= newCount)
+      const excess = await prisma.workshopConfirmedActor.findMany({
+        where: { workshopId: id, gender, slotIndex: { gte: newCount } },
+      })
+      for (const c of excess) {
+        // Also clear their Step 2 assignments
+        await prisma.casting.deleteMany({
+          where: { workshopId: id, actorId: c.actorId, isDirector: false },
+        })
+        await prisma.workshopConfirmedActor.delete({ where: { id: c.id } })
+      }
+    }
+  }
 
   // Auto-advance: sending casting may complete the READY conditions
   await checkAndAdvanceStatus(id)

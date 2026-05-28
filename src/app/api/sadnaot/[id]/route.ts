@@ -69,6 +69,8 @@ export async function GET(
     cancelled: w.cancelled,
     tentative: w.tentative,
     postponedWarning: w.postponedWarning,
+    roomCancelledWarning: w.roomCancelledWarning,
+    roomAddedWarning: w.roomAddedWarning,
     feedbackFormAdded: w.feedbackFormAdded,
     castingSentAt: w.castingSentAt?.toISOString() ?? null,
     notes: w.notes,
@@ -119,6 +121,7 @@ export async function PATCH(
   const w = await prisma.workshop.findUnique({
     where: { id },
     select: {
+      date: true,
       status: true, cancelled: true, authorId: true,
       castingSentAt: true, castingMaleNeeded: true, castingFemaleNeeded: true,
       rooms: { where: { cancelled: false }, select: { facilitatorId: true } },
@@ -135,6 +138,8 @@ export async function PATCH(
     castingMaleNeeded, castingFemaleNeeded, castingNotes,
     tentative, notes, status, cancelled, postponedWarning,
     feedbackFormAdded,
+    roomCancelledWarning: roomCancelledWarningDismiss,
+    roomAddedWarning: roomAddedWarningDismiss,
   } = body
 
   // Status advance: validate progression
@@ -153,6 +158,10 @@ export async function PATCH(
   // Status is allowed for both Manager and Tech
   if (status !== undefined) data.status = status
 
+  // Room-warning dismissal is allowed for both Manager and Tech
+  if (roomCancelledWarningDismiss === false) data.roomCancelledWarning = false
+  if (roomAddedWarningDismiss === false)     data.roomAddedWarning     = false
+
   // All other fields: Manager only
   if (isManager) {
     if (feedbackFormAdded !== undefined) data.feedbackFormAdded = feedbackFormAdded
@@ -161,10 +170,15 @@ export async function PATCH(
 
     if (!isFrozen) {
       if (date !== undefined) {
-        data.date = new Date(date)
-        // Auto-set postponed warning if workshop has assigned resources
-        const hasResources = !!w.castingSentAt || w.rooms.some((r) => r.facilitatorId)
-        if (hasResources) data.postponedWarning = true
+        const newDate = new Date(date)
+        data.date = newDate
+        // Only trigger postponement warning when the date ACTUALLY changes
+        const oldDateStr = w.date.toISOString().slice(0, 10)
+        const newDateStr = newDate.toISOString().slice(0, 10)
+        if (oldDateStr !== newDateStr) {
+          const hasResources = !!w.castingSentAt || w.rooms.some((r) => r.facilitatorId)
+          if (hasResources) data.postponedWarning = true
+        }
       }
       if (startTime !== undefined) data.startTime = startTime
       if (endTime !== undefined) data.endTime = endTime
@@ -192,6 +206,8 @@ export async function PATCH(
 
   // Sync rooms when numRooms changed (Manager only)
   let updatedRooms: ReturnType<typeof mapRoom>[] | undefined
+  let roomsWereCancelled = false
+  let roomsWereAdded = false
   if (isManager && numRooms !== undefined && !isFrozen) {
     const newNum = Number(numRooms)
     const allRooms = await prisma.room.findMany({
@@ -220,6 +236,7 @@ export async function PATCH(
           })),
         })
       }
+      roomsWereAdded = true
     } else if (newNum < activeRooms.length) {
       // Cancel the highest-numbered active rooms
       const toCancel = activeRooms.slice(newNum)
@@ -238,6 +255,18 @@ export async function PATCH(
           })
         }
       }
+      roomsWereCancelled = true
+    }
+
+    // Set room-change warning flags on workshop
+    if (roomsWereCancelled || roomsWereAdded) {
+      await prisma.workshop.update({
+        where: { id },
+        data: {
+          ...(roomsWereCancelled && { roomCancelledWarning: true }),
+          ...(roomsWereAdded     && { roomAddedWarning:     true }),
+        },
+      })
     }
 
     // Return fresh rooms list
@@ -272,6 +301,8 @@ export async function PATCH(
     cancelled: updated.cancelled,
     numRooms: updated.numRooms,
     postponedWarning: updated.postponedWarning,
+    roomCancelledWarning: roomsWereCancelled ? true : updated.roomCancelledWarning,
+    roomAddedWarning:     roomsWereAdded     ? true : updated.roomAddedWarning,
     ...(updatedRooms !== undefined && { rooms: updatedRooms }),
   })
 }

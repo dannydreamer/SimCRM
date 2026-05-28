@@ -48,6 +48,8 @@ interface Workshop {
   cancelled: boolean
   tentative: boolean
   postponedWarning: boolean
+  roomCancelledWarning: boolean
+  roomAddedWarning: boolean
   feedbackFormAdded: boolean
   castingSentAt: string | null
   notes: string | null
@@ -488,6 +490,26 @@ export default function WorkshopDetailPage() {
     setPostponedDismissed(true)
   }
 
+  async function dismissRoomCancelledWarning() {
+    if (!w) return
+    setW((prev) => prev ? { ...prev, roomCancelledWarning: false } : prev)
+    await fetch(`/api/sadnaot/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ roomCancelledWarning: false }),
+    })
+  }
+
+  async function dismissRoomAddedWarning() {
+    if (!w) return
+    setW((prev) => prev ? { ...prev, roomAddedWarning: false } : prev)
+    await fetch(`/api/sadnaot/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ roomAddedWarning: false }),
+    })
+  }
+
   const canEdit = isManager && w !== null && !w.frozen && !w.cancelled
   const canAddScenario = canEditScenarios && w !== null && !w.frozen && !w.cancelled && w.status !== "NEW" && !!w.authorId
   const canCancelScenario = isManager && w !== null && !w.frozen && !w.cancelled
@@ -554,7 +576,9 @@ export default function WorkshopDetailPage() {
           tentative: headerDraft.tentative,
           directorRequested: headerDraft.directorRequested,
           directorNotes: headerDraft.directorNotes || null,
-          postponedWarning: updated.postponedWarning ?? prev.postponedWarning,
+          postponedWarning:     updated.postponedWarning     ?? prev.postponedWarning,
+          roomCancelledWarning: updated.roomCancelledWarning ?? prev.roomCancelledWarning,
+          roomAddedWarning:     updated.roomAddedWarning     ?? prev.roomAddedWarning,
           rooms: updated.rooms ?? prev.rooms,
         }
       })
@@ -750,6 +774,20 @@ export default function WorkshopDetailPage() {
             <span>⚠️ הסדנה נדחתה — יש להודיע למתחקרים ולמלהקת</span>
             <button onClick={dismissPostponedBanner}
               className="text-amber-600 hover:text-amber-800 text-lg leading-none shrink-0" title="סגור">×</button>
+          </div>
+        )}
+        {w.roomCancelledWarning && (
+          <div className="bg-amber-100 border border-amber-400 rounded-lg px-4 py-3 text-sm text-amber-800 font-semibold flex items-center justify-between gap-3">
+            <span>⚠️ חדר בוטל — יש להודיע למתחקר/ת ולמלהקת</span>
+            <button onClick={dismissRoomCancelledWarning}
+              className="text-amber-600 hover:text-amber-800 text-lg leading-none shrink-0" title="סגור">×</button>
+          </div>
+        )}
+        {w.roomAddedWarning && (
+          <div className="bg-blue-50 border border-blue-300 rounded-lg px-4 py-3 text-sm text-blue-800 font-semibold flex items-center justify-between gap-3">
+            <span>ℹ️ חדר נוסף — יש לשלוח מחדש לליהוק</span>
+            <button onClick={dismissRoomAddedWarning}
+              className="text-blue-600 hover:text-blue-800 text-lg leading-none shrink-0" title="סגור">×</button>
           </div>
         )}
         {w.cancelled && (
