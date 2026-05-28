@@ -621,6 +621,7 @@ export default function WorkshopDetailPage() {
 
   async function addScenario() {
     if (!newTopicId) return
+    if (!newScenarioReq.trim()) return
     setAddingScenario(true)
     const res = await fetch(`/api/sadnaot/${id}/scenarios`, {
       method: "POST",
@@ -1123,9 +1124,13 @@ export default function WorkshopDetailPage() {
                 </div>
               </div>
               <div>
-                <label className="block text-xs text-gray-500 mb-1">דרישות שחקנים</label>
+                <label className="block text-xs text-gray-500 mb-1">
+                  דרישות שחקנים <span className="text-red-500">*</span>
+                </label>
                 <textarea value={newScenarioReq} onChange={(e) => setNewScenarioReq(e.target.value)} rows={2}
-                  className="border border-gray-300 rounded px-2 py-1.5 text-sm w-full" />
+                  className={`border rounded px-2 py-1.5 text-sm w-full ${
+                    newScenarioReq.trim() ? "border-gray-300" : "border-red-300"
+                  }`} />
                 <div className="flex items-center gap-4 mt-1.5">
                   <label className="flex items-center gap-1.5 text-xs text-gray-600">
                     ♂ שחקנים נדרשים לתרחיש
