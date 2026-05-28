@@ -37,6 +37,8 @@ export async function GET() {
         },
         select: { id: true, isDirector: true },
       },
+      // Step 1 confirmed actors — used to determine if casting has started
+      confirmedActors: { select: { id: true } },
       // All undismissed change logs — landing page shows banners for all types
       castingChangeLogs: {
         where: {
@@ -63,9 +65,10 @@ export async function GET() {
         startTime:    w.startTime,
         groupName:    w.participantGroup.name,
         orgName:      w.participantGroup.organization.name,
-        cancelled:    w.cancelled,
+        cancelled:      w.cancelled,
         castingTotal,
         castingFilled,
+        castingStarted: w.confirmedActors.length > 0 || w.castings.length > 0,
         changeLogs: w.castingChangeLogs.map((l) => ({ id: l.id, changeType: l.changeType, detail: l.detail })),
       }
     }),

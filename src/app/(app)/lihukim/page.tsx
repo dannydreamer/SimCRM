@@ -19,6 +19,7 @@ interface PendingWorkshop {
   cancelled: boolean
   castingTotal: number
   castingFilled: number
+  castingStarted: boolean
   changeLogs: ChangeLog[]
 }
 
@@ -148,19 +149,29 @@ export default function LihukimLandingPage() {
     <div className="flex flex-col h-full">
 
       {/* Other-change banners (RESENT / COUNTS_CHANGED / SCENARIO_REQ / SCENARIO_CANCELLED) */}
+      {/* Color matches detail page: red if casting started, amber if not yet */}
       {!loading && otherChangeWarnings.map((ow) => {
         const logs = ow.changeLogs.filter((l) => l.changeType !== "ROOM_CANCELLED" && !dismissedLogIds.has(l.id))
+        const isRed = ow.castingStarted
         return (
-          <div key={ow.id} className="mx-8 mt-4 bg-blue-50 border border-blue-200 rounded-lg px-4 py-3 flex items-start justify-between gap-3 text-sm text-blue-800 shrink-0">
+          <div key={ow.id} className={`mx-8 mt-4 rounded-lg px-4 py-3 flex items-start justify-between gap-3 text-sm shrink-0 border ${
+            isRed
+              ? "bg-red-50 border-red-300 text-red-800"
+              : "bg-amber-50 border-amber-300 text-amber-800"
+          }`}>
             <div>
               <p className="font-semibold mb-0.5">עדכון בסדנה — יש לבדוק לפני ביצוע ליהוק</p>
-              <p className="text-xs text-blue-700 mt-0.5">
+              <p className={`text-xs mt-0.5 ${isRed ? "text-red-700" : "text-amber-700"}`}>
                 {fmtDate(ow.date)} · {ow.groupName} — {logs.map((l) => l.detail).join(", ")}
               </p>
             </div>
             <button
               onClick={() => dismissOtherChanges(ow.id)}
-              className="text-xs font-semibold px-2.5 py-1 rounded-full shrink-0 border border-blue-300 text-blue-700 hover:bg-blue-100 transition-colors">
+              className={`text-xs font-semibold px-2.5 py-1 rounded-full shrink-0 border transition-colors ${
+                isRed
+                  ? "border-red-300 text-red-700 hover:bg-red-100"
+                  : "border-amber-300 text-amber-700 hover:bg-amber-100"
+              }`}>
               הבנתי
             </button>
           </div>
@@ -282,7 +293,9 @@ export default function LihukimLandingPage() {
                               <span className="px-1.5 py-0.5 rounded bg-amber-100 text-amber-700 text-xs font-bold leading-none">⚠</span>
                             )}
                             {hasOtherWarning && (
-                              <span className="px-1.5 py-0.5 rounded bg-blue-100 text-blue-700 text-xs font-bold leading-none">!</span>
+                              <span className={`px-1.5 py-0.5 rounded text-xs font-bold leading-none ${
+                                w.castingStarted ? "bg-red-100 text-red-700" : "bg-amber-100 text-amber-700"
+                              }`}>!</span>
                             )}
                           </span>
                         )}
