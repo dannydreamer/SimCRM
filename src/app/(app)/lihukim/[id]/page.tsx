@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useMemo, useState, useCallback } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useParams, useRouter } from "next/navigation"
 import { useUser } from "@/app/(app)/user-context"
 
@@ -102,6 +102,7 @@ const CHANGE_TYPE_LABELS: Record<string, string> = {
   ROOM_CANCELLED:     "חדר בוטל",
   COUNTS_CHANGED:     "מספרים כמותיים עודכנו",
   RESENT:             "עדכון ושליחה חוזרת לליהוק",
+  DATE_CHANGED:       "הסדנה נדחתה",
 }
 
 const LS_KEY = "simcrm:dismissed-logs"
@@ -118,6 +119,7 @@ export default function LihukimPage() {
   const [data,         setData]        = useState<CastingData | null>(null)
   const [pending,      setPending]     = useState<PendingWorkshop[]>([])
   const [loading,      setLoading]     = useState(true)
+  const activeTabRef = useRef<HTMLButtonElement>(null)
   const [saving,       setSaving]      = useState(false)
   const [dismissedIds, setDismissedIds] = useState<Set<string>>(new Set())
 
@@ -162,6 +164,11 @@ export default function LihukimPage() {
     }
     return nearest
   }, [pending, workshopId])
+
+  // Scroll the active tab into view whenever the workshop or tab list changes
+  useEffect(() => {
+    activeTabRef.current?.scrollIntoView({ inline: "center", block: "nearest", behavior: "instant" })
+  }, [workshopId, pendingTabs])
 
   // ── Derived state ─────────────────────────────────────────────────────────
 
@@ -409,6 +416,7 @@ export default function LihukimPage() {
               const complete  = p.castingTotal > 0 && p.castingFilled === p.castingTotal
               return (
                 <button key={p.id}
+                  ref={isCurrent ? activeTabRef : null}
                   onClick={() => router.push(`/lihukim/${p.id}`)}
                   className={`shrink-0 px-3 py-1.5 rounded-t-md border text-xs whitespace-nowrap transition-colors ${
                     isCurrent

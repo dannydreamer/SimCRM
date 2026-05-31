@@ -154,6 +154,9 @@ export async function PATCH(
       return NextResponse.json({ error: "יש לבחור כותב/ת תרחיש לפני סימון ביצוע איתור צרכים" }, { status: 400 })
   }
 
+  let dateActuallyChanged = false
+  let newDateStr_forLog   = ""
+
   const data: Record<string, unknown> = {}
   // Status is allowed for both Manager and Tech
   if (status !== undefined) data.status = status
@@ -176,8 +179,9 @@ export async function PATCH(
         const oldDateStr = w.date.toISOString().slice(0, 10)
         const newDateStr = newDate.toISOString().slice(0, 10)
         if (oldDateStr !== newDateStr) {
-          const hasResources = !!w.castingSentAt || w.rooms.some((r) => r.facilitatorId)
-          if (hasResources) data.postponedWarning = true
+          data.postponedWarning = true
+          dateActuallyChanged = true
+          newDateStr_forLog    = newDateStr
         }
       }
       if (startTime !== undefined) data.startTime = startTime
@@ -288,6 +292,17 @@ export async function PATCH(
           workshopId: id,
           changeType: "COUNTS_CHANGED",
           detail: "המספרים הכמותיים עודכנו",
+        },
+      })
+    }
+    // Notify the Caster when the workshop date actually changed
+    if (dateActuallyChanged) {
+      const [y, m, d] = newDateStr_forLog.split("-")
+      await prisma.castingChangeLog.create({
+        data: {
+          workshopId: id,
+          changeType: "DATE_CHANGED",
+          detail: `תאריך הסדנה שונה ל-${Number(d)}.${Number(m)}.${String(y).slice(2)}`,
         },
       })
     }

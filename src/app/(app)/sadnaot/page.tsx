@@ -21,6 +21,7 @@ interface WorkshopRow {
   letterFilled: number; letterTotal: number
   feedbackMissing: number
   castingSentAt: string | null
+  postponedWarning: boolean
 }
 
 const STATUS_HE: Record<string, string> = {
@@ -274,6 +275,10 @@ export default function SadnaotPage() {
                         <span className="font-medium text-gray-900">{fmtDate(w.date)}</span>
                         {w.tentative && (
                           <span className="px-1.5 py-0.5 rounded bg-amber-100 text-amber-700 text-xs font-semibold leading-none">?</span>
+                        )}
+                        {w.postponedWarning && (
+                          <span title="תאריך שונה — יש להודיע לגורמים הרלוונטיים"
+                            className="px-1.5 py-0.5 rounded bg-orange-100 text-orange-700 text-xs font-semibold leading-none">↷</span>
                         )}
                       </div>
                       <span className="block text-xs text-gray-400">{w.startTime}–{w.endTime}</span>

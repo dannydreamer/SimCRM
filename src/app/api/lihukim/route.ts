@@ -43,7 +43,7 @@ export async function GET() {
       castingChangeLogs: {
         where: {
           dismissed: false,
-          changeType: { in: ["SCENARIO_REQ", "SCENARIO_CANCELLED", "ROOM_CANCELLED", "COUNTS_CHANGED", "RESENT"] },
+          changeType: { in: ["SCENARIO_REQ", "SCENARIO_CANCELLED", "ROOM_CANCELLED", "COUNTS_CHANGED", "RESENT", "DATE_CHANGED"] },
         },
         select: { id: true, changeType: true, detail: true },
       },
