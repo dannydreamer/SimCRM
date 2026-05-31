@@ -1193,6 +1193,17 @@ export default function WorkshopDetailPage() {
           const scenariosWithReq = w.scenarios.filter((s) => !s.cancelled && s.actorRequirements?.trim())
           const canSend = scenariosWithReq.length > 0
           const wasSent = !!w.castingSentAt
+
+          // Casting progress — same logic as the workshops table column
+          const activeScenariosCast = w.scenarios.filter((s) => !s.cancelled)
+          const activeRoomsCast     = w.rooms.filter((r) => !r.cancelled)
+          const slotsPerRoom   = activeScenariosCast.reduce((sum, s) => sum + s.maleActorsNeeded + s.femaleActorsNeeded, 0)
+          const castingTotal   = slotsPerRoom * activeRoomsCast.length + (w.directorRequested ? 1 : 0)
+          const nonDirCastings = w.castings.filter((c) => !c.isDirector)
+          const hasDir         = w.castings.some((c) => c.isDirector)
+          const castingFilled  = nonDirCastings.length + (w.directorRequested && hasDir ? 1 : 0)
+          const castingComplete = castingTotal > 0 && castingFilled === castingTotal
+
           return (
             <section id="casting" className="border border-gray-200 rounded-xl p-5 bg-white shadow-sm">
               <div className="flex items-center justify-between">
@@ -1201,6 +1212,11 @@ export default function WorkshopDetailPage() {
                   {wasSent && (
                     <p className="text-xs text-brand-green">
                       נשלח לליהוק ✓ {new Date(w.castingSentAt!).toLocaleDateString("he-IL")}
+                    </p>
+                  )}
+                  {wasSent && castingTotal > 0 && (
+                    <p className={`text-base font-bold mt-1 ${castingComplete ? "text-brand-green" : "text-amber-600"}`}>
+                      {castingComplete ? "✓ ליהוק הושלם" : `ליהוק ${castingFilled}/${castingTotal}`}
                     </p>
                   )}
                   {!canSend && (
