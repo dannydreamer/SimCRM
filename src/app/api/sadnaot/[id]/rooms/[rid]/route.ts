@@ -110,8 +110,8 @@ export async function PATCH(
     include: { facilitator: { select: { id: true, name: true } } },
   })
 
-  // Auto-advance workshop status (slotting → READY, PPT+letter → CLOSED)
-  await checkAndAdvanceStatus(id)
+  // Advance or regress workshop status as needed
+  const newWorkshopStatus = await checkAndAdvanceStatus(id)
 
   return NextResponse.json({
     id: updated.id,
@@ -122,6 +122,7 @@ export async function PATCH(
     pptReceived: updated.pptReceived,
     letterReceived: updated.letterReceived,
     cancelled: updated.cancelled,
+    ...(newWorkshopStatus !== null && { workshopStatus: newWorkshopStatus }),
   })
 }
 

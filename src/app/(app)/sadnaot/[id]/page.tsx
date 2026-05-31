@@ -283,7 +283,7 @@ function ScenarioRow({
 // ─── RoomRow ──────────────────────────────────────────────────────────────────
 
 function RoomRow({
-  r, canAssign, canCheckPptLetter, facilitators, allRooms, workshopId, workshopDate, anyScenarioWritten, onUpdate,
+  r, canAssign, canCheckPptLetter, facilitators, allRooms, workshopId, workshopDate, anyScenarioWritten, onUpdate, onWorkshopStatusChange,
 }: {
   r: Room
   canAssign: boolean
@@ -294,6 +294,7 @@ function RoomRow({
   workshopDate: string   // ISO string
   anyScenarioWritten: boolean
   onUpdate: (rid: string, data: Partial<Room>) => void
+  onWorkshopStatusChange?: (status: string) => void
 }) {
   async function patchRoom(data: Partial<Room>) {
     const res = await fetch(`/api/sadnaot/${workshopId}/rooms/${r.id}`, {
@@ -304,6 +305,7 @@ function RoomRow({
     if (res.ok) {
       const updated = await res.json()
       onUpdate(r.id, updated)
+      if (updated.workshopStatus) onWorkshopStatusChange?.(updated.workshopStatus)
     }
   }
 
@@ -649,6 +651,10 @@ export default function WorkshopDetailPage() {
 
   function updateRoom(rid: string, data: Partial<Room>) {
     setW((prev) => prev ? { ...prev, rooms: prev.rooms.map((r) => r.id === rid ? { ...r, ...data } : r) } : prev)
+  }
+
+  function applyWorkshopStatusChange(status: string) {
+    setW((prev) => prev ? { ...prev, status } : prev)
   }
 
   // ── Workshop-level actions ─────────────────────────────────────────────────
@@ -1058,6 +1064,7 @@ export default function WorkshopDetailPage() {
                       workshopDate={w.date}
                       anyScenarioWritten={w.scenarios.some((s) => !s.cancelled && s.written)}
                       onUpdate={updateRoom}
+                      onWorkshopStatusChange={applyWorkshopStatusChange}
                     />
                   ))}
                 </tbody>

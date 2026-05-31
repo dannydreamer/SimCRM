@@ -54,6 +54,12 @@ export async function checkAndAdvanceStatus(workshopId: string): Promise<string 
     const hasRooms    = w.rooms.length > 0
     const allLetters  = hasRooms && w.rooms.every((r) => r.letterReceived)
     if (allLetters) newStatus = "CLOSED"
+
+  } else if (w.status === "CLOSED") {
+    // Regression: if a letter is unchecked, revert to CLOSING
+    const hasRooms   = w.rooms.length > 0
+    const allLetters = hasRooms && w.rooms.every((r) => r.letterReceived)
+    if (!allLetters) newStatus = "CLOSING"
   }
 
   if (newStatus) {
