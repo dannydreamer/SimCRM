@@ -244,12 +244,15 @@ function NewWorkshopForm() {
           {/* Estimated rooms */}
           <div>
             <label className="block text-sm text-gray-700 mb-1">מספר חדרים משוער *</label>
-            <input
-              type="number" min="1" max="10" value={numRooms}
-              onChange={(e) => setNumRooms(e.target.value)}
-              className="w-24 border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-navy/30"
-              required dir="ltr"
-            />
+            <div className="flex items-center gap-2 w-fit">
+              <button type="button"
+                onClick={() => setNumRooms((v) => String(Math.max(1, Number(v) - 1)))}
+                className="w-8 h-8 rounded border border-gray-300 text-lg font-medium text-gray-600 hover:bg-gray-100 flex items-center justify-center">−</button>
+              <span className="w-8 text-center text-base font-semibold text-gray-900 tabular-nums">{numRooms}</span>
+              <button type="button"
+                onClick={() => setNumRooms((v) => String(Math.min(10, Number(v) + 1)))}
+                className="w-8 h-8 rounded border border-gray-300 text-lg font-medium text-gray-600 hover:bg-gray-100 flex items-center justify-center">+</button>
+            </div>
           </div>
 
           {/* Location */}

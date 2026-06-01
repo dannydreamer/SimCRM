@@ -20,6 +20,9 @@ interface WorkshopRow {
   pptFilled: number; pptTotal: number
   letterFilled: number; letterTotal: number
   feedbackMissing: number
+  castingSentAt: string | null
+  postponedWarning: boolean
+  roomCancelledWarning: boolean
 }
 
 const STATUS_HE: Record<string, string> = {
@@ -78,15 +81,24 @@ function FeedbackBadge({ missing, castingTotal, href }: { missing: number; casti
   return href ? <Link href={href} onClick={(e) => e.stopPropagation()}>{inner}</Link> : inner
 }
 
+const LS_DISMISSED_CANCELLATIONS  = (userId: string) => `simcrm:dismissed-cancellations:${userId}`
+const LS_DISMISSED_POSTPONEMENTS  = (userId: string) => `simcrm:dismissed-postponements:${userId}`
+const LS_DISMISSED_ROOM_CANCELLED = (userId: string) => `simcrm:dismissed-room-cancelled:${userId}`
+
 // ── Main component ─────────────────────────────────────────────────────────────
 
 export default function SadnaotPage() {
   const router    = useRouter()
   const user      = useUser()
   const isManager = user.roles.includes("MANAGER")
+  const isTech    = user.roles.includes("TECH")
+  const isCaster  = user.roles.includes("CASTER")
 
   const [workshops, setWorkshops] = useState<WorkshopRow[]>([])
   const [loading, setLoading]     = useState(true)
+  const [dismissedCancelIds,       setDismissedCancelIds]       = useState<Set<string>>(new Set())
+  const [dismissedPostponedIds,    setDismissedPostponedIds]    = useState<Set<string>>(new Set())
+  const [dismissedRoomCancelledIds, setDismissedRoomCancelledIds] = useState<Set<string>>(new Set())
 
   const [viewFilter,        setViewFilter]        = useState<ViewFilter>("open")
   const [facilitatorFilter, setFacilitatorFilter] = useState<string>("all")
@@ -99,6 +111,56 @@ export default function SadnaotPage() {
       .then((r) => r.json())
       .then((data) => { setWorkshops(data); setLoading(false) })
   }, [])
+
+  // Load all dismissed IDs from localStorage
+  useEffect(() => {
+    try {
+      const load = (key: string) => {
+        const stored = JSON.parse(localStorage.getItem(key) ?? "[]")
+        return new Set<string>(Array.isArray(stored) ? stored : [])
+      }
+      setDismissedCancelIds(load(LS_DISMISSED_CANCELLATIONS(user.id)))
+      setDismissedPostponedIds(load(LS_DISMISSED_POSTPONEMENTS(user.id)))
+      setDismissedRoomCancelledIds(load(LS_DISMISSED_ROOM_CANCELLED(user.id)))
+    } catch { /* ignore */ }
+  }, [user.id])
+
+  const newlyCancelledWorkshops = useMemo(
+    () => workshops.filter((w) => w.cancelled && !dismissedCancelIds.has(w.id)),
+    [workshops, dismissedCancelIds]
+  )
+
+  const newlyPostponedWorkshops = useMemo(
+    () => (isManager || isTech)
+      ? workshops.filter((w) => !w.cancelled && w.postponedWarning && !dismissedPostponedIds.has(w.id))
+      : [],
+    [workshops, dismissedPostponedIds, isManager, isTech]
+  )
+
+  const newlyRoomCancelledWorkshops = useMemo(
+    () => (isManager || isTech)
+      ? workshops.filter((w) => !w.cancelled && w.roomCancelledWarning && !dismissedRoomCancelledIds.has(w.id))
+      : [],
+    [workshops, dismissedRoomCancelledIds, isManager, isTech]
+  )
+
+  function dismissCancellation(workshopId: string) {
+    const next = new Set([...dismissedCancelIds, workshopId])
+    setDismissedCancelIds(next)
+    try { localStorage.setItem(LS_DISMISSED_CANCELLATIONS(user.id), JSON.stringify([...next])) } catch { /* ignore */ }
+  }
+
+  function dismissPostponement(workshopId: string) {
+    const next = new Set([...dismissedPostponedIds, workshopId])
+    setDismissedPostponedIds(next)
+    try { localStorage.setItem(LS_DISMISSED_POSTPONEMENTS(user.id), JSON.stringify([...next])) } catch { /* ignore */ }
+  }
+
+  function dismissRoomCancelled(workshopId: string) {
+    const next = new Set([...dismissedRoomCancelledIds, workshopId])
+    setDismissedRoomCancelledIds(next)
+    try { localStorage.setItem(LS_DISMISSED_ROOM_CANCELLED(user.id), JSON.stringify([...next])) } catch { /* ignore */ }
+  }
 
   const facilitatorOptions = useMemo(() => {
     const map = new Map<string, string>()
@@ -152,6 +214,51 @@ export default function SadnaotPage() {
           </Link>
         )}
       </div>
+
+      {/* Cancellation alert banners — one per workshop */}
+      {!loading && newlyCancelledWorkshops.map((cw) => (
+        <div key={cw.id} className="mx-8 mb-1 bg-red-50 border border-red-300 rounded-lg px-4 py-3 flex items-start justify-between gap-3 text-sm text-red-800 shrink-0">
+          <div>
+            <p className="font-semibold mb-0.5">סדנה בוטלה — יש לעדכן את כל הגורמים הרלוונטיים</p>
+            <p className="text-xs text-red-700">{fmtDate(cw.date)} · {cw.groupName} ({cw.orgName})</p>
+          </div>
+          <button
+            onClick={() => dismissCancellation(cw.id)}
+            className="text-xs font-semibold px-2.5 py-1 rounded-full shrink-0 border border-red-300 text-red-700 hover:bg-red-100 transition-colors">
+            הבנתי
+          </button>
+        </div>
+      ))}
+
+      {/* Postponement banners — Manager / Tech only */}
+      {!loading && newlyPostponedWorkshops.map((pw) => (
+        <div key={pw.id} className="mx-8 mb-1 bg-orange-50 border border-orange-300 rounded-lg px-4 py-3 flex items-start justify-between gap-3 text-sm text-orange-800 shrink-0">
+          <div>
+            <p className="font-semibold mb-0.5">הסדנה נדחתה — יש להודיע לגורמים הרלוונטיים</p>
+            <p className="text-xs text-orange-700">{fmtDate(pw.date)} · {pw.groupName} ({pw.orgName})</p>
+          </div>
+          <button
+            onClick={() => dismissPostponement(pw.id)}
+            className="text-xs font-semibold px-2.5 py-1 rounded-full shrink-0 border border-orange-300 text-orange-700 hover:bg-orange-100 transition-colors">
+            הבנתי
+          </button>
+        </div>
+      ))}
+
+      {/* Room-cancelled banners — Manager / Tech only */}
+      {!loading && newlyRoomCancelledWorkshops.map((rw) => (
+        <div key={rw.id} className="mx-8 mb-1 bg-amber-50 border border-amber-300 rounded-lg px-4 py-3 flex items-start justify-between gap-3 text-sm text-amber-800 shrink-0">
+          <div>
+            <p className="font-semibold mb-0.5">חדר בוטל — יש להודיע למתחקר/ת</p>
+            <p className="text-xs text-amber-700">{fmtDate(rw.date)} · {rw.groupName} ({rw.orgName})</p>
+          </div>
+          <button
+            onClick={() => dismissRoomCancelled(rw.id)}
+            className="text-xs font-semibold px-2.5 py-1 rounded-full shrink-0 border border-amber-300 text-amber-700 hover:bg-amber-100 transition-colors">
+            הבנתי
+          </button>
+        </div>
+      ))}
 
       {/* Filters */}
       <div className="px-8 pb-3 flex flex-wrap items-center gap-3 shrink-0">
@@ -259,7 +366,11 @@ export default function SadnaotPage() {
 
                     {/* Casting */}
                     <td className="px-3 py-2.5 text-center">
-                      <FractionBadge filled={w.castingFilled} total={w.castingTotal} href={`/sadnaot/${w.id}#casting`} />
+                      <FractionBadge
+                        filled={w.castingFilled}
+                        total={w.castingTotal}
+                        href={(isCaster || isManager) && w.castingSentAt ? `/lihukim/${w.id}` : `/sadnaot/${w.id}#casting`}
+                      />
                     </td>
 
                     {/* Slotting */}
@@ -314,13 +425,15 @@ export default function SadnaotPage() {
                 <table className="w-full text-sm">
                   <tbody>
                     {cancelled.map((w) => (
-                      <tr key={w.id} className="border-b border-gray-100 last:border-0 bg-red-50/20">
-                        <td className="px-3 py-2 line-through text-gray-500 whitespace-nowrap font-medium">{fmtDate(w.date)}</td>
-                        <td className="px-3 py-2 line-through text-gray-500">
+                      <tr key={w.id}
+                        onClick={() => router.push(`/sadnaot/${w.id}`)}
+                        className="border-b border-gray-100 last:border-0 bg-red-50/20 cursor-pointer hover:bg-red-50/40 transition-colors">
+                        <td className="px-3 py-2 text-gray-400 whitespace-nowrap font-medium line-through">{fmtDate(w.date)}</td>
+                        <td className="px-3 py-2 text-gray-400 line-through">
                           {w.orgName} — {w.groupName}
                         </td>
-                        <td className="px-3 py-2 text-center text-gray-400" colSpan={9}>
-                          <span className="inline-block px-2 py-0.5 rounded-full text-xs bg-red-100 text-red-500 font-medium">בוטל</span>
+                        <td className="px-3 py-2 text-center" colSpan={9}>
+                          <span className="inline-block px-2 py-0.5 rounded-full text-xs bg-red-100 text-red-600 font-semibold">⛔ בוטל</span>
                         </td>
                       </tr>
                     ))}

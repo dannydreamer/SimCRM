@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState, useCallback } from "react"
+import { useEffect, useState, useCallback, type ReactNode } from "react"
 import { useParams } from "next/navigation"
 import Link from "next/link"
 import { useSession } from "next-auth/react"
@@ -24,6 +24,8 @@ interface Scenario {
   topicId: string
   topicName: string
   actorRequirements: string | null
+  maleActorsNeeded: number
+  femaleActorsNeeded: number
   written: boolean
   cancelled: boolean
   orderIndex: number
@@ -46,6 +48,8 @@ interface Workshop {
   cancelled: boolean
   tentative: boolean
   postponedWarning: boolean
+  roomCancelledWarning: boolean
+  roomAddedWarning: boolean
   feedbackFormAdded: boolean
   castingSentAt: string | null
   notes: string | null
@@ -58,6 +62,16 @@ interface Workshop {
   authorName: string | null
   rooms: Room[]
   scenarios: Scenario[]
+  castings: CastingSlot[]
+}
+
+interface CastingSlot {
+  id: string
+  scenarioId: string | null
+  roomId: string | null
+  actorId: string
+  actorName: string
+  isDirector: boolean
 }
 
 interface Topic { id: string; name: string; active: boolean }
@@ -153,6 +167,8 @@ function ScenarioRow({
   const [topicId, setTopicId] = useState(s.topicId)
   const [name, setName] = useState(s.name ?? "")
   const [req, setReq] = useState(s.actorRequirements ?? "")
+  const [maleCount,   setMaleCount]   = useState(String(s.maleActorsNeeded))
+  const [femaleCount, setFemaleCount] = useState(String(s.femaleActorsNeeded))
   const [saving, setSaving] = useState(false)
 
   async function save() {
@@ -160,7 +176,11 @@ function ScenarioRow({
     const res = await fetch(`/api/sadnaot/${workshopId}/scenarios/${s.id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ topicId, name, actorRequirements: req }),
+      body: JSON.stringify({
+        topicId, name, actorRequirements: req,
+        maleActorsNeeded:   Math.max(0, Number(maleCount)   || 0),
+        femaleActorsNeeded: Math.max(0, Number(femaleCount) || 0),
+      }),
     })
     if (res.ok) {
       const updated = await res.json()
@@ -200,6 +220,20 @@ function ScenarioRow({
           <td className="py-2 px-3">
             <textarea value={req} onChange={(e) => setReq(e.target.value)} rows={2}
               className="border border-gray-300 rounded px-2 py-1 text-sm w-full" placeholder="דרישות שחקנים" />
+            <div className="flex items-center gap-3 mt-1.5">
+              <label className="flex items-center gap-1 text-xs text-gray-600">
+                ♂
+                <input type="number" min={0} value={maleCount}
+                  onChange={(e) => setMaleCount(e.target.value)}
+                  className="border border-gray-300 rounded px-1.5 py-0.5 text-xs w-12 text-center" />
+              </label>
+              <label className="flex items-center gap-1 text-xs text-gray-600">
+                ♀
+                <input type="number" min={0} value={femaleCount}
+                  onChange={(e) => setFemaleCount(e.target.value)}
+                  className="border border-gray-300 rounded px-1.5 py-0.5 text-xs w-12 text-center" />
+              </label>
+            </div>
           </td>
           <td className="py-2 px-3 text-center"><Check on={s.written} /></td>
           <td className="py-2 px-3">
@@ -215,7 +249,15 @@ function ScenarioRow({
         <>
           <td className="py-2 px-3 font-medium">{s.topicName}</td>
           <td className="py-2 px-3 text-gray-600">{s.name ?? <span className="text-gray-300">—</span>}</td>
-          <td className="py-2 px-3 text-gray-600 whitespace-pre-wrap">{s.actorRequirements ?? <span className="text-gray-300">—</span>}</td>
+          <td className="py-2 px-3 text-gray-600 whitespace-pre-wrap">
+            {s.actorRequirements ?? <span className="text-gray-300">—</span>}
+            {(s.maleActorsNeeded > 0 || s.femaleActorsNeeded > 0) && (
+              <div className="mt-1 flex gap-2 text-xs text-gray-500">
+                {s.maleActorsNeeded > 0 && <span>♂ {s.maleActorsNeeded}</span>}
+                {s.femaleActorsNeeded > 0 && <span>♀ {s.femaleActorsNeeded}</span>}
+              </div>
+            )}
+          </td>
           <td className="py-2 px-3 text-center">
             {canEdit && !s.cancelled ? (
               <button onClick={toggleWritten} title={s.written ? "סמן כלא כתוב" : "סמן ככתוב"}
@@ -241,7 +283,7 @@ function ScenarioRow({
 // ─── RoomRow ──────────────────────────────────────────────────────────────────
 
 function RoomRow({
-  r, canAssign, canCheckPptLetter, facilitators, allRooms, workshopId, workshopDate, anyScenarioWritten, onUpdate,
+  r, canAssign, canCheckPptLetter, facilitators, allRooms, workshopId, workshopDate, allScenariosWritten, onUpdate, onWorkshopStatusChange,
 }: {
   r: Room
   canAssign: boolean
@@ -250,8 +292,9 @@ function RoomRow({
   allRooms: Room[]
   workshopId: string
   workshopDate: string   // ISO string
-  anyScenarioWritten: boolean
+  allScenariosWritten: boolean
   onUpdate: (rid: string, data: Partial<Room>) => void
+  onWorkshopStatusChange?: (status: string) => void
 }) {
   async function patchRoom(data: Partial<Room>) {
     const res = await fetch(`/api/sadnaot/${workshopId}/rooms/${r.id}`, {
@@ -262,6 +305,7 @@ function RoomRow({
     if (res.ok) {
       const updated = await res.json()
       onUpdate(r.id, updated)
+      if (updated.workshopStatus) onWorkshopStatusChange?.(updated.workshopStatus)
     }
   }
 
@@ -281,13 +325,13 @@ function RoomRow({
   const workshopPast = today > wDate      // day after workshop date
   const workshopFuture = today < wDate    // before workshop date
 
-  // PPT: allowed before or on workshop date; blocked after; requires written scenario
+  // PPT: allowed before or on workshop date; blocked after; requires all scenarios written
   const pptBlockReason = !r.facilitatorId
     ? "יש לשבץ מתחקר/ת לפני סימון מצגת"
     : workshopPast
     ? "לא ניתן לסמן מצגת לאחר תאריך הסדנה"
-    : !anyScenarioWritten
-    ? "יש לסמן לפחות תרחיש אחד כנכתב לפני סימון מצגת"
+    : !allScenariosWritten
+    ? "יש לסמן את כל התרחישים כנכתב לפני סימון מצגת"
     : null
   const pptDisabled = !!pptBlockReason
 
@@ -384,6 +428,8 @@ export default function WorkshopDetailPage() {
   const [newTopicId, setNewTopicId] = useState("")
   const [newScenarioName, setNewScenarioName] = useState("")
   const [newScenarioReq, setNewScenarioReq] = useState("")
+  const [newScenarioMale, setNewScenarioMale] = useState("0")
+  const [newScenarioFemale, setNewScenarioFemale] = useState("0")
   const [addingScenario, setAddingScenario] = useState(false)
 
   // Author saving
@@ -394,7 +440,9 @@ export default function WorkshopDetailPage() {
 
   // Per-user banner dismissal (localStorage)
   const [postponedDismissed, setPostponedDismissed] = useState(false)
-  const [cancelledDismissed, setCancelledDismissed] = useState(false)
+
+  // Casting actor summary collapsible
+  const [castingOpen, setCastingOpen] = useState(false)
 
   // Send to casting overlay
   const [showCastingOverlay, setShowCastingOverlay] = useState(false)
@@ -412,7 +460,7 @@ export default function WorkshopDetailPage() {
   const load = useCallback(async () => {
     setLoading(true)
     const [wRes, tRes, fRes] = await Promise.all([
-      fetch(`/api/sadnaot/${id}`),
+      fetch(`/api/sadnaot/${id}`, { cache: "no-store" }),
       fetch("/api/nosim"),
       fetch("/api/facilitators"),
     ])
@@ -436,8 +484,6 @@ export default function WorkshopDetailPage() {
     // Dismissed only if stored date matches current workshop date
     setPostponedDismissed(storedDate === w.date)
 
-    const cancelledKey = `simcrm:banner:cancelled:${uid}:${w.id}`
-    setCancelledDismissed(localStorage.getItem(cancelledKey) === "true")
   }, [w?.id, w?.date, w?.cancelled, session?.user?.id])
 
   function dismissPostponedBanner() {
@@ -446,10 +492,24 @@ export default function WorkshopDetailPage() {
     setPostponedDismissed(true)
   }
 
-  function dismissCancelledBanner() {
-    if (!w || !session?.user?.id) return
-    localStorage.setItem(`simcrm:banner:cancelled:${session.user.id}:${w.id}`, "true")
-    setCancelledDismissed(true)
+  async function dismissRoomCancelledWarning() {
+    if (!w) return
+    setW((prev) => prev ? { ...prev, roomCancelledWarning: false } : prev)
+    await fetch(`/api/sadnaot/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ roomCancelledWarning: false }),
+    })
+  }
+
+  async function dismissRoomAddedWarning() {
+    if (!w) return
+    setW((prev) => prev ? { ...prev, roomAddedWarning: false } : prev)
+    await fetch(`/api/sadnaot/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ roomAddedWarning: false }),
+    })
   }
 
   const canEdit = isManager && w !== null && !w.frozen && !w.cancelled
@@ -518,7 +578,9 @@ export default function WorkshopDetailPage() {
           tentative: headerDraft.tentative,
           directorRequested: headerDraft.directorRequested,
           directorNotes: headerDraft.directorNotes || null,
-          postponedWarning: updated.postponedWarning ?? prev.postponedWarning,
+          postponedWarning:     updated.postponedWarning     ?? prev.postponedWarning,
+          roomCancelledWarning: updated.roomCancelledWarning ?? prev.roomCancelledWarning,
+          roomAddedWarning:     updated.roomAddedWarning     ?? prev.roomAddedWarning,
           rooms: updated.rooms ?? prev.rooms,
         }
       })
@@ -561,11 +623,16 @@ export default function WorkshopDetailPage() {
 
   async function addScenario() {
     if (!newTopicId) return
+    if (!newScenarioReq.trim()) return
     setAddingScenario(true)
     const res = await fetch(`/api/sadnaot/${id}/scenarios`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ topicId: newTopicId, name: newScenarioName, actorRequirements: newScenarioReq }),
+      body: JSON.stringify({
+        topicId: newTopicId, name: newScenarioName, actorRequirements: newScenarioReq,
+        maleActorsNeeded:   Math.max(0, Number(newScenarioMale)   || 0),
+        femaleActorsNeeded: Math.max(0, Number(newScenarioFemale) || 0),
+      }),
     })
     if (res.ok) {
       const s = await res.json()
@@ -574,6 +641,8 @@ export default function WorkshopDetailPage() {
       setNewTopicId("")
       setNewScenarioName("")
       setNewScenarioReq("")
+      setNewScenarioMale("0")
+      setNewScenarioFemale("0")
     }
     setAddingScenario(false)
   }
@@ -582,6 +651,10 @@ export default function WorkshopDetailPage() {
 
   function updateRoom(rid: string, data: Partial<Room>) {
     setW((prev) => prev ? { ...prev, rooms: prev.rooms.map((r) => r.id === rid ? { ...r, ...data } : r) } : prev)
+  }
+
+  function applyWorkshopStatusChange(status: string) {
+    setW((prev) => prev ? { ...prev, status } : prev)
   }
 
   // ── Workshop-level actions ─────────────────────────────────────────────────
@@ -595,8 +668,9 @@ export default function WorkshopDetailPage() {
     })
     if (res.ok) {
       const updated = await res.json()
-      // If status changed, reload fully so frozen/derived fields stay in sync
-      if ("status" in data) {
+      // Reload fully whenever status changed — covers both manual transitions
+      // and server-side auto-advances (checkAndAdvanceStatus on any PATCH)
+      if (updated.status !== w?.status) {
         await load()
       } else {
         setW((prev) => prev ? { ...prev, ...updated } : prev)
@@ -709,22 +783,28 @@ export default function WorkshopDetailPage() {
               className="text-amber-600 hover:text-amber-800 text-lg leading-none shrink-0" title="סגור">×</button>
           </div>
         )}
-        {w.cancelled && (
-          <div className="bg-red-50 border border-red-300 rounded-lg px-4 py-3 text-sm text-red-700 font-medium">
-            סדנה זו בוטלה
+        {w.roomCancelledWarning && (
+          <div className="bg-amber-100 border border-amber-400 rounded-lg px-4 py-3 text-sm text-amber-800 font-semibold flex items-center justify-between gap-3">
+            <span>⚠️ חדר בוטל — יש להודיע למתחקר/ת ולמלהקת</span>
+            <button onClick={dismissRoomCancelledWarning}
+              className="text-amber-600 hover:text-amber-800 text-lg leading-none shrink-0" title="סגור">×</button>
           </div>
         )}
-        {w.cancelled && !cancelledDismissed && (() => {
-          const hasResources = !!w.castingSentAt || w.rooms.some((r) => !r.cancelled && r.facilitatorId)
-          if (!hasResources) return null
-          return (
-            <div className="bg-red-100 border border-red-400 rounded-lg px-4 py-3 text-sm text-red-800 font-semibold flex items-center justify-between gap-3">
-              <span>⚠️ הסדנה בוטלה — יש להודיע למתחקרים ולמלהקת</span>
-              <button onClick={dismissCancelledBanner}
-                className="text-red-600 hover:text-red-800 text-lg leading-none shrink-0" title="סגור">×</button>
-            </div>
-          )
-        })()}
+        {w.roomAddedWarning && (
+          <div className="bg-blue-50 border border-blue-300 rounded-lg px-4 py-3 text-sm text-blue-800 font-semibold flex items-center justify-between gap-3">
+            <span>ℹ️ חדר נוסף — יש לשלוח מחדש לליהוק</span>
+            <button onClick={dismissRoomAddedWarning}
+              className="text-blue-600 hover:text-blue-800 text-lg leading-none shrink-0" title="סגור">×</button>
+          </div>
+        )}
+        {w.cancelled && (
+          <div className="bg-red-100 border-2 border-red-400 rounded-xl px-5 py-4 flex flex-col gap-1">
+            <p className="text-base font-bold text-red-800">⛔ סדנה זו בוטלה — תצוגה בלבד</p>
+            {(!!w.castingSentAt || w.rooms.some((r) => !r.cancelled && r.facilitatorId)) && (
+              <p className="text-sm text-red-700 font-medium">יש להודיע למתחקרים ולמלהקת על הביטול</p>
+            )}
+          </div>
+        )}
 
         {/* Header card */}
         <div className="bg-white border border-gray-200 rounded-xl p-6 shadow-sm">
@@ -872,13 +952,28 @@ export default function WorkshopDetailPage() {
               )}
 
               {/* Manual action buttons — only for NEW ↔ SPECIFIED */}
-              <div className="flex items-center gap-3 flex-wrap">
-                {w.status === "NEW" && !w.cancelled && (
-                  <button onClick={() => patchWorkshop({ status: "SPECIFIED" })}
-                    className="px-4 py-1.5 bg-navy text-white text-sm rounded-lg hover:bg-navy/90 transition-colors">
-                    סמן: בוצע איתור צרכים
-                  </button>
-                )}
+              <div className="flex items-start gap-3 flex-wrap">
+                {w.status === "NEW" && !w.cancelled && (() => {
+                  const hasAuthor = !!w.authorId
+                  return (
+                    <div className="flex flex-col gap-1">
+                      <button
+                        onClick={() => patchWorkshop({ status: "SPECIFIED" })}
+                        disabled={!hasAuthor}
+                        title={!hasAuthor ? "יש לבחור כותב/ת תרחיש לפני המעבר לשלב זה" : undefined}
+                        className={`px-4 py-1.5 text-sm rounded-lg transition-colors ${
+                          hasAuthor
+                            ? "bg-navy text-white hover:bg-navy/90"
+                            : "bg-gray-100 text-gray-400 cursor-not-allowed"
+                        }`}>
+                        סמן: בוצע איתור צרכים
+                      </button>
+                      {!hasAuthor && (
+                        <p className="text-xs text-amber-600">יש לבחור כותב/ת תרחיש תחילה</p>
+                      )}
+                    </div>
+                  )
+                })()}
                 {isManager && !w.cancelled && !w.frozen && (
                   <button onClick={cancelWorkshop}
                     className="px-4 py-1.5 text-sm rounded-lg border border-red-200 text-red-600 hover:bg-red-50">
@@ -887,30 +982,76 @@ export default function WorkshopDetailPage() {
                 )}
               </div>
 
-              {/* Readiness checklist — shown when SPECIFIED */}
-              {w.status === "SPECIFIED" && !w.cancelled && (() => {
-                const activeRooms      = w.rooms.filter((r) => !r.cancelled)
-                const activeScenarios  = w.scenarios.filter((s) => !s.cancelled)
-                const allSlotted       = activeRooms.length > 0 && activeRooms.every((r) => r.facilitatorId)
-                const allWritten       = activeScenarios.length > 0 && activeScenarios.every((s) => s.written)
-                const castingSent      = !!w.castingSentAt
-                const allDone          = allSlotted && allWritten && castingSent
-                const Item = ({ ok, label }: { ok: boolean; label: string }) => (
-                  <div className="flex items-center gap-2 text-xs">
-                    <span className={ok ? "text-brand-green font-bold" : "text-gray-300"}>
-                      {ok ? "✓" : "○"}
-                    </span>
-                    <span className={ok ? "text-gray-600" : "text-gray-400"}>{label}</span>
-                  </div>
-                )
+              {/* Readiness checklist — shown when SPECIFIED or READY */}
+              {(w.status === "SPECIFIED" || w.status === "READY") && !w.cancelled && (() => {
+                const activeRooms     = w.rooms.filter((r) => !r.cancelled)
+                const activeScenarios = w.scenarios.filter((s) => !s.cancelled)
+
+                // Condition 1: PPT
+                const pptCount        = activeRooms.filter((r) => r.pptReceived).length
+                const allPpt          = activeRooms.length > 0 && pptCount === activeRooms.length
+                const allFacilitators = activeRooms.every((r) => r.facilitatorId)
+                const allWritten      = activeScenarios.length > 0 && activeScenarios.every((s) => s.written)
+
+                // Condition 2: Casting
+                const castingSent    = !!w.castingSentAt
+                const slotsPerRoom   = activeScenarios.reduce((sum, s) => sum + s.maleActorsNeeded + s.femaleActorsNeeded, 0)
+                const castingTotal   = slotsPerRoom * activeRooms.length + (w.directorRequested ? 1 : 0)
+                const nonDirFilled   = w.castings.filter((c) => !c.isDirector).length
+                const hasDir         = w.castings.some((c) => c.isDirector)
+                const castingFilled  = nonDirFilled + (w.directorRequested && hasDir ? 1 : 0)
+                const castingComplete = castingSent && castingTotal > 0 && castingFilled === castingTotal
+
+                // Condition 3: Feedback form
+                const feedbackDone = w.feedbackFormAdded
+
+                const allDone = allPpt && castingComplete && feedbackDone
+
                 return (
-                  <div className="flex flex-col gap-1.5 bg-gray-50 rounded-lg px-4 py-3">
-                    <p className="text-xs font-semibold text-gray-500 mb-1">נדרש למעבר אוטומטי ל״מוכן״:</p>
-                    <Item ok={castingSent} label="נשלח לליהוק" />
-                    <Item ok={allSlotted}  label={`כל החדרים שובצו (${activeRooms.filter(r => r.facilitatorId).length}/${activeRooms.length})`} />
-                    <Item ok={allWritten}  label={`כל התרחישים סומנו כנכתב (${activeScenarios.filter(s => s.written).length}/${activeScenarios.length})`} />
+                  <div className="flex flex-col gap-2 bg-gray-50 rounded-lg px-4 py-3">
+                    <p className="text-xs font-semibold text-gray-500 mb-0.5">נדרש למעבר אוטומטי ל״מוכן״:</p>
+
+                    {/* Condition 1: PPT */}
+                    <div className="flex items-start gap-2 text-xs">
+                      <span className={`mt-px font-bold ${allPpt ? "text-brand-green" : "text-gray-300"}`}>{allPpt ? "✓" : "○"}</span>
+                      <div>
+                        <span className={allPpt ? "text-gray-700" : "text-gray-500"}>
+                          {`התקבלו מצגות לכל החדרים (${pptCount}/${activeRooms.length})`}
+                        </span>
+                        {!allPpt && !allFacilitators && (
+                          <p className="text-gray-400 mt-0.5">← ממתין לשיבוץ מתחקר/ת ל-{activeRooms.filter((r) => !r.facilitatorId).length} חדרים</p>
+                        )}
+                        {!allPpt && allFacilitators && !allWritten && (
+                          <p className="text-gray-400 mt-0.5">← ממתין לסימון כל התרחישים כנכתב</p>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Condition 2: Casting */}
+                    <div className="flex items-start gap-2 text-xs">
+                      <span className={`mt-px font-bold ${castingComplete ? "text-brand-green" : "text-gray-300"}`}>{castingComplete ? "✓" : "○"}</span>
+                      <div>
+                        <span className={castingComplete ? "text-gray-700" : "text-gray-500"}>
+                          {castingComplete
+                            ? "ליהוק הושלם"
+                            : castingTotal > 0
+                              ? `ליהוק ${castingFilled}/${castingTotal}`
+                              : "ליהוק הושלם"}
+                        </span>
+                        {!castingComplete && !castingSent && (
+                          <p className="text-gray-400 mt-0.5">← ממתין לשליחה לליהוק</p>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Condition 3: Feedback form */}
+                    <div className="flex items-center gap-2 text-xs">
+                      <span className={`font-bold ${feedbackDone ? "text-brand-green" : "text-gray-300"}`}>{feedbackDone ? "✓" : "○"}</span>
+                      <span className={feedbackDone ? "text-gray-700" : "text-gray-500"}>טופס פידבק הועבר</span>
+                    </div>
+
                     {allDone && (
-                      <p className="text-xs text-brand-green font-medium mt-1">✓ כל התנאים מתקיימים — הסדנה תסומן כ״מוכן״ אוטומטית</p>
+                      <p className="text-xs text-brand-green font-medium mt-0.5">✓ כל התנאים מתקיימים — הסדנה תסומן כ״מוכן״ אוטומטית</p>
                     )}
                   </div>
                 )
@@ -967,8 +1108,9 @@ export default function WorkshopDetailPage() {
                       allRooms={w.rooms}
                       workshopId={id}
                       workshopDate={w.date}
-                      anyScenarioWritten={w.scenarios.some((s) => !s.cancelled && s.written)}
+                      allScenariosWritten={w.scenarios.filter((s) => !s.cancelled).every((s) => s.written) && w.scenarios.some((s) => !s.cancelled)}
                       onUpdate={updateRoom}
+                      onWorkshopStatusChange={applyWorkshopStatusChange}
                     />
                   ))}
                 </tbody>
@@ -1035,9 +1177,27 @@ export default function WorkshopDetailPage() {
                 </div>
               </div>
               <div>
-                <label className="block text-xs text-gray-500 mb-1">דרישות שחקנים</label>
+                <label className="block text-xs text-gray-500 mb-1">
+                  דרישות שחקנים <span className="text-red-500">*</span>
+                </label>
                 <textarea value={newScenarioReq} onChange={(e) => setNewScenarioReq(e.target.value)} rows={2}
-                  className="border border-gray-300 rounded px-2 py-1.5 text-sm w-full" />
+                  className={`border rounded px-2 py-1.5 text-sm w-full ${
+                    newScenarioReq.trim() ? "border-gray-300" : "border-red-300"
+                  }`} />
+                <div className="flex items-center gap-4 mt-1.5">
+                  <label className="flex items-center gap-1.5 text-xs text-gray-600">
+                    ♂ שחקנים נדרשים לתרחיש
+                    <input type="number" min={0} value={newScenarioMale}
+                      onChange={(e) => setNewScenarioMale(e.target.value)}
+                      className="border border-gray-300 rounded px-1.5 py-0.5 text-xs w-14 text-center" />
+                  </label>
+                  <label className="flex items-center gap-1.5 text-xs text-gray-600">
+                    ♀ שחקניות נדרשות לתרחיש
+                    <input type="number" min={0} value={newScenarioFemale}
+                      onChange={(e) => setNewScenarioFemale(e.target.value)}
+                      className="border border-gray-300 rounded px-1.5 py-0.5 text-xs w-14 text-center" />
+                  </label>
+                </div>
               </div>
               <div className="flex gap-2">
                 <button onClick={addScenario} disabled={!newTopicId || addingScenario}
@@ -1086,6 +1246,17 @@ export default function WorkshopDetailPage() {
           const scenariosWithReq = w.scenarios.filter((s) => !s.cancelled && s.actorRequirements?.trim())
           const canSend = scenariosWithReq.length > 0
           const wasSent = !!w.castingSentAt
+
+          // Casting progress — same logic as the workshops table column
+          const activeScenariosCast = w.scenarios.filter((s) => !s.cancelled)
+          const activeRoomsCast     = w.rooms.filter((r) => !r.cancelled)
+          const slotsPerRoom   = activeScenariosCast.reduce((sum, s) => sum + s.maleActorsNeeded + s.femaleActorsNeeded, 0)
+          const castingTotal   = slotsPerRoom * activeRoomsCast.length + (w.directorRequested ? 1 : 0)
+          const nonDirCastings = w.castings.filter((c) => !c.isDirector)
+          const hasDir         = w.castings.some((c) => c.isDirector)
+          const castingFilled  = nonDirCastings.length + (w.directorRequested && hasDir ? 1 : 0)
+          const castingComplete = castingTotal > 0 && castingFilled === castingTotal
+
           return (
             <section id="casting" className="border border-gray-200 rounded-xl p-5 bg-white shadow-sm">
               <div className="flex items-center justify-between">
@@ -1094,6 +1265,11 @@ export default function WorkshopDetailPage() {
                   {wasSent && (
                     <p className="text-xs text-brand-green">
                       נשלח לליהוק ✓ {new Date(w.castingSentAt!).toLocaleDateString("he-IL")}
+                    </p>
+                  )}
+                  {wasSent && castingTotal > 0 && (
+                    <p className={`text-base font-bold mt-1 ${castingComplete ? "text-brand-green" : "text-amber-600"}`}>
+                      {castingComplete ? "✓ ליהוק הושלם" : `ליהוק ${castingFilled}/${castingTotal}`}
                     </p>
                   )}
                   {!canSend && (
@@ -1112,6 +1288,75 @@ export default function WorkshopDetailPage() {
                   {wasSent ? "עדכן ושלח לליהוק" : "שלח לליהוק"}
                 </button>
               </div>
+
+              {/* Collapsible actor summary — visible once casting is sent */}
+              {wasSent && (() => {
+                const activeScenarios = w.scenarios.filter((s) => !s.cancelled)
+                const activeRooms     = w.rooms.filter((r) => !r.cancelled)
+                const slotMap = new Map<string, string[]>()
+                w.castings.forEach((c) => {
+                  if (!c.isDirector && c.scenarioId && c.roomId) {
+                    const key = `${c.scenarioId}:${c.roomId}`
+                    const existing = slotMap.get(key) ?? []
+                    slotMap.set(key, [...existing, c.actorName])
+                  }
+                })
+                const dirCasting = w.castings.find((c) => c.isDirector)
+
+                return (
+                  <div className="mt-3 border-t border-gray-100 pt-3">
+                    <button
+                      onClick={() => setCastingOpen((o) => !o)}
+                      className="text-xs text-navy hover:underline font-medium">
+                      {castingOpen ? "הסתר ▲" : "הצג שחקנים ▼"}
+                    </button>
+
+                    {castingOpen && (
+                      <div className="mt-2 space-y-1.5 text-xs text-gray-700">
+                        {/* Director line */}
+                        {w.directorRequested && (
+                          <div>
+                            <span className="font-semibold text-gray-600">במאי/ת: </span>
+                            {dirCasting
+                              ? <span>{dirCasting.actorName}</span>
+                              : <span className="text-red-500 font-semibold">חסר</span>
+                            }
+                          </div>
+                        )}
+                        {/* Scenario lines */}
+                        {activeScenarios.map((s, si) => {
+                          const expected = s.maleActorsNeeded + s.femaleActorsNeeded
+                          const parts = activeRooms.map((r) => {
+                            const names = slotMap.get(`${s.id}:${r.id}`) ?? []
+                            const missing = expected > 0 && names.length < expected
+                            return (
+                              <span key={r.id}>
+                                <span className="text-gray-400">חדר {r.roomNumber}: </span>
+                                {names.length > 0
+                                  ? <span>{names.join(", ")}{missing && <span className="text-red-500 font-semibold"> + חסר</span>}</span>
+                                  : <span className="text-red-500 font-semibold">חסר</span>
+                                }
+                              </span>
+                            )
+                          })
+                          return (
+                            <div key={s.id} className="flex flex-wrap gap-x-3 gap-y-0.5">
+                              <span className="font-semibold text-gray-600 shrink-0">
+                                תרחיש {si + 1}{s.name ? ` — ${s.name}` : ""}:
+                              </span>
+                              {parts.reduce<ReactNode[]>((acc, el, i) => {
+                                if (i > 0) acc.push(<span key={`sep-${i}`} className="text-gray-300">|</span>)
+                                acc.push(el)
+                                return acc
+                              }, [] as ReactNode[])}
+                            </div>
+                          )
+                        })}
+                      </div>
+                    )}
+                  </div>
+                )
+              })()}
             </section>
           )
         })()}
@@ -1202,70 +1447,99 @@ export default function WorkshopDetailPage() {
       {/* Send to casting overlay */}
       {showCastingOverlay && w && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-          <div className="bg-white rounded-xl shadow-2xl max-w-lg w-full mx-4 p-6 flex flex-col gap-5" dir="rtl">
-            <h2 className="text-base font-bold text-gray-900">שליחה לליהוק</h2>
+          <div className="bg-white rounded-xl shadow-2xl max-w-lg w-full mx-4 flex flex-col max-h-[90vh]" dir="rtl">
 
-            {/* Room count */}
-            <div className="flex items-center gap-2 text-sm text-gray-700">
-              <span className="text-gray-400">מספר חדרים:</span>
-              <span className="font-semibold">{w.rooms.filter((r) => !r.cancelled).length}</span>
+            {/* Header */}
+            <div className="px-6 pt-6 pb-4 border-b border-gray-100 shrink-0">
+              <h2 className="text-base font-bold text-gray-900 mb-3">שליחה לליהוק</h2>
+              <div className="flex gap-6 text-sm">
+                <span className="text-gray-500">מספר חדרים: <strong className="text-gray-800">{w.rooms.filter((r) => !r.cancelled).length}</strong></span>
+                <span className="text-gray-500">מספר תרחישים: <strong className="text-gray-800">{w.scenarios.filter((s) => !s.cancelled).length}</strong></span>
+              </div>
             </div>
 
-            {/* Scenario requirements — read-only context */}
-            <div className="bg-gray-50 border border-gray-200 rounded-lg p-4 flex flex-col gap-2 max-h-48 overflow-y-auto">
-              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">דרישות שחקנים לתרחישים</p>
-              {w.scenarios.filter((s) => !s.cancelled).map((s) => (
-                <div key={s.id} className="text-sm">
-                  <span className="font-medium text-gray-700">{s.topicName}{s.name ? ` — ${s.name}` : ""}:</span>{" "}
-                  <span className="text-gray-600">{s.actorRequirements || <span className="text-gray-300 italic">ללא דרישות</span>}</span>
+            {/* Scrollable body */}
+            <div className="flex-1 overflow-y-auto px-6 py-4 flex flex-col gap-5">
+
+              {/* Scenario breakdown */}
+              <div className="flex flex-col gap-3">
+                {w.scenarios.filter((s) => !s.cancelled).map((s, i) => (
+                  <div key={s.id} className="border border-gray-200 rounded-lg p-4">
+                    {/* Scenario label */}
+                    <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">
+                      תרחיש {i + 1}{s.name ? ` — ${s.name}` : ""} · {s.topicName}
+                    </p>
+                    {/* Actor counts — prominent */}
+                    <div className="flex gap-6 mb-2">
+                      <div className="flex items-baseline gap-1.5">
+                        <span className="text-2xl font-bold text-gray-800">♂ {s.maleActorsNeeded}</span>
+                        <span className="text-sm text-gray-500">שחקנים</span>
+                      </div>
+                      <div className="flex items-baseline gap-1.5">
+                        <span className="text-2xl font-bold text-gray-800">♀ {s.femaleActorsNeeded}</span>
+                        <span className="text-sm text-gray-500">שחקניות</span>
+                      </div>
+                    </div>
+                    {/* Freetext below counts */}
+                    {s.actorRequirements && (
+                      <p className="text-sm text-gray-600 whitespace-pre-wrap">{s.actorRequirements}</p>
+                    )}
+                  </div>
+                ))}
+              </div>
+
+              {/* Director requested */}
+              {w.directorRequested && (
+                <div className="flex items-center gap-2 bg-amber-50 border border-amber-200 rounded-lg px-4 py-2 text-sm text-amber-800">
+                  <span className="font-semibold">⚠️ נדרש/ת במאי/ת</span>
+                  {w.directorNotes && <span className="text-amber-700">— {w.directorNotes}</span>}
                 </div>
-              ))}
-            </div>
+              )}
 
-            {/* Integers */}
-            <div className="grid grid-cols-2 gap-4">
+              {/* Workshop-level totals */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  סה״כ שחקנים נדרשים (פיזי) <span className="text-red-500">*</span>
-                </label>
-                <input
-                  type="number" min={0} value={castingMale}
-                  onChange={(e) => setCastingMale(e.target.value)}
+                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">סה"כ שחקנים ושחקניות שיגיעו פיזית ביום הסדנה:</p>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      שחקנים (זכר) <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      type="number" min={0} value={castingMale}
+                      onChange={(e) => setCastingMale(e.target.value)}
+                      className="border border-gray-300 rounded px-3 py-2 text-sm w-full"
+                      placeholder="0"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      שחקניות (נקבה) <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      type="number" min={0} value={castingFemale}
+                      onChange={(e) => setCastingFemale(e.target.value)}
+                      className="border border-gray-300 rounded px-3 py-2 text-sm w-full"
+                      placeholder="0"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Notes */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">הערות למלהקת (אופציונלי)</label>
+                <textarea
+                  value={castingOverlayNotes}
+                  onChange={(e) => setCastingOverlayNotes(e.target.value)}
+                  rows={2}
                   className="border border-gray-300 rounded px-3 py-2 text-sm w-full"
-                  placeholder="0"
                 />
               </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  סה״כ שחקניות נדרשות (פיזי) <span className="text-red-500">*</span>
-                </label>
-                <input
-                  type="number" min={0} value={castingFemale}
-                  onChange={(e) => setCastingFemale(e.target.value)}
-                  className="border border-gray-300 rounded px-3 py-2 text-sm w-full"
-                  placeholder="0"
-                />
-              </div>
+
             </div>
 
-            {/* Notes */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">הערות למלהקת (אופציונלי)</label>
-              <textarea
-                value={castingOverlayNotes}
-                onChange={(e) => setCastingOverlayNotes(e.target.value)}
-                rows={2}
-                className="border border-gray-300 rounded px-3 py-2 text-sm w-full"
-              />
-            </div>
-
-            {/* Director requested */}
-            {w.directorRequested && (
-              <div className="flex items-center gap-2 bg-amber-50 border border-amber-200 rounded-lg px-4 py-2 text-sm text-amber-800">
-                <span className="font-semibold">⚠️ נדרש/ת במאי/ת</span>
-                {w.directorNotes && <span className="text-amber-700">— {w.directorNotes}</span>}
-              </div>
-            )}
+            {/* Footer actions */}
+            <div className="px-6 py-4 border-t border-gray-100 flex gap-3 justify-end shrink-0">
 
             {/* Actions */}
             <div className="flex gap-3 justify-end">
@@ -1284,6 +1558,7 @@ export default function WorkshopDetailPage() {
               </button>
             </div>
           </div>
+        </div>
         </div>
       )}
     </div>

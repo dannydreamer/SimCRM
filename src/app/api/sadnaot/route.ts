@@ -21,7 +21,7 @@ export async function GET() {
           facilitator: { select: { id: true, name: true } },
         },
       },
-      scenarios: { select: { id: true, cancelled: true, written: true } },
+      scenarios: { select: { id: true, cancelled: true, written: true, maleActorsNeeded: true, femaleActorsNeeded: true } },
       castings:  { select: { actorId: true, isDirector: true, roomId: true } },
       feedbacks: { select: { actorId: true, roomId: true } },
     },
@@ -38,8 +38,9 @@ export async function GET() {
       const slottingFilled   = activeRooms.filter((r) => r.facilitatorId).length
       const slottingTentative = activeRooms.some((r) => r.facilitatorTentative)
 
-      const castingTotal  = activeScenarios.length * activeRooms.length + (w.directorRequested ? 1 : 0)
-      const castingFilled = nonDirCastings.length + (w.directorRequested && directorCasting ? 1 : 0)
+      const slotsPerRoom  = activeScenarios.reduce((sum, s) => sum + s.maleActorsNeeded + s.femaleActorsNeeded, 0)
+      const castingTotal  = slotsPerRoom * activeRooms.length + (w.directorRequested ? 1 : 0)
+      const castingFilled = nonDirCastings.filter((c) => c.actorId).length + (w.directorRequested && directorCasting ? 1 : 0)
 
       const scenarioWritten = activeScenarios.length > 0 && activeScenarios.every((s) => s.written)
 
@@ -80,6 +81,9 @@ export async function GET() {
         feedbackFormAdded: w.feedbackFormAdded,
         pptFilled, pptTotal,
         letterFilled, letterTotal,
+        castingSentAt:        w.castingSentAt?.toISOString() ?? null,
+        postponedWarning:     w.postponedWarning,
+        roomCancelledWarning: w.roomCancelledWarning,
         feedbackMissing,
       }
     }),
@@ -106,7 +110,9 @@ export async function POST(req: NextRequest) {
   if (!date)                          return NextResponse.json({ error: "יש לבחור תאריך" }, { status: 400 })
   if (!startTime)                     return NextResponse.json({ error: "יש להזין שעת התחלה" }, { status: 400 })
   if (!endTime)                       return NextResponse.json({ error: "יש להזין שעת סיום" }, { status: 400 })
-  if (!numRooms || numRooms < 1)      return NextResponse.json({ error: "יש להזין מספר חדרים" }, { status: 400 })
+  const n = Math.floor(Number(numRooms))
+  if (!n || n < 1)                    return NextResponse.json({ error: "יש להזין מספר חדרים" }, { status: 400 })
+  console.log(`[POST /api/sadnaot] numRooms received=${numRooms} parsed=${n}`)
 
   let participantGroupId: string
   if (groupId) {
@@ -123,29 +129,30 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  const n = Number(numRooms)
-  const workshop = await prisma.workshop.create({
-    data: {
-      participantGroupId,
-      date:              new Date(date),
-      startTime, endTime,
-      numRooms:          n,
-      locationType:      locationType ?? "CENTER",
-      locationName:      locationName?.trim() || null,
-      authorId:          authorId || null,
-      directorRequested: Boolean(directorRequested),
-      tentative:         Boolean(tentative),
-      notes:             notes?.trim() || null,
-      createdById:       session.user.id,
-    },
-  })
-
-  // Auto-create room slots
-  await prisma.room.createMany({
-    data: Array.from({ length: n }, (_, i) => ({
-      workshopId: workshop.id,
-      roomNumber: i + 1,
-    })),
+  // Create workshop + rooms atomically so they can never be out of sync
+  const workshop = await prisma.$transaction(async (tx) => {
+    const w = await tx.workshop.create({
+      data: {
+        participantGroupId,
+        date:              new Date(date),
+        startTime, endTime,
+        numRooms:          n,
+        locationType:      locationType ?? "CENTER",
+        locationName:      locationName?.trim() || null,
+        authorId:          authorId || null,
+        directorRequested: Boolean(directorRequested),
+        tentative:         Boolean(tentative),
+        notes:             notes?.trim() || null,
+        createdById:       session.user.id,
+      },
+    })
+    await tx.room.createMany({
+      data: Array.from({ length: n }, (_, i) => ({
+        workshopId: w.id,
+        roomNumber: i + 1,
+      })),
+    })
+    return w
   })
 
   return NextResponse.json({ id: workshop.id }, { status: 201 })

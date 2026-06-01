@@ -34,11 +34,13 @@ export async function PATCH(
   const sc = await prisma.scenario.findUnique({ where: { id: sid } })
   if (!sc || sc.workshopId !== id) return NextResponse.json({ error: "Not found" }, { status: 404 })
 
-  const { topicId, name, actorRequirements, written } = await req.json()
+  const { topicId, name, actorRequirements, maleActorsNeeded, femaleActorsNeeded, written } = await req.json()
   const data: Record<string, unknown> = {}
   if (topicId !== undefined) data.topicId = topicId
   if (name !== undefined) data.name = name?.trim() || null
   if (actorRequirements !== undefined) data.actorRequirements = actorRequirements?.trim() || null
+  if (maleActorsNeeded !== undefined)   data.maleActorsNeeded   = Math.max(0, Number(maleActorsNeeded)   || 0)
+  if (femaleActorsNeeded !== undefined) data.femaleActorsNeeded = Math.max(0, Number(femaleActorsNeeded) || 0)
   if (written !== undefined) data.written = written
 
   const updated = await prisma.scenario.update({
@@ -72,6 +74,8 @@ export async function PATCH(
     topicId: updated.topicId,
     topicName: updated.topic.name,
     actorRequirements: updated.actorRequirements,
+    maleActorsNeeded: updated.maleActorsNeeded,
+    femaleActorsNeeded: updated.femaleActorsNeeded,
     written: updated.written,
     cancelled: updated.cancelled,
     orderIndex: updated.orderIndex,

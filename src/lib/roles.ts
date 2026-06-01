@@ -13,7 +13,7 @@ export const NAV_ITEMS = [
   {
     href: "/sadnaot",
     label: "סדנאות",
-    roles: ["MANAGER", "TECH", "CASTER", "FEEDBACK_DOCUMENTER", "FACILITATOR"],
+    roles: ["MANAGER", "TECH", "FEEDBACK_DOCUMENTER", "FACILITATOR"],
   },
   {
     href: "/irgunnim",
@@ -24,6 +24,12 @@ export const NAV_ITEMS = [
     href: "/nosim",
     label: "נושאים",
     roles: ["MANAGER", "TECH"],
+  },
+  // ליהוק placed before שחקנים so Caster's first tab is the casting page
+  {
+    href: "/lihukim",
+    label: "ליהוק",
+    roles: ["MANAGER", "CASTER"],
   },
   {
     href: "/shakhanim",

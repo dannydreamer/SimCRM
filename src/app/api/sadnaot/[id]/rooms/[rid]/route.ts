@@ -81,10 +81,10 @@ export async function PATCH(
       const wDate = dayOnly(new Date(workshop.date))
       if (today > wDate)
         return NextResponse.json({ error: "לא ניתן לסמן מצגת לאחר תאריך הסדנה" }, { status: 400 })
-      // Must have at least one written scenario
-      const anyWritten = workshop.scenarios.some((s) => s.written)
-      if (!anyWritten)
-        return NextResponse.json({ error: "יש לסמן לפחות תרחיש אחד כנכתב לפני סימון מצגת" }, { status: 400 })
+      // All scenarios must be marked written
+      const allWritten = workshop.scenarios.length > 0 && workshop.scenarios.every((s) => s.written)
+      if (!allWritten)
+        return NextResponse.json({ error: "יש לסמן את כל התרחישים כנכתב לפני סימון מצגת" }, { status: 400 })
     }
     data.pptReceived = pptReceived
   }
@@ -110,8 +110,8 @@ export async function PATCH(
     include: { facilitator: { select: { id: true, name: true } } },
   })
 
-  // Auto-advance workshop status (slotting → READY, PPT+letter → CLOSED)
-  await checkAndAdvanceStatus(id)
+  // Advance or regress workshop status as needed
+  const newWorkshopStatus = await checkAndAdvanceStatus(id)
 
   return NextResponse.json({
     id: updated.id,
@@ -122,6 +122,7 @@ export async function PATCH(
     pptReceived: updated.pptReceived,
     letterReceived: updated.letterReceived,
     cancelled: updated.cancelled,
+    ...(newWorkshopStatus !== null && { workshopStatus: newWorkshopStatus }),
   })
 }
 
@@ -145,7 +146,10 @@ export async function DELETE(
 
   await prisma.room.update({ where: { id: rid }, data: { cancelled: true } })
 
-  // Log if casting was already sent
+  // Always mark the workshop so the Manager/Tech list-page banner fires
+  await prisma.workshop.update({ where: { id }, data: { roomCancelledWarning: true } })
+
+  // Also log for the Caster if casting was already sent
   const workshop = await prisma.workshop.findUnique({ where: { id }, select: { castingSentAt: true } })
   if (workshop?.castingSentAt) {
     await prisma.castingChangeLog.create({

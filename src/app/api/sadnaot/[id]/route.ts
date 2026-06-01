@@ -44,6 +44,9 @@ export async function GET(
         orderBy: { orderIndex: "asc" },
         include: { topic: { select: { id: true, name: true } } },
       },
+      castings: {
+        include: { actor: { select: { id: true, name: true } } },
+      },
     },
   })
 
@@ -66,6 +69,8 @@ export async function GET(
     cancelled: w.cancelled,
     tentative: w.tentative,
     postponedWarning: w.postponedWarning,
+    roomCancelledWarning: w.roomCancelledWarning,
+    roomAddedWarning: w.roomAddedWarning,
     feedbackFormAdded: w.feedbackFormAdded,
     castingSentAt: w.castingSentAt?.toISOString() ?? null,
     notes: w.notes,
@@ -84,9 +89,19 @@ export async function GET(
       topicId: s.topicId,
       topicName: s.topic.name,
       actorRequirements: s.actorRequirements,
+      maleActorsNeeded: s.maleActorsNeeded,
+      femaleActorsNeeded: s.femaleActorsNeeded,
       written: s.written,
       cancelled: s.cancelled,
       orderIndex: s.orderIndex,
+    })),
+    castings: w.castings.map((c) => ({
+      id:         c.id,
+      scenarioId: c.scenarioId,
+      roomId:     c.roomId,
+      actorId:    c.actorId,
+      actorName:  c.actor.name,
+      isDirector: c.isDirector,
     })),
   })
 }
@@ -106,7 +121,8 @@ export async function PATCH(
   const w = await prisma.workshop.findUnique({
     where: { id },
     select: {
-      status: true, cancelled: true,
+      date: true,
+      status: true, cancelled: true, authorId: true,
       castingSentAt: true, castingMaleNeeded: true, castingFemaleNeeded: true,
       rooms: { where: { cancelled: false }, select: { facilitatorId: true } },
     },
@@ -122,6 +138,8 @@ export async function PATCH(
     castingMaleNeeded, castingFemaleNeeded, castingNotes,
     tentative, notes, status, cancelled, postponedWarning,
     feedbackFormAdded,
+    roomCancelledWarning: roomCancelledWarningDismiss,
+    roomAddedWarning: roomAddedWarningDismiss,
   } = body
 
   // Status advance: validate progression
@@ -131,11 +149,21 @@ export async function PATCH(
     }
     if (!allowed[w.status]?.includes(status))
       return NextResponse.json({ error: "מעבר סטטוס לא חוקי" }, { status: 400 })
+    // Must have an author set before advancing to SPECIFIED
+    if (status === "SPECIFIED" && !w.authorId)
+      return NextResponse.json({ error: "יש לבחור כותב/ת תרחיש לפני סימון ביצוע איתור צרכים" }, { status: 400 })
   }
+
+  let dateActuallyChanged = false
+  let newDateStr_forLog   = ""
 
   const data: Record<string, unknown> = {}
   // Status is allowed for both Manager and Tech
   if (status !== undefined) data.status = status
+
+  // Room-warning dismissal is allowed for both Manager and Tech
+  if (roomCancelledWarningDismiss === false) data.roomCancelledWarning = false
+  if (roomAddedWarningDismiss === false)     data.roomAddedWarning     = false
 
   // All other fields: Manager only
   if (isManager) {
@@ -145,10 +173,16 @@ export async function PATCH(
 
     if (!isFrozen) {
       if (date !== undefined) {
-        data.date = new Date(date)
-        // Auto-set postponed warning if workshop has assigned resources
-        const hasResources = !!w.castingSentAt || w.rooms.some((r) => r.facilitatorId)
-        if (hasResources) data.postponedWarning = true
+        const newDate = new Date(date)
+        data.date = newDate
+        // Only trigger postponement warning when the date ACTUALLY changes
+        const oldDateStr = w.date.toISOString().slice(0, 10)
+        const newDateStr = newDate.toISOString().slice(0, 10)
+        if (oldDateStr !== newDateStr) {
+          data.postponedWarning = true
+          dateActuallyChanged = true
+          newDateStr_forLog    = newDateStr
+        }
       }
       if (startTime !== undefined) data.startTime = startTime
       if (endTime !== undefined) data.endTime = endTime
@@ -176,6 +210,8 @@ export async function PATCH(
 
   // Sync rooms when numRooms changed (Manager only)
   let updatedRooms: ReturnType<typeof mapRoom>[] | undefined
+  let roomsWereCancelled = false
+  let roomsWereAdded = false
   if (isManager && numRooms !== undefined && !isFrozen) {
     const newNum = Number(numRooms)
     const allRooms = await prisma.room.findMany({
@@ -204,12 +240,48 @@ export async function PATCH(
           })),
         })
       }
+      roomsWereAdded = true
     } else if (newNum < activeRooms.length) {
       // Cancel the highest-numbered active rooms
       const toCancel = activeRooms.slice(newNum)
       for (const r of toCancel) {
         await prisma.room.update({ where: { id: r.id }, data: { cancelled: true } })
+        // Clear castings for this room so counts stay accurate
+        await prisma.casting.deleteMany({ where: { workshopId: id, roomId: r.id } })
+        // Notify caster if casting was already sent
+        if (w.castingSentAt) {
+          await prisma.castingChangeLog.create({
+            data: {
+              workshopId: id,
+              changeType: "ROOM_CANCELLED",
+              detail: `חדר ${r.roomNumber} בוטל`,
+            },
+          })
+        }
       }
+      roomsWereCancelled = true
+    }
+
+    // Set room-change warning flags on workshop
+    if (roomsWereCancelled || roomsWereAdded) {
+      await prisma.workshop.update({
+        where: { id },
+        data: {
+          ...(roomsWereCancelled && { roomCancelledWarning: true }),
+          ...(roomsWereAdded     && { roomAddedWarning:     true }),
+        },
+      })
+    }
+
+    // Notify Caster when a room is added after casting has been sent
+    if (roomsWereAdded && w.castingSentAt) {
+      await prisma.castingChangeLog.create({
+        data: {
+          workshopId: id,
+          changeType: "ROOM_ADDED",
+          detail:     "יש לעדכן ליהוק",
+        },
+      })
     }
 
     // Return fresh rooms list
@@ -234,6 +306,17 @@ export async function PATCH(
         },
       })
     }
+    // Notify the Caster when the workshop date actually changed
+    if (dateActuallyChanged) {
+      const [y, m, d] = newDateStr_forLog.split("-")
+      await prisma.castingChangeLog.create({
+        data: {
+          workshopId: id,
+          changeType: "DATE_CHANGED",
+          detail: `תאריך הסדנה שונה ל-${Number(d)}.${Number(m)}.${String(y).slice(2)}`,
+        },
+      })
+    }
   }
 
   // Auto-advance after patch (e.g. castingSentAt just set)
@@ -244,6 +327,8 @@ export async function PATCH(
     cancelled: updated.cancelled,
     numRooms: updated.numRooms,
     postponedWarning: updated.postponedWarning,
+    roomCancelledWarning: roomsWereCancelled ? true : updated.roomCancelledWarning,
+    roomAddedWarning:     roomsWereAdded     ? true : updated.roomAddedWarning,
     ...(updatedRooms !== undefined && { rooms: updatedRooms }),
   })
 }

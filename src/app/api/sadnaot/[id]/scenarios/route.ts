@@ -23,16 +23,28 @@ export async function POST(
   if (!w.authorId)
     return NextResponse.json({ error: "יש להגדיר כותב/ת תרחיש לפני הוספת תרחישים" }, { status: 400 })
 
-  const { topicId, name, actorRequirements } = await req.json()
+  const { topicId, name, actorRequirements, maleActorsNeeded, femaleActorsNeeded } = await req.json()
   if (!topicId) return NextResponse.json({ error: "יש לבחור נושא" }, { status: 400 })
 
   const existing = await prisma.scenario.findMany({ where: { workshopId: id }, select: { orderIndex: true } })
   const maxIdx = existing.length > 0 ? Math.max(...existing.map((s) => s.orderIndex)) : -1
 
   const s = await prisma.scenario.create({
-    data: { workshopId: id, topicId, name: name?.trim() || null, actorRequirements: actorRequirements?.trim() || null, orderIndex: maxIdx + 1 },
+    data: {
+      workshopId: id, topicId,
+      name: name?.trim() || null,
+      actorRequirements: actorRequirements?.trim() || null,
+      maleActorsNeeded:   Math.max(0, Number(maleActorsNeeded)   || 0),
+      femaleActorsNeeded: Math.max(0, Number(femaleActorsNeeded) || 0),
+      orderIndex: maxIdx + 1,
+    },
     include: { topic: { select: { id: true, name: true } } },
   })
 
-  return NextResponse.json({ id: s.id, name: s.name, topicId: s.topicId, topicName: s.topic.name, actorRequirements: s.actorRequirements, written: s.written, cancelled: s.cancelled, orderIndex: s.orderIndex }, { status: 201 })
+  return NextResponse.json({
+    id: s.id, name: s.name, topicId: s.topicId, topicName: s.topic.name,
+    actorRequirements: s.actorRequirements,
+    maleActorsNeeded: s.maleActorsNeeded, femaleActorsNeeded: s.femaleActorsNeeded,
+    written: s.written, cancelled: s.cancelled, orderIndex: s.orderIndex,
+  }, { status: 201 })
 }
