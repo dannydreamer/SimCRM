@@ -146,7 +146,10 @@ export async function DELETE(
 
   await prisma.room.update({ where: { id: rid }, data: { cancelled: true } })
 
-  // Log if casting was already sent
+  // Always mark the workshop so the Manager/Tech list-page banner fires
+  await prisma.workshop.update({ where: { id }, data: { roomCancelledWarning: true } })
+
+  // Also log for the Caster if casting was already sent
   const workshop = await prisma.workshop.findUnique({ where: { id }, select: { castingSentAt: true } })
   if (workshop?.castingSentAt) {
     await prisma.castingChangeLog.create({

@@ -101,11 +101,24 @@ export default function LihukimLandingPage() {
     [workshops, dismissedLogIds]
   )
 
-  // Workshops with undismissed other-type change logs (non-ROOM_CANCELLED)
+  // Workshops with undismissed ROOM_ADDED logs
+  const roomAddedWarnings = useMemo(
+    () => workshops.filter((w) =>
+      !w.cancelled &&
+      w.changeLogs.some((l) => l.changeType === "ROOM_ADDED" && !dismissedLogIds.has(l.id))
+    ),
+    [workshops, dismissedLogIds]
+  )
+
+  // Workshops with undismissed other-type change logs (not room-related)
   const otherChangeWarnings = useMemo(
     () => workshops.filter((w) =>
       !w.cancelled &&
-      w.changeLogs.some((l) => l.changeType !== "ROOM_CANCELLED" && !dismissedLogIds.has(l.id))
+      w.changeLogs.some((l) =>
+        l.changeType !== "ROOM_CANCELLED" &&
+        l.changeType !== "ROOM_ADDED" &&
+        !dismissedLogIds.has(l.id)
+      )
     ),
     [workshops, dismissedLogIds]
   )
@@ -124,14 +137,18 @@ export default function LihukimLandingPage() {
     } catch { /* ignore */ }
   }
 
-  // Bug 2 fix: dismiss room-cancellation logs for a single workshop
   function dismissRoomCancellation(workshopId: string) {
     dismissLogsForWorkshop(workshopId, (l) => l.changeType === "ROOM_CANCELLED")
   }
 
-  // Dismiss other change logs for a single workshop
+  function dismissRoomAdded(workshopId: string) {
+    dismissLogsForWorkshop(workshopId, (l) => l.changeType === "ROOM_ADDED")
+  }
+
   function dismissOtherChanges(workshopId: string) {
-    dismissLogsForWorkshop(workshopId, (l) => l.changeType !== "ROOM_CANCELLED")
+    dismissLogsForWorkshop(workshopId, (l) =>
+      l.changeType !== "ROOM_CANCELLED" && l.changeType !== "ROOM_ADDED"
+    )
   }
 
   if (loading) {
@@ -177,6 +194,21 @@ export default function LihukimLandingPage() {
           </div>
         )
       })}
+
+      {/* Room-added warning banners — one per workshop */}
+      {!loading && roomAddedWarnings.map((aw) => (
+        <div key={aw.id} className="mx-8 mt-4 bg-amber-50 border border-amber-300 rounded-lg px-4 py-3 flex items-start justify-between gap-3 text-sm text-amber-800 shrink-0">
+          <div>
+            <p className="font-semibold mb-0.5">חדר נוסף לסדנה — יש לעדכן ליהוק</p>
+            <p className="text-xs text-amber-700 mt-0.5">{fmtDate(aw.date)} · {aw.groupName}</p>
+          </div>
+          <button
+            onClick={() => dismissRoomAdded(aw.id)}
+            className="text-xs font-semibold px-2.5 py-1 rounded-full shrink-0 border border-amber-300 text-amber-700 hover:bg-amber-100 transition-colors">
+            הבנתי
+          </button>
+        </div>
+      ))}
 
       {/* Room-cancellation warning banners — one per workshop */}
       {!loading && roomCancelledWarnings.map((rw) => (
@@ -260,9 +292,16 @@ export default function LihukimLandingPage() {
                 {displayWorkshops.map((w) => {
                   const complete = isComplete(w)
                   const hasRoomWarning = !w.cancelled &&
-                    w.changeLogs.some((l) => l.changeType === "ROOM_CANCELLED" && !dismissedLogIds.has(l.id))
+                    w.changeLogs.some((l) =>
+                      (l.changeType === "ROOM_CANCELLED" || l.changeType === "ROOM_ADDED") &&
+                      !dismissedLogIds.has(l.id)
+                    )
                   const hasOtherWarning = !w.cancelled &&
-                    w.changeLogs.some((l) => l.changeType !== "ROOM_CANCELLED" && !dismissedLogIds.has(l.id))
+                    w.changeLogs.some((l) =>
+                      l.changeType !== "ROOM_CANCELLED" &&
+                      l.changeType !== "ROOM_ADDED" &&
+                      !dismissedLogIds.has(l.id)
+                    )
                   return (
                     <tr key={w.id}
                       onClick={() => router.push(`/lihukim/${w.id}`)}
