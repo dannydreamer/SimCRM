@@ -214,7 +214,11 @@ export default function LihukimLandingPage() {
       {!loading && roomCancelledWarnings.map((rw) => (
         <div key={rw.id} className="mx-8 mt-4 bg-amber-50 border border-amber-300 rounded-lg px-4 py-3 flex items-start justify-between gap-3 text-sm text-amber-800 shrink-0">
           <div>
-            <p className="font-semibold mb-0.5">חדר בוטל בסדנה שכבר לוהקה — יש לעדכן את השחקנים</p>
+            <p className="font-semibold mb-0.5">
+              {rw.castingStarted
+                ? "חדר בוטל בסדנה שכבר לוהקה — יש לעדכן את השחקנים"
+                : "חדר בוטל — יש לעדכן ליהוק"}
+            </p>
             <p className="text-xs text-amber-700 mt-0.5">
               {fmtDate(rw.date)} · {rw.groupName} —{" "}
               {rw.changeLogs
