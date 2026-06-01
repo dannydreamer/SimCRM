@@ -81,10 +81,10 @@ export async function PATCH(
       const wDate = dayOnly(new Date(workshop.date))
       if (today > wDate)
         return NextResponse.json({ error: "לא ניתן לסמן מצגת לאחר תאריך הסדנה" }, { status: 400 })
-      // Must have at least one written scenario
-      const anyWritten = workshop.scenarios.some((s) => s.written)
-      if (!anyWritten)
-        return NextResponse.json({ error: "יש לסמן לפחות תרחיש אחד כנכתב לפני סימון מצגת" }, { status: 400 })
+      // All scenarios must be marked written
+      const allWritten = workshop.scenarios.length > 0 && workshop.scenarios.every((s) => s.written)
+      if (!allWritten)
+        return NextResponse.json({ error: "יש לסמן את כל התרחישים כנכתב לפני סימון מצגת" }, { status: 400 })
     }
     data.pptReceived = pptReceived
   }

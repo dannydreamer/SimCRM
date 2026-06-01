@@ -283,7 +283,7 @@ function ScenarioRow({
 // ─── RoomRow ──────────────────────────────────────────────────────────────────
 
 function RoomRow({
-  r, canAssign, canCheckPptLetter, facilitators, allRooms, workshopId, workshopDate, anyScenarioWritten, onUpdate, onWorkshopStatusChange,
+  r, canAssign, canCheckPptLetter, facilitators, allRooms, workshopId, workshopDate, allScenariosWritten, onUpdate, onWorkshopStatusChange,
 }: {
   r: Room
   canAssign: boolean
@@ -292,7 +292,7 @@ function RoomRow({
   allRooms: Room[]
   workshopId: string
   workshopDate: string   // ISO string
-  anyScenarioWritten: boolean
+  allScenariosWritten: boolean
   onUpdate: (rid: string, data: Partial<Room>) => void
   onWorkshopStatusChange?: (status: string) => void
 }) {
@@ -325,13 +325,13 @@ function RoomRow({
   const workshopPast = today > wDate      // day after workshop date
   const workshopFuture = today < wDate    // before workshop date
 
-  // PPT: allowed before or on workshop date; blocked after; requires written scenario
+  // PPT: allowed before or on workshop date; blocked after; requires all scenarios written
   const pptBlockReason = !r.facilitatorId
     ? "יש לשבץ מתחקר/ת לפני סימון מצגת"
     : workshopPast
     ? "לא ניתן לסמן מצגת לאחר תאריך הסדנה"
-    : !anyScenarioWritten
-    ? "יש לסמן לפחות תרחיש אחד כנכתב לפני סימון מצגת"
+    : !allScenariosWritten
+    ? "יש לסמן את כל התרחישים כנכתב לפני סימון מצגת"
     : null
   const pptDisabled = !!pptBlockReason
 
@@ -982,30 +982,76 @@ export default function WorkshopDetailPage() {
                 )}
               </div>
 
-              {/* Readiness checklist — shown when SPECIFIED */}
-              {w.status === "SPECIFIED" && !w.cancelled && (() => {
-                const activeRooms      = w.rooms.filter((r) => !r.cancelled)
-                const activeScenarios  = w.scenarios.filter((s) => !s.cancelled)
-                const allSlotted       = activeRooms.length > 0 && activeRooms.every((r) => r.facilitatorId)
-                const allWritten       = activeScenarios.length > 0 && activeScenarios.every((s) => s.written)
-                const castingSent      = !!w.castingSentAt
-                const allDone          = allSlotted && allWritten && castingSent
-                const Item = ({ ok, label }: { ok: boolean; label: string }) => (
-                  <div className="flex items-center gap-2 text-xs">
-                    <span className={ok ? "text-brand-green font-bold" : "text-gray-300"}>
-                      {ok ? "✓" : "○"}
-                    </span>
-                    <span className={ok ? "text-gray-600" : "text-gray-400"}>{label}</span>
-                  </div>
-                )
+              {/* Readiness checklist — shown when SPECIFIED or READY */}
+              {(w.status === "SPECIFIED" || w.status === "READY") && !w.cancelled && (() => {
+                const activeRooms     = w.rooms.filter((r) => !r.cancelled)
+                const activeScenarios = w.scenarios.filter((s) => !s.cancelled)
+
+                // Condition 1: PPT
+                const pptCount        = activeRooms.filter((r) => r.pptReceived).length
+                const allPpt          = activeRooms.length > 0 && pptCount === activeRooms.length
+                const allFacilitators = activeRooms.every((r) => r.facilitatorId)
+                const allWritten      = activeScenarios.length > 0 && activeScenarios.every((s) => s.written)
+
+                // Condition 2: Casting
+                const castingSent    = !!w.castingSentAt
+                const slotsPerRoom   = activeScenarios.reduce((sum, s) => sum + s.maleActorsNeeded + s.femaleActorsNeeded, 0)
+                const castingTotal   = slotsPerRoom * activeRooms.length + (w.directorRequested ? 1 : 0)
+                const nonDirFilled   = w.castings.filter((c) => !c.isDirector).length
+                const hasDir         = w.castings.some((c) => c.isDirector)
+                const castingFilled  = nonDirFilled + (w.directorRequested && hasDir ? 1 : 0)
+                const castingComplete = castingSent && castingTotal > 0 && castingFilled === castingTotal
+
+                // Condition 3: Feedback form
+                const feedbackDone = w.feedbackFormAdded
+
+                const allDone = allPpt && castingComplete && feedbackDone
+
                 return (
-                  <div className="flex flex-col gap-1.5 bg-gray-50 rounded-lg px-4 py-3">
-                    <p className="text-xs font-semibold text-gray-500 mb-1">נדרש למעבר אוטומטי ל״מוכן״:</p>
-                    <Item ok={castingSent} label="נשלח לליהוק" />
-                    <Item ok={allSlotted}  label={`כל החדרים שובצו (${activeRooms.filter(r => r.facilitatorId).length}/${activeRooms.length})`} />
-                    <Item ok={allWritten}  label={`כל התרחישים סומנו כנכתב (${activeScenarios.filter(s => s.written).length}/${activeScenarios.length})`} />
+                  <div className="flex flex-col gap-2 bg-gray-50 rounded-lg px-4 py-3">
+                    <p className="text-xs font-semibold text-gray-500 mb-0.5">נדרש למעבר אוטומטי ל״מוכן״:</p>
+
+                    {/* Condition 1: PPT */}
+                    <div className="flex items-start gap-2 text-xs">
+                      <span className={`mt-px font-bold ${allPpt ? "text-brand-green" : "text-gray-300"}`}>{allPpt ? "✓" : "○"}</span>
+                      <div>
+                        <span className={allPpt ? "text-gray-700" : "text-gray-500"}>
+                          {`התקבלו מצגות לכל החדרים (${pptCount}/${activeRooms.length})`}
+                        </span>
+                        {!allPpt && !allFacilitators && (
+                          <p className="text-gray-400 mt-0.5">← ממתין לשיבוץ מתחקר/ת ל-{activeRooms.filter((r) => !r.facilitatorId).length} חדרים</p>
+                        )}
+                        {!allPpt && allFacilitators && !allWritten && (
+                          <p className="text-gray-400 mt-0.5">← ממתין לסימון כל התרחישים כנכתב</p>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Condition 2: Casting */}
+                    <div className="flex items-start gap-2 text-xs">
+                      <span className={`mt-px font-bold ${castingComplete ? "text-brand-green" : "text-gray-300"}`}>{castingComplete ? "✓" : "○"}</span>
+                      <div>
+                        <span className={castingComplete ? "text-gray-700" : "text-gray-500"}>
+                          {castingComplete
+                            ? "ליהוק הושלם"
+                            : castingTotal > 0
+                              ? `ליהוק ${castingFilled}/${castingTotal}`
+                              : "ליהוק הושלם"}
+                        </span>
+                        {!castingComplete && !castingSent && (
+                          <p className="text-gray-400 mt-0.5">← ממתין לשליחה לליהוק</p>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Condition 3: Feedback form */}
+                    <div className="flex items-center gap-2 text-xs">
+                      <span className={`font-bold ${feedbackDone ? "text-brand-green" : "text-gray-300"}`}>{feedbackDone ? "✓" : "○"}</span>
+                      <span className={feedbackDone ? "text-gray-700" : "text-gray-500"}>טופס פידבק הועבר</span>
+                    </div>
+
                     {allDone && (
-                      <p className="text-xs text-brand-green font-medium mt-1">✓ כל התנאים מתקיימים — הסדנה תסומן כ״מוכן״ אוטומטית</p>
+                      <p className="text-xs text-brand-green font-medium mt-0.5">✓ כל התנאים מתקיימים — הסדנה תסומן כ״מוכן״ אוטומטית</p>
                     )}
                   </div>
                 )
@@ -1062,7 +1108,7 @@ export default function WorkshopDetailPage() {
                       allRooms={w.rooms}
                       workshopId={id}
                       workshopDate={w.date}
-                      anyScenarioWritten={w.scenarios.some((s) => !s.cancelled && s.written)}
+                      allScenariosWritten={w.scenarios.filter((s) => !s.cancelled).every((s) => s.written) && w.scenarios.some((s) => !s.cancelled)}
                       onUpdate={updateRoom}
                       onWorkshopStatusChange={applyWorkshopStatusChange}
                     />

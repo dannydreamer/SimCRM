@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
+import { checkAndAdvanceStatus } from "@/lib/workshop-status"
 
 export async function DELETE(
   _req: NextRequest,
@@ -20,5 +21,7 @@ export async function DELETE(
     return NextResponse.json({ error: "Not found" }, { status: 404 })
 
   await prisma.casting.delete({ where: { id: cid } })
+  // Sync workshop status — may revert from READY if casting is no longer complete
+  await checkAndAdvanceStatus(workshopId)
   return NextResponse.json({ ok: true })
 }

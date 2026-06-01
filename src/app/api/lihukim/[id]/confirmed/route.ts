@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
+import { checkAndAdvanceStatus } from "@/lib/workshop-status"
 
 export async function POST(
   req: NextRequest,
@@ -50,6 +51,9 @@ export async function POST(
     update: { actorId },
     include: { actor: { select: { name: true } } },
   })
+
+  // Sync workshop status — may advance to or revert from READY
+  await checkAndAdvanceStatus(workshopId)
 
   return NextResponse.json({
     id:        result.id,

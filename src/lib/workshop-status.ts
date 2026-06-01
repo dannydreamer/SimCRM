@@ -2,16 +2,18 @@ import { prisma } from "./prisma"
 import { WorkshopStatus } from "@prisma/client"
 
 /**
- * Checks whether the workshop should auto-advance to the next status
- * and performs the update if so. Statuses READY, CLOSING, and CLOSED
- * are system-triggered only — no user action can set them directly.
+ * Checks whether the workshop should auto-advance or regress in status
+ * and performs the update if so. READY, CLOSING, and CLOSED are
+ * system-triggered only — no user action can set them directly.
  *
- * Transitions:
- *  SPECIFIED → READY    : castingSentAt set + all rooms slotted + all scenarios written
+ * Transitions / regressions:
+ *  SPECIFIED → READY    : all PPT received + casting fully complete + feedback form added
+ *  READY     → SPECIFIED: any of the three READY conditions becomes unmet (before date)
  *  READY     → CLOSING  : workshop date has passed
- *  CLOSING   → CLOSED   : all rooms have pptReceived + letterReceived
+ *  CLOSING   → CLOSED   : all rooms have letterReceived
+ *  CLOSED    → CLOSING  : any room loses letterReceived
  *
- * Returns the new status string if an advance occurred, otherwise null.
+ * Returns the new status string if a change occurred, otherwise null.
  */
 export async function checkAndAdvanceStatus(workshopId: string): Promise<string | null> {
   const w = await prisma.workshop.findUnique({
@@ -21,13 +23,24 @@ export async function checkAndAdvanceStatus(workshopId: string): Promise<string 
       cancelled: true,
       date: true,
       castingSentAt: true,
+      directorRequested: true,
+      feedbackFormAdded: true,
       rooms: {
         where: { cancelled: false },
-        select: { facilitatorId: true, pptReceived: true, letterReceived: true },
+        select: { pptReceived: true, letterReceived: true },
       },
       scenarios: {
         where: { cancelled: false },
-        select: { written: true },
+        select: { maleActorsNeeded: true, femaleActorsNeeded: true },
+      },
+      castings: {
+        where: {
+          OR: [
+            { roomId: null },
+            { room: { cancelled: false } },
+          ],
+        },
+        select: { isDirector: true },
       },
     },
   })
@@ -37,26 +50,47 @@ export async function checkAndAdvanceStatus(workshopId: string): Promise<string 
   const today = new Date(); today.setHours(0, 0, 0, 0)
   const wDate = new Date(w.date); wDate.setHours(0, 0, 0, 0)
 
+  // ── Helper: evaluate all three READY conditions ──────────────────────────
+  function readyConditionsMet(): boolean {
+    // 1. All active rooms have pptReceived
+    if (w!.rooms.length === 0) return false
+    const allPpt = w!.rooms.every((r) => r.pptReceived)
+
+    // 2. Casting fully complete (sent + all Step 2 slots filled)
+    if (!w!.castingSentAt) return false
+    const slotsPerRoom  = w!.scenarios.reduce((s, sc) => s + sc.maleActorsNeeded + sc.femaleActorsNeeded, 0)
+    const castingTotal  = slotsPerRoom * w!.rooms.length + (w!.directorRequested ? 1 : 0)
+    const nonDirFilled  = w!.castings.filter((c) => !c.isDirector).length
+    const hasDir        = w!.castings.some((c) => c.isDirector)
+    const castingFilled = nonDirFilled + (w!.directorRequested && hasDir ? 1 : 0)
+    const castingComplete = castingTotal > 0 && castingFilled === castingTotal
+
+    // 3. Feedback form added
+    const feedbackDone = w!.feedbackFormAdded
+
+    return allPpt && castingComplete && feedbackDone
+  }
+
   let newStatus: string | null = null
 
   if (w.status === "SPECIFIED") {
-    const castingSent       = !!w.castingSentAt
-    const hasScenarios      = w.scenarios.length > 0
-    const allWritten        = hasScenarios && w.scenarios.every((s) => s.written)
-    const hasRooms          = w.rooms.length > 0
-    const allSlotted        = hasRooms && w.rooms.every((r) => r.facilitatorId)
-    if (castingSent && allWritten && allSlotted) newStatus = "READY"
+    if (readyConditionsMet()) newStatus = "READY"
 
   } else if (w.status === "READY") {
-    if (today > wDate) newStatus = "CLOSING"
+    if (today > wDate) {
+      newStatus = "CLOSING"
+    } else if (!readyConditionsMet()) {
+      // Regression: a condition was unmet before the date passed
+      newStatus = "SPECIFIED"
+    }
 
   } else if (w.status === "CLOSING") {
-    const hasRooms    = w.rooms.length > 0
-    const allLetters  = hasRooms && w.rooms.every((r) => r.letterReceived)
+    const hasRooms   = w.rooms.length > 0
+    const allLetters = hasRooms && w.rooms.every((r) => r.letterReceived)
     if (allLetters) newStatus = "CLOSED"
 
   } else if (w.status === "CLOSED") {
-    // Regression: if a letter is unchecked, revert to CLOSING
+    // Regression: a letter was unchecked
     const hasRooms   = w.rooms.length > 0
     const allLetters = hasRooms && w.rooms.every((r) => r.letterReceived)
     if (!allLetters) newStatus = "CLOSING"
