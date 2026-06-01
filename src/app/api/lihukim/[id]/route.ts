@@ -41,7 +41,7 @@ export async function GET(
       castingChangeLogs: {
         where: {
           dismissed: false,
-          changeType: { in: ["SCENARIO_REQ", "SCENARIO_CANCELLED", "ROOM_CANCELLED", "COUNTS_CHANGED", "RESENT", "DATE_CHANGED"] },
+          changeType: { in: ["SCENARIO_REQ", "SCENARIO_CANCELLED", "ROOM_CANCELLED", "ROOM_ADDED", "COUNTS_CHANGED", "RESENT", "DATE_CHANGED"] },
         },
         orderBy: { createdAt: "asc" },
       },

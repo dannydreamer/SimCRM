@@ -273,6 +273,17 @@ export async function PATCH(
       })
     }
 
+    // Notify Caster when a room is added after casting has been sent
+    if (roomsWereAdded && w.castingSentAt) {
+      await prisma.castingChangeLog.create({
+        data: {
+          workshopId: id,
+          changeType: "ROOM_ADDED",
+          detail:     "יש לעדכן ליהוק",
+        },
+      })
+    }
+
     // Return fresh rooms list
     const freshRooms = await prisma.room.findMany({
       where: { workshopId: id },

@@ -1,21 +1,10 @@
 "use client"
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react"
-import { useParams, useRouter } from "next/navigation"
+import { useCallback, useEffect, useMemo, useState } from "react"
+import { useParams } from "next/navigation"
 import { useUser } from "@/app/(app)/user-context"
 
 // ─── Types ────────────────────────────────────────────────────────────────────
-
-interface PendingWorkshop {
-  id: string
-  date: string
-  startTime: string
-  groupName: string
-  orgName: string
-  cancelled: boolean
-  castingTotal: number
-  castingFilled: number
-}
 
 interface Scenario {
   id: string
@@ -100,6 +89,7 @@ const CHANGE_TYPE_LABELS: Record<string, string> = {
   SCENARIO_REQ:       "דרישות שחקנים עודכנו",
   SCENARIO_CANCELLED: "תרחיש בוטל",
   ROOM_CANCELLED:     "חדר בוטל",
+  ROOM_ADDED:         "חדר נוסף לסדנה",
   COUNTS_CHANGED:     "מספרים כמותיים עודכנו",
   RESENT:             "עדכון ושליחה חוזרת לליהוק",
   DATE_CHANGED:       "הסדנה נדחתה",
@@ -111,15 +101,12 @@ const LS_KEY = "simcrm:dismissed-logs"
 
 export default function LihukimPage() {
   const { id: workshopId } = useParams<{ id: string }>()
-  const router   = useRouter()
   const user     = useUser()
   const isCaster  = user.roles.includes("CASTER")
   const isManager = user.roles.includes("MANAGER")
 
   const [data,         setData]        = useState<CastingData | null>(null)
-  const [pending,      setPending]     = useState<PendingWorkshop[]>([])
   const [loading,      setLoading]     = useState(true)
-  const activeTabRef = useRef<HTMLButtonElement>(null)
   const [saving,       setSaving]      = useState(false)
   const [dismissedIds, setDismissedIds] = useState<Set<string>>(new Set())
 
@@ -141,34 +128,15 @@ export default function LihukimPage() {
 
   const load = useCallback(() => {
     setLoading(true)
-    Promise.all([
-      fetch(`/api/lihukim/${workshopId}`, { cache: "no-store" }).then((r) => r.json()),
-      fetch("/api/lihukim",              { cache: "no-store" }).then((r) => r.json()),
-    ]).then(([castingData, pendingList]) => {
-      setData(castingData)
-      setPending(Array.isArray(pendingList) ? pendingList : [])
-      setLoading(false)
-    })
+    fetch(`/api/lihukim/${workshopId}`, { cache: "no-store" })
+      .then((r) => r.json())
+      .then((castingData) => {
+        setData(castingData)
+        setLoading(false)
+      })
   }, [workshopId])
 
   useEffect(() => { load() }, [load])
-
-  // ── Pending tabs ──────────────────────────────────────────────────────────
-
-  const pendingTabs = useMemo(() => {
-    if (!pending.length) return []
-    const nearest = pending.slice(0, 5)
-    if (!nearest.some((p) => p.id === workshopId)) {
-      const current = pending.find((p) => p.id === workshopId)
-      if (current) nearest.push(current)
-    }
-    return nearest
-  }, [pending, workshopId])
-
-  // Scroll the active tab into view whenever the workshop or tab list changes
-  useEffect(() => {
-    activeTabRef.current?.scrollIntoView({ inline: "center", block: "nearest", behavior: "instant" })
-  }, [workshopId, pendingTabs])
 
   // ── Derived state ─────────────────────────────────────────────────────────
 
@@ -405,38 +373,6 @@ export default function LihukimPage() {
 
   return (
     <div className="flex flex-col h-full overflow-auto">
-
-      {/* ── Pending tabs ──────────────────────────────────────────────────── */}
-      {pendingTabs.length > 0 && (
-        <div className="shrink-0 bg-white border-b border-gray-200 px-4 pt-3 pb-0">
-          <p className="text-xs text-gray-500 mb-2">{pending.length} סדנאות ממתינות לליהוק</p>
-          <div className="flex gap-1 overflow-x-auto pb-0 scrollbar-hide">
-            {pendingTabs.map((p) => {
-              const isCurrent = p.id === workshopId
-              const complete  = p.castingTotal > 0 && p.castingFilled === p.castingTotal
-              return (
-                <button key={p.id}
-                  ref={isCurrent ? activeTabRef : null}
-                  onClick={() => router.push(`/lihukim/${p.id}`)}
-                  className={`shrink-0 px-3 py-1.5 rounded-t-md border text-xs whitespace-nowrap transition-colors ${
-                    isCurrent
-                      ? "bg-white border-gray-300 border-b-white text-gray-900 font-semibold -mb-px"
-                      : "bg-gray-50 border-transparent text-gray-500 hover:text-gray-700"
-                  }`}>
-                  {fmtDate(p.date)} · {p.groupName}
-                  {p.cancelled ? (
-                    <span className="mr-1.5 font-medium text-red-500">(בוטל)</span>
-                  ) : p.castingTotal > 0 && (
-                    <span className={`mr-1.5 font-medium ${complete ? "text-green-600" : "text-amber-600"}`}>
-                      ({p.castingFilled}/{p.castingTotal})
-                    </span>
-                  )}
-                </button>
-              )
-            })}
-          </div>
-        </div>
-      )}
 
       <div className="flex-1 px-4 md:px-8 py-6 space-y-6">
 
@@ -737,12 +673,17 @@ export default function LihukimPage() {
                 const noSlots = scenario.maleActorsNeeded === 0 && scenario.femaleActorsNeeded === 0
                 return (
                   <div key={scenario.id}>
-                    <p className="text-xs font-semibold text-gray-600 uppercase tracking-wide mb-2">
-                      תרחיש {si + 1}{scenario.name ? ` — ${scenario.name}` : ""} · {scenario.topicName}
-                      <span className="mr-2 normal-case font-normal text-gray-400">
-                        (♂ {scenario.maleActorsNeeded} · ♀ {scenario.femaleActorsNeeded} לחדר)
-                      </span>
-                    </p>
+                    <div className="mb-2">
+                      <p className="text-xs font-semibold text-gray-600 uppercase tracking-wide">
+                        תרחיש {si + 1}{scenario.name ? ` — ${scenario.name}` : ""} · {scenario.topicName}
+                        <span className="mr-2 normal-case font-normal text-gray-400">
+                          (♂ {scenario.maleActorsNeeded} · ♀ {scenario.femaleActorsNeeded} לחדר)
+                        </span>
+                      </p>
+                      {scenario.actorRequirements && (
+                        <p className="text-xs text-gray-500 mt-0.5 normal-case">{scenario.actorRequirements}</p>
+                      )}
+                    </div>
 
                     {noSlots ? (
                       <div className="border border-amber-200 bg-amber-50 rounded-lg px-4 py-3 text-xs text-amber-700">
