@@ -3,16 +3,22 @@ import { NextResponse } from "next/server"
 
 // Routes with restricted access. Paths are prefix-matched.
 // Any authenticated route NOT listed here is accessible to all logged-in users.
+//
+// NOTE: All middleware logic lives HERE in proxy.ts.
+// Do NOT create a separate src/middleware.ts with its own logic — it will conflict.
 const ROUTE_PERMISSIONS: { prefix: string; roles: string[] }[] = [
-  { prefix: "/sadnaot/new", roles: ["MANAGER"] },
-  { prefix: "/irgunnim",    roles: ["MANAGER", "TECH"] },
-  { prefix: "/nosim",       roles: ["MANAGER", "TECH"] },
-  { prefix: "/shakhanim",   roles: ["MANAGER", "TECH", "CASTER", "FEEDBACK_DOCUMENTER"] },
-  { prefix: "/lihukim",     roles: ["MANAGER", "CASTER"] },
-  { prefix: "/luach",       roles: ["MANAGER", "TECH", "CASTER", "FEEDBACK_DOCUMENTER", "FACILITATOR"] },
-  { prefix: "/yaadot",   roles: ["MANAGER"] },
-  { prefix: "/omas",     roles: ["MANAGER"] },
-  { prefix: "/users",    roles: ["MANAGER"] },
+  { prefix: "/sadnaot/new",   roles: ["MANAGER"] },
+  { prefix: "/irgunnim",      roles: ["MANAGER", "TECH"] },
+  { prefix: "/nosim",         roles: ["MANAGER", "TECH"] },
+  { prefix: "/shakhanim",     roles: ["MANAGER", "TECH", "CASTER", "FEEDBACK_DOCUMENTER"] },
+  { prefix: "/lihukim",       roles: ["MANAGER", "CASTER"] },
+  { prefix: "/luach",         roles: ["MANAGER", "TECH", "CASTER", "FEEDBACK_DOCUMENTER", "FACILITATOR"] },
+  { prefix: "/yaadot",        roles: ["MANAGER"] },
+  { prefix: "/omas",          roles: ["MANAGER"] },
+  { prefix: "/users",         roles: ["MANAGER"] },
+  // Feedback entry page + API — MANAGER and FEEDBACK_DOCUMENTER only
+  { prefix: "/feedback",      roles: ["MANAGER", "FEEDBACK_DOCUMENTER"] },
+  { prefix: "/api/feedback",  roles: ["MANAGER", "FEEDBACK_DOCUMENTER"] },
 ]
 
 export default withAuth(

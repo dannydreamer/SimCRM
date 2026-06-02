@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { Fragment, useEffect, useState } from "react"
 import { useParams } from "next/navigation"
 import Link from "next/link"
 import { useUser } from "@/app/(app)/user-context"
@@ -289,9 +289,8 @@ export default function ActorProfilePage() {
                       </thead>
                       <tbody>
                         {actor.feedbacks.map((f) => (
-                          <>
+                          <Fragment key={f.id}>
                             <tr
-                              key={f.id}
                               className="border-b border-gray-100 last:border-0 hover:bg-gray-50 cursor-pointer"
                               onClick={() => toggleExpand(f.id)}
                             >
@@ -335,7 +334,7 @@ export default function ActorProfilePage() {
                                 </td>
                               </tr>
                             )}
-                          </>
+                          </Fragment>
                         ))}
                       </tbody>
                     </table>
