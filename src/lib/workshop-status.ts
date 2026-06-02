@@ -22,6 +22,7 @@ export async function checkAndAdvanceStatus(workshopId: string): Promise<string 
       status: true,
       cancelled: true,
       date: true,
+      endTime: true,
       castingSentAt: true,
       directorRequested: true,
       feedbackFormAdded: true,
@@ -47,8 +48,11 @@ export async function checkAndAdvanceStatus(workshopId: string): Promise<string 
 
   if (!w || w.cancelled) return null
 
-  const today = new Date(); today.setHours(0, 0, 0, 0)
-  const wDate = new Date(w.date); wDate.setHours(0, 0, 0, 0)
+  // Build the precise end-of-workshop datetime from date + endTime ("HH:MM")
+  const now = new Date()
+  const wEndDateTime = new Date(w.date)
+  const [endHour, endMin] = (w.endTime ?? "23:59").split(":").map(Number)
+  wEndDateTime.setHours(endHour, endMin, 0, 0)
 
   // ── Helper: evaluate all three READY conditions ──────────────────────────
   function readyConditionsMet(): boolean {
@@ -77,10 +81,10 @@ export async function checkAndAdvanceStatus(workshopId: string): Promise<string 
     if (readyConditionsMet()) newStatus = "READY"
 
   } else if (w.status === "READY") {
-    if (today > wDate) {
+    if (now >= wEndDateTime) {
       newStatus = "CLOSING"
     } else if (!readyConditionsMet()) {
-      // Regression: a condition was unmet before the date passed
+      // Regression: a condition was unmet before the end time passed
       newStatus = "SPECIFIED"
     }
 
