@@ -299,7 +299,7 @@ model Feedback {
   id                       String   @id @default(uuid())
   actorId                  String
   workshopId               String
-  roomId                   String
+  roomId                   String?  // null for director feedback
   aspect1PrepColor         RagColor @default(GREEN)
   aspect1PrepText          String?
   aspect2SimColor          RagColor @default(GREEN)
@@ -313,7 +313,7 @@ model Feedback {
 
   actor     Actor    @relation(fields: [actorId], references: [id])
   workshop  Workshop @relation(fields: [workshopId], references: [id])
-  room      Room     @relation(fields: [roomId], references: [id])
+  room      Room?    @relation(fields: [roomId], references: [id])
   enteredBy Person   @relation(fields: [enteredById], references: [id])
 }
 

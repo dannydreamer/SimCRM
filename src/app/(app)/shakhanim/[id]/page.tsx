@@ -13,6 +13,7 @@ interface FeedbackRow {
   date: string
   orgName: string
   workshopId: string
+  isDirector: boolean
   facilitatorName: string | null
   enteredByName: string
   aspect1Color: string; aspect1Text: string | null
@@ -278,6 +279,7 @@ export default function ActorProfilePage() {
                       <thead>
                         <tr className="bg-gray-50 border-b border-gray-200 text-right text-xs text-gray-500 font-medium">
                           <th className="px-3 py-2">תאריך</th>
+                          <th className="px-3 py-2">תפקיד</th>
                           <th className="px-3 py-2">סדנה</th>
                           <th className="px-3 py-2">מתחקר/ת</th>
                           <th className="px-3 py-2 text-center">התכוננות</th>
@@ -295,6 +297,11 @@ export default function ActorProfilePage() {
                               onClick={() => toggleExpand(f.id)}
                             >
                               <td className="px-3 py-2.5 text-gray-600 whitespace-nowrap">{fmtDate(f.date)}</td>
+                              <td className="px-3 py-2.5 whitespace-nowrap">
+                                <span className={`text-xs font-medium px-1.5 py-0.5 rounded ${f.isDirector ? "bg-purple-100 text-purple-700" : "bg-gray-100 text-gray-600"}`}>
+                                  {f.isDirector ? "במאי/ת" : "שחקן/ית"}
+                                </span>
+                              </td>
                               <td className="px-3 py-2.5">
                                 <Link
                                   href={`/sadnaot/${f.workshopId}`}
@@ -313,7 +320,7 @@ export default function ActorProfilePage() {
                             </tr>
                             {expanded.has(f.id) && (
                               <tr key={`${f.id}-exp`} className="border-b border-gray-100 bg-gray-50/60">
-                                <td colSpan={8} className="px-4 py-3">
+                                <td colSpan={9} className="px-4 py-3">
                                   <div className="grid grid-cols-2 gap-3">
                                     {[
                                       { label: "התכוננות לסדנה",   color: f.aspect1Color, text: f.aspect1Text },

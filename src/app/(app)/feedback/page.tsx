@@ -43,6 +43,7 @@ interface WorkshopData {
   date:      string
   groupName: string
   orgName:   string
+  director:  ActorRow | null
   rooms:     RoomRow[]
 }
 
@@ -100,7 +101,7 @@ const TEXTAREA_BORDER: Record<RagColor, string> = {
   GREEN:  "border-green-300",
 }
 
-function slotKey(roomId: string, actorId: string) {
+function slotKey(roomId: string | null, actorId: string) {
   return `${roomId}:${actorId}`
 }
 
@@ -191,6 +192,9 @@ function FeedbackPageInner() {
       .then((data: WorkshopData) => {
         setWorkshop(data)
         const m = new Map<string, SlotState>()
+        if (data.director) {
+          m.set(slotKey(null, data.director.actorId), defaultSlot(data.director))
+        }
         data.rooms.forEach((room) =>
           room.actors.forEach((actor) =>
             m.set(slotKey(room.id, actor.actorId), defaultSlot(actor))
@@ -207,7 +211,7 @@ function FeedbackPageInner() {
 
   // ── Save ──
   const saveSlot = useCallback(
-    async (roomId: string, actorId: string, slotData: SlotState) => {
+    async (roomId: string | null, actorId: string, slotData: SlotState) => {
       const key = slotKey(roomId, actorId)
 
       // Mark saving
@@ -254,7 +258,7 @@ function FeedbackPageInner() {
   )
 
   const handleColorChange = useCallback(
-    (roomId: string, actorId: string, aspect: AspectKey, value: RagColor) => {
+    (roomId: string | null, actorId: string, aspect: AspectKey, value: RagColor) => {
       const key = slotKey(roomId, actorId)
       setSlots((prev) => {
         const next = new Map(prev)
@@ -271,7 +275,7 @@ function FeedbackPageInner() {
   )
 
   const handleTextChange = useCallback(
-    (roomId: string, actorId: string, aspect: AspectKey, value: string) => {
+    (roomId: string | null, actorId: string, aspect: AspectKey, value: string) => {
       const key = slotKey(roomId, actorId)
       setSlots((prev) => {
         const next = new Map(prev)
@@ -285,7 +289,7 @@ function FeedbackPageInner() {
   )
 
   const handleTextBlur = useCallback(
-    (roomId: string, actorId: string) => {
+    (roomId: string | null, actorId: string) => {
       const key  = slotKey(roomId, actorId)
       const slot = slotsRef.current.get(key)
       if (slot?.pendingText) {
@@ -370,109 +374,118 @@ function FeedbackPageInner() {
         פידבק ייחשב כמלא לאחר מילוי טקסט לפחות בהיבט אחד
       </p>
 
-      {/* Rooms */}
-      {workshop.rooms.length === 0 && (
-        <p className="text-gray-500 text-center py-12">אין חדרים פעילים בסדנה זו</p>
-      )}
+      {/* ── Shared actor card renderer ── */}
+      {(() => {
+        function ActorCard({ actor, roomId }: { actor: ActorRow; roomId: string | null }) {
+          const key  = slotKey(roomId, actor.actorId)
+          const slot = slots.get(key)
+          if (!slot) return null
 
-      {workshop.rooms.map((room) => (
-        <section key={room.id} className="mb-10">
-          <h2 className="text-lg font-semibold text-gray-700 border-b border-gray-200 pb-2 mb-4">
-            חדר {room.roomNumber}
-            {room.facilitatorName && (
-              <span className="text-gray-400 font-normal text-base mr-2">
-                — {room.facilitatorName}
-              </span>
+          const isSaved    = slot.saved || !!slot.feedbackId
+          const isComplete = isSaved && hasAnyText(slot)
+          const statusEl = slot.saving ? (
+            <span className="text-xs text-amber-500 font-medium">שומר...</span>
+          ) : isComplete ? (
+            <span className="text-xs text-green-600 font-medium">✓ נשמר</span>
+          ) : isSaved ? (
+            <span className="text-xs text-amber-600 font-medium">נשמר — חסר טקסט</span>
+          ) : (
+            <span className="text-xs text-gray-400">—</span>
+          )
+
+          return (
+            <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-4">
+              <div className="flex items-center justify-between mb-4">
+                <p className="font-semibold text-gray-800">{actor.actorName}</p>
+                {statusEl}
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                {ASPECTS.map(({ key: aspect, label, desc }) => {
+                  const currentColor = getColor(slot, aspect)
+                  const currentText  = getText(slot, aspect)
+                  return (
+                    <div key={aspect} className="space-y-2">
+                      <p className="text-xs font-semibold text-gray-700 uppercase tracking-wide mb-0.5">
+                        {label}
+                      </p>
+                      <p className="text-xs text-gray-400 leading-snug mb-1">{desc}</p>
+
+                      <div className="flex gap-1.5">
+                        {RAG_OPTIONS.map((opt) => {
+                          const isActive = currentColor === opt.value
+                          return (
+                            <button
+                              key={opt.value}
+                              onClick={() => handleColorChange(roomId, actor.actorId, aspect, opt.value)}
+                              className={`flex-1 text-xs py-1.5 rounded-md font-medium transition-all ${
+                                isActive ? opt.activeClasses : opt.inactiveClasses
+                              }`}
+                            >
+                              {opt.label}
+                            </button>
+                          )
+                        })}
+                      </div>
+
+                      <textarea
+                        rows={2}
+                        value={currentText}
+                        placeholder="הערות..."
+                        onChange={(e) => handleTextChange(roomId, actor.actorId, aspect, e.target.value)}
+                        onBlur={() => handleTextBlur(roomId, actor.actorId)}
+                        className={`w-full text-sm border rounded-md px-2 py-1.5 resize-none focus:outline-none focus:ring-2 focus:ring-brand-blue/40 placeholder:text-gray-300 transition-colors ${TEXTAREA_BORDER[currentColor]}`}
+                      />
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          )
+        }
+
+        return (
+          <>
+            {/* Director section */}
+            {workshop.director && (
+              <section className="mb-10">
+                <h2 className="text-lg font-semibold text-gray-700 border-b border-gray-200 pb-2 mb-4">
+                  במאי/ת הסדנה
+                </h2>
+                <ActorCard actor={workshop.director} roomId={null} />
+              </section>
             )}
-          </h2>
 
-          {room.actors.length === 0 && (
-            <p className="text-sm text-gray-400 pr-2">אין שחקנים בחדר זה</p>
-          )}
+            {/* Rooms */}
+            {workshop.rooms.length === 0 && !workshop.director && (
+              <p className="text-gray-500 text-center py-12">אין חדרים פעילים בסדנה זו</p>
+            )}
 
-          <div className="space-y-6">
-            {room.actors.map((actor) => {
-              const key  = slotKey(room.id, actor.actorId)
-              const slot = slots.get(key)
-              if (!slot) return null
+            {workshop.rooms.map((room) => (
+              <section key={room.id} className="mb-10">
+                <h2 className="text-lg font-semibold text-gray-700 border-b border-gray-200 pb-2 mb-4">
+                  חדר {room.roomNumber}
+                  {room.facilitatorName && (
+                    <span className="text-gray-400 font-normal text-base mr-2">
+                      — {room.facilitatorName}
+                    </span>
+                  )}
+                </h2>
 
-              const isSaved    = slot.saved || !!slot.feedbackId
-              const isComplete = isSaved && hasAnyText(slot)
-              const statusEl = slot.saving ? (
-                <span className="text-xs text-amber-500 font-medium">שומר...</span>
-              ) : isComplete ? (
-                <span className="text-xs text-green-600 font-medium">✓ נשמר</span>
-              ) : isSaved ? (
-                <span className="text-xs text-amber-600 font-medium">נשמר — חסר טקסט</span>
-              ) : (
-                <span className="text-xs text-gray-400">—</span>
-              )
+                {room.actors.length === 0 && (
+                  <p className="text-sm text-gray-400 pr-2">אין שחקנים בחדר זה</p>
+                )}
 
-              return (
-                <div
-                  key={actor.actorId}
-                  className="bg-white rounded-xl border border-gray-200 shadow-sm p-4"
-                >
-                  {/* Actor header */}
-                  <div className="flex items-center justify-between mb-4">
-                    <p className="font-semibold text-gray-800">{actor.actorName}</p>
-                    {statusEl}
-                  </div>
-
-                  {/* 2-column grid of aspects */}
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    {ASPECTS.map(({ key: aspect, label, desc }) => {
-                      const currentColor = getColor(slot, aspect)
-                      const currentText  = getText(slot, aspect)
-
-                      return (
-                        <div key={aspect} className="space-y-2">
-                          <p className="text-xs font-semibold text-gray-700 uppercase tracking-wide mb-0.5">
-                            {label}
-                          </p>
-                          <p className="text-xs text-gray-400 leading-snug mb-1">{desc}</p>
-
-                          {/* RAG picker */}
-                          <div className="flex gap-1.5">
-                            {RAG_OPTIONS.map((opt) => {
-                              const isActive = currentColor === opt.value
-                              return (
-                                <button
-                                  key={opt.value}
-                                  onClick={() =>
-                                    handleColorChange(room.id, actor.actorId, aspect, opt.value)
-                                  }
-                                  className={`flex-1 text-xs py-1.5 rounded-md font-medium transition-all ${
-                                    isActive ? opt.activeClasses : opt.inactiveClasses
-                                  }`}
-                                >
-                                  {opt.label}
-                                </button>
-                              )
-                            })}
-                          </div>
-
-                          {/* Text area — bg reflects selected RAG color */}
-                          <textarea
-                            rows={2}
-                            value={currentText}
-                            placeholder="הערות..."
-                            onChange={(e) =>
-                              handleTextChange(room.id, actor.actorId, aspect, e.target.value)
-                            }
-                            onBlur={() => handleTextBlur(room.id, actor.actorId)}
-                            className={`w-full text-sm border rounded-md px-2 py-1.5 resize-none focus:outline-none focus:ring-2 focus:ring-brand-blue/40 placeholder:text-gray-300 transition-colors ${TEXTAREA_BORDER[currentColor]}`}
-                          />
-                        </div>
-                      )
-                    })}
-                  </div>
+                <div className="space-y-6">
+                  {room.actors.map((actor) => (
+                    <ActorCard key={actor.actorId} actor={actor} roomId={room.id} />
+                  ))}
                 </div>
-              )
-            })}
-          </div>
-        </section>
-      ))}
+              </section>
+            ))}
+          </>
+        )
+      })()}
     </div>
   )
 }

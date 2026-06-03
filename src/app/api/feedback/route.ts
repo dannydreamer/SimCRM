@@ -7,6 +7,11 @@ function allowed(roles: string[]) {
   return roles.includes("MANAGER") || roles.includes("FEEDBACK_DOCUMENTER")
 }
 
+// Consistent key for fbMap: null roomId (director) uses literal "null"
+function fbKey(roomId: string | null, actorId: string) {
+  return `${roomId}:${actorId}`
+}
+
 export async function GET(req: NextRequest) {
   const session = await getServerSession(authOptions)
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
@@ -33,6 +38,11 @@ export async function GET(req: NextRequest) {
           },
         },
       },
+      // Director casting — at most one per workshop, no roomId
+      castings: {
+        where: { isDirector: true },
+        include: { actor: { select: { id: true, name: true } } },
+      },
       feedbacks: {
         select: {
           id: true, actorId: true, roomId: true,
@@ -47,13 +57,37 @@ export async function GET(req: NextRequest) {
 
   if (!workshop) return NextResponse.json({ error: "Not found" }, { status: 404 })
 
-  const fbMap = new Map(workshop.feedbacks.map((f) => [`${f.roomId}:${f.actorId}`, f]))
+  const fbMap = new Map(workshop.feedbacks.map((f) => [fbKey(f.roomId, f.actorId), f]))
+
+  function actorFeedback(roomId: string | null, actorId: string, actorName: string) {
+    const fb = fbMap.get(fbKey(roomId, actorId))
+    return {
+      actorId,
+      actorName,
+      feedbackId:   fb?.id ?? null,
+      aspect1Color: fb?.aspect1PrepColor          ?? "GREEN",
+      aspect1Text:  fb?.aspect1PrepText           ?? "",
+      aspect2Color: fb?.aspect2SimColor           ?? "GREEN",
+      aspect2Text:  fb?.aspect2SimText            ?? "",
+      aspect3Color: fb?.aspect3ReflectionColor    ?? "GREEN",
+      aspect3Text:  fb?.aspect3ReflectionText     ?? "",
+      aspect4Color: fb?.aspect4ProfessionalColor  ?? "GREEN",
+      aspect4Text:  fb?.aspect4ProfessionalText   ?? "",
+    }
+  }
+
+  // Director (null roomId)
+  const directorCasting = workshop.castings[0] ?? null
+  const director = directorCasting
+    ? actorFeedback(null, directorCasting.actor.id, directorCasting.actor.name)
+    : null
 
   return NextResponse.json({
     id:        workshop.id,
     date:      workshop.date.toISOString(),
     groupName: workshop.participantGroup.name,
     orgName:   workshop.participantGroup.organization.name,
+    director,
     rooms: workshop.rooms.map((room) => {
       // Deduplicate actors per room — actor may appear in multiple scenarios
       const actorMap = new Map<string, { id: string; name: string }>()
@@ -63,22 +97,9 @@ export async function GET(req: NextRequest) {
         id:              room.id,
         roomNumber:      room.roomNumber,
         facilitatorName: room.facilitator?.name ?? null,
-        actors: Array.from(actorMap.values()).map((actor) => {
-          const fb = fbMap.get(`${room.id}:${actor.id}`)
-          return {
-            actorId:   actor.id,
-            actorName: actor.name,
-            feedbackId:   fb?.id ?? null,
-            aspect1Color: fb?.aspect1PrepColor          ?? "GREEN",
-            aspect1Text:  fb?.aspect1PrepText           ?? "",
-            aspect2Color: fb?.aspect2SimColor           ?? "GREEN",
-            aspect2Text:  fb?.aspect2SimText            ?? "",
-            aspect3Color: fb?.aspect3ReflectionColor    ?? "GREEN",
-            aspect3Text:  fb?.aspect3ReflectionText     ?? "",
-            aspect4Color: fb?.aspect4ProfessionalColor  ?? "GREEN",
-            aspect4Text:  fb?.aspect4ProfessionalText   ?? "",
-          }
-        }),
+        actors: Array.from(actorMap.values()).map((actor) =>
+          actorFeedback(room.id, actor.id, actor.name)
+        ),
       }
     }),
   })
@@ -91,15 +112,15 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 })
 
   const {
-    workshopId, roomId, actorId,
+    workshopId, roomId = null, actorId,
     aspect1Color = "GREEN", aspect1Text,
     aspect2Color = "GREEN", aspect2Text,
     aspect3Color = "GREEN", aspect3Text,
     aspect4Color = "GREEN", aspect4Text,
   } = await req.json()
 
-  if (!workshopId || !roomId || !actorId)
-    return NextResponse.json({ error: "workshopId, roomId, actorId required" }, { status: 400 })
+  if (!workshopId || !actorId)
+    return NextResponse.json({ error: "workshopId, actorId required" }, { status: 400 })
 
   const updateData = {
     aspect1PrepColor:         aspect1Color,
@@ -115,7 +136,7 @@ export async function POST(req: NextRequest) {
   }
 
   const existing = await prisma.feedback.findFirst({
-    where: { workshopId, roomId, actorId },
+    where: { workshopId, roomId: roomId ?? null, actorId },
     select: { id: true },
   })
 
@@ -126,7 +147,7 @@ export async function POST(req: NextRequest) {
         select: { id: true },
       })
     : await prisma.feedback.create({
-        data:   { workshopId, roomId, actorId, ...updateData },
+        data:   { workshopId, roomId: roomId ?? null, actorId, ...updateData },
         select: { id: true },
       })
 
