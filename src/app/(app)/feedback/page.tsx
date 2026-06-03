@@ -396,10 +396,14 @@ function FeedbackPageInner() {
               const slot = slots.get(key)
               if (!slot) return null
 
+              const isSaved    = slot.saved || !!slot.feedbackId
+              const isComplete = isSaved && hasAnyText(slot)
               const statusEl = slot.saving ? (
                 <span className="text-xs text-amber-500 font-medium">שומר...</span>
-              ) : slot.saved || slot.feedbackId ? (
+              ) : isComplete ? (
                 <span className="text-xs text-green-600 font-medium">✓ נשמר</span>
+              ) : isSaved ? (
+                <span className="text-xs text-amber-600 font-medium">נשמר — חסר טקסט</span>
               ) : (
                 <span className="text-xs text-gray-400">—</span>
               )
