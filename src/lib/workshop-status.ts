@@ -43,7 +43,13 @@ export async function checkAndAdvanceStatus(workshopId: string): Promise<string 
         },
         select: { isDirector: true, roomId: true, actorId: true },
       },
-      feedbacks: { select: { actorId: true, roomId: true } },
+      feedbacks: {
+        select: {
+          actorId: true, roomId: true,
+          aspect1PrepText: true, aspect2SimText: true,
+          aspect3ReflectionText: true, aspect4ProfessionalText: true,
+        },
+      },
     },
   })
 
@@ -76,7 +82,9 @@ export async function checkAndAdvanceStatus(workshopId: string): Promise<string 
     return allPpt && castingComplete && feedbackDone
   }
 
-  // ── Helper: all expected feedback records have been entered ──────────────
+  // ── Helper: all expected feedback records have been entered with text ────
+  // A feedback record only counts as complete when at least one aspect has
+  // free text written — default green with no text is considered incomplete.
   function feedbackComplete(): boolean {
     const activeRoomIds = new Set(w!.rooms.map((r) => r.id))
     const expected = new Set(
@@ -87,7 +95,12 @@ export async function checkAndAdvanceStatus(workshopId: string): Promise<string 
     if (expected.size === 0) return true // no actors cast → nothing required
     const entered = new Set(
       w!.feedbacks
-        .filter((f) => f.roomId && activeRoomIds.has(f.roomId))
+        .filter((f) =>
+          f.roomId &&
+          activeRoomIds.has(f.roomId) &&
+          (f.aspect1PrepText?.trim() || f.aspect2SimText?.trim() ||
+           f.aspect3ReflectionText?.trim() || f.aspect4ProfessionalText?.trim())
+        )
         .map((f) => `${f.roomId}:${f.actorId}`)
     )
     return [...expected].every((k) => entered.has(k))

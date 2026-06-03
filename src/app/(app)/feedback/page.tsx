@@ -297,7 +297,13 @@ function FeedbackPageInner() {
 
   // ── Progress ──
   const totalActors = workshop?.rooms.reduce((sum, r) => sum + r.actors.length, 0) ?? 0
-  const savedActors = Array.from(slots.values()).filter((s) => s.saved || s.feedbackId !== null).length
+  // Complete = saved to server AND at least one aspect has text
+  const hasAnyText = (s: SlotState) =>
+    s.aspect1Text.trim() !== "" || s.aspect2Text.trim() !== "" ||
+    s.aspect3Text.trim() !== "" || s.aspect4Text.trim() !== ""
+  const savedActors = Array.from(slots.values()).filter(
+    (s) => (s.saved || s.feedbackId !== null) && hasAnyText(s)
+  ).length
 
   // ── Render helpers ──
   const formatDate = (iso: string) =>
@@ -358,6 +364,11 @@ function FeedbackPageInner() {
           </div>
         </div>
       </div>
+
+      {/* Info note */}
+      <p className="text-sm text-gray-500 bg-blue-50 border border-blue-100 rounded-lg px-4 py-2.5 mb-6">
+        פידבק ייחשב כמלא לאחר מילוי טקסט לפחות בהיבט אחד
+      </p>
 
       {/* Rooms */}
       {workshop.rooms.length === 0 && (

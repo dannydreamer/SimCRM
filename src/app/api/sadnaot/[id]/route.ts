@@ -47,7 +47,13 @@ export async function GET(
       castings: {
         include: { actor: { select: { id: true, name: true } } },
       },
-      feedbacks: { select: { actorId: true, roomId: true } },
+      feedbacks: {
+        select: {
+          actorId: true, roomId: true,
+          aspect1PrepText: true, aspect2SimText: true,
+          aspect3ReflectionText: true, aspect4ProfessionalText: true,
+        },
+      },
     },
   })
 
@@ -62,7 +68,12 @@ export async function GET(
   )
   const enteredActorRooms = new Set(
     w.feedbacks
-      .filter((f) => f.roomId && activeRoomIds.has(f.roomId))
+      .filter((f) =>
+        f.roomId &&
+        activeRoomIds.has(f.roomId) &&
+        (f.aspect1PrepText?.trim() || f.aspect2SimText?.trim() ||
+         f.aspect3ReflectionText?.trim() || f.aspect4ProfessionalText?.trim())
+      )
       .map((f) => `${f.roomId}:${f.actorId}`)
   )
 

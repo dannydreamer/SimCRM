@@ -50,7 +50,10 @@ export async function GET(
 
   if (!actor) return NextResponse.json({ error: "Not found" }, { status: 404 })
 
-  const lastDate = actor.castings[0]?.workshop.date?.toISOString() ?? null
+  // lastDate = most recent PAST workshop date (not future, not feedback date)
+  const today = new Date(); today.setHours(23, 59, 59, 999)
+  const pastCastings = actor.castings.filter((c) => new Date(c.workshop.date) <= today)
+  const lastDate = pastCastings[0]?.workshop.date?.toISOString() ?? null
   const workshopCount = new Set(actor.castings.map((c) => c.workshop)).size
 
   return NextResponse.json({
