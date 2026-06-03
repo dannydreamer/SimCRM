@@ -10,8 +10,8 @@ import { WorkshopStatus } from "@prisma/client"
  *  SPECIFIED → READY    : all PPT received + casting fully complete + feedback form added
  *  READY     → SPECIFIED: any of the three READY conditions becomes unmet (before date)
  *  READY     → CLOSING  : workshop date has passed
- *  CLOSING   → CLOSED   : all rooms have letterReceived
- *  CLOSED    → CLOSING  : any room loses letterReceived
+ *  CLOSING   → CLOSED   : all rooms have letterReceived AND feedback complete
+ *  CLOSED    → CLOSING  : any room loses letterReceived OR feedback becomes incomplete
  *
  * Returns the new status string if a change occurred, otherwise null.
  */
@@ -28,7 +28,7 @@ export async function checkAndAdvanceStatus(workshopId: string): Promise<string 
       feedbackFormAdded: true,
       rooms: {
         where: { cancelled: false },
-        select: { pptReceived: true, letterReceived: true },
+        select: { id: true, pptReceived: true, letterReceived: true },
       },
       scenarios: {
         where: { cancelled: false },
@@ -41,8 +41,9 @@ export async function checkAndAdvanceStatus(workshopId: string): Promise<string 
             { room: { cancelled: false } },
           ],
         },
-        select: { isDirector: true },
+        select: { isDirector: true, roomId: true, actorId: true },
       },
+      feedbacks: { select: { actorId: true, roomId: true } },
     },
   })
 
@@ -75,6 +76,23 @@ export async function checkAndAdvanceStatus(workshopId: string): Promise<string 
     return allPpt && castingComplete && feedbackDone
   }
 
+  // ── Helper: all expected feedback records have been entered ──────────────
+  function feedbackComplete(): boolean {
+    const activeRoomIds = new Set(w!.rooms.map((r) => r.id))
+    const expected = new Set(
+      w!.castings
+        .filter((c) => !c.isDirector && c.roomId && activeRoomIds.has(c.roomId!))
+        .map((c) => `${c.roomId}:${c.actorId}`)
+    )
+    if (expected.size === 0) return true // no actors cast → nothing required
+    const entered = new Set(
+      w!.feedbacks
+        .filter((f) => f.roomId && activeRoomIds.has(f.roomId))
+        .map((f) => `${f.roomId}:${f.actorId}`)
+    )
+    return [...expected].every((k) => entered.has(k))
+  }
+
   let newStatus: string | null = null
 
   if (w.status === "SPECIFIED") {
@@ -91,13 +109,13 @@ export async function checkAndAdvanceStatus(workshopId: string): Promise<string 
   } else if (w.status === "CLOSING") {
     const hasRooms   = w.rooms.length > 0
     const allLetters = hasRooms && w.rooms.every((r) => r.letterReceived)
-    if (allLetters) newStatus = "CLOSED"
+    if (allLetters && feedbackComplete()) newStatus = "CLOSED"
 
   } else if (w.status === "CLOSED") {
-    // Regression: a letter was unchecked
+    // Regression: a letter was unchecked or feedback became incomplete
     const hasRooms   = w.rooms.length > 0
     const allLetters = hasRooms && w.rooms.every((r) => r.letterReceived)
-    if (!allLetters) newStatus = "CLOSING"
+    if (!allLetters || !feedbackComplete()) newStatus = "CLOSING"
   }
 
   if (newStatus) {

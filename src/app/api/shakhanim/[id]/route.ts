@@ -37,7 +37,7 @@ export async function GET(
           },
         },
         developmentLogs: {
-          orderBy: { date: "desc" },
+          orderBy: { date: "asc" },
           include: { enteredBy: { select: { name: true } } },
         },
       }),

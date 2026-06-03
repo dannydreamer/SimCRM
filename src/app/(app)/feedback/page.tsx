@@ -57,7 +57,7 @@ const ASPECTS = [
   {
     key:   "aspect2",
     label: "השחקן כסימולטור",
-    desc:  "האם הגיב/ה באמינות? קידם/ה את המתאמן לעבר נקודות התחקיר? נצמד לרפליקות? מתי לרכך ומתי לאתגר?",
+    desc:  "האם הגיב/ה באמינות? קידם/ה את המתאמן לעבר נקודות התחקיר? נצמד לרפליקות? ידע מתי לרכך ומתי לאתגר?",
   },
   {
     key:   "aspect3",
@@ -73,16 +73,31 @@ const ASPECTS = [
 
 type AspectKey = (typeof ASPECTS)[number]["key"]
 
-const RAG_OPTIONS: { value: RagColor; label: string; classes: string }[] = [
-  { value: "RED",    label: "אדום",  classes: "bg-red-500 text-white" },
-  { value: "YELLOW", label: "צהוב",  classes: "bg-amber-400 text-white" },
-  { value: "GREEN",  label: "ירוק",  classes: "bg-brand-green text-white" },
+const RAG_OPTIONS: { value: RagColor; label: string; activeClasses: string; inactiveClasses: string }[] = [
+  {
+    value:          "RED",
+    label:          "🔴 חמור — דרושה התערבות",
+    activeClasses:  "bg-red-500 text-white",
+    inactiveClasses:"bg-red-50 text-red-700 hover:bg-red-100",
+  },
+  {
+    value:          "YELLOW",
+    label:          "🟡 בעייתי — דרוש מעקב",
+    activeClasses:  "bg-amber-400 text-white",
+    inactiveClasses:"bg-amber-50 text-amber-700 hover:bg-amber-100",
+  },
+  {
+    value:          "GREEN",
+    label:          "🟢 עומד בסטנדרט",
+    activeClasses:  "bg-brand-green text-white",
+    inactiveClasses:"bg-green-50 text-green-700 hover:bg-green-100",
+  },
 ]
 
-const RAG_INACTIVE: Record<RagColor, string> = {
-  RED:    "bg-red-100 text-red-600 hover:bg-red-200",
-  YELLOW: "bg-amber-100 text-amber-600 hover:bg-amber-200",
-  GREEN:  "bg-green-100 text-green-700 hover:bg-green-200",
+const TEXTAREA_BG: Record<RagColor, string> = {
+  RED:    "bg-red-50",
+  YELLOW: "bg-amber-50",
+  GREEN:  "bg-green-50",
 }
 
 function slotKey(roomId: string, actorId: string) {
@@ -403,7 +418,7 @@ function FeedbackPageInner() {
                           <p className="text-xs text-gray-400 leading-snug mb-1">{desc}</p>
 
                           {/* RAG picker */}
-                          <div className="flex gap-1.5">
+                          <div className="flex flex-col gap-1">
                             {RAG_OPTIONS.map((opt) => {
                               const isActive = currentColor === opt.value
                               return (
@@ -412,10 +427,8 @@ function FeedbackPageInner() {
                                   onClick={() =>
                                     handleColorChange(room.id, actor.actorId, aspect, opt.value)
                                   }
-                                  className={`flex-1 text-xs py-1.5 rounded-md font-medium transition-all ${
-                                    isActive
-                                      ? opt.classes
-                                      : RAG_INACTIVE[opt.value]
+                                  className={`w-full text-xs text-right px-2.5 py-1.5 rounded-md font-medium transition-all ${
+                                    isActive ? opt.activeClasses : opt.inactiveClasses
                                   }`}
                                 >
                                   {opt.label}
@@ -424,7 +437,7 @@ function FeedbackPageInner() {
                             })}
                           </div>
 
-                          {/* Text area */}
+                          {/* Text area — bg reflects selected RAG color */}
                           <textarea
                             rows={2}
                             value={currentText}
@@ -433,7 +446,7 @@ function FeedbackPageInner() {
                               handleTextChange(room.id, actor.actorId, aspect, e.target.value)
                             }
                             onBlur={() => handleTextBlur(room.id, actor.actorId)}
-                            className="w-full text-sm border border-gray-200 rounded-md px-2 py-1.5 resize-none focus:outline-none focus:ring-2 focus:ring-brand-blue/40 placeholder:text-gray-300"
+                            className={`w-full text-sm border border-gray-200 rounded-md px-2 py-1.5 resize-none focus:outline-none focus:ring-2 focus:ring-brand-blue/40 placeholder:text-gray-300 transition-colors ${TEXTAREA_BG[currentColor]}`}
                           />
                         </div>
                       )
