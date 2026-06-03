@@ -94,10 +94,10 @@ const RAG_OPTIONS: { value: RagColor; label: string; activeClasses: string; inac
   },
 ]
 
-const TEXTAREA_BG: Record<RagColor, string> = {
-  RED:    "bg-red-50",
-  YELLOW: "bg-amber-50",
-  GREEN:  "bg-green-50",
+const TEXTAREA_BORDER: Record<RagColor, string> = {
+  RED:    "border-red-300",
+  YELLOW: "border-amber-300",
+  GREEN:  "border-green-300",
 }
 
 function slotKey(roomId: string, actorId: string) {
@@ -457,7 +457,7 @@ function FeedbackPageInner() {
                               handleTextChange(room.id, actor.actorId, aspect, e.target.value)
                             }
                             onBlur={() => handleTextBlur(room.id, actor.actorId)}
-                            className={`w-full text-sm border border-gray-200 rounded-md px-2 py-1.5 resize-none focus:outline-none focus:ring-2 focus:ring-brand-blue/40 placeholder:text-gray-300 transition-colors ${TEXTAREA_BG[currentColor]}`}
+                            className={`w-full text-sm border rounded-md px-2 py-1.5 resize-none focus:outline-none focus:ring-2 focus:ring-brand-blue/40 placeholder:text-gray-300 transition-colors ${TEXTAREA_BORDER[currentColor]}`}
                           />
                         </div>
                       )
