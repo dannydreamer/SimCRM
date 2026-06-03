@@ -1438,14 +1438,14 @@ export default function WorkshopDetailPage() {
 
         {/* Feedback shortcut */}
         <div className="flex items-center gap-3 flex-wrap">
-          {w.status === "CLOSING" ? (
+          {(w.status === "CLOSING" || w.status === "CLOSED") ? (
             <Link href={`/feedback?workshopId=${id}`}
               className="px-5 py-2.5 bg-brand-green text-white text-sm font-medium rounded-lg hover:bg-brand-green/90 transition-colors">
               הזנת פידבק לסדנה זו
             </Link>
           ) : (
             <span
-              title="הזנת פידבק זמינה רק כשהסדנה בתהליך סגירה"
+              title="הזנת פידבק זמינה החל מבתהליך סגירה"
               className="px-5 py-2.5 bg-gray-200 text-gray-400 text-sm font-medium rounded-lg cursor-not-allowed select-none">
               הזנת פידבק לסדנה זו
             </span>
