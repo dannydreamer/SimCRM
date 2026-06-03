@@ -63,14 +63,13 @@ export async function GET(
   const activeRoomIds = new Set(w.rooms.filter((r) => !r.cancelled).map((r) => r.id))
   const expectedActorRooms = new Set(
     w.castings
-      .filter((c) => !c.isDirector && c.roomId && activeRoomIds.has(c.roomId))
+      .filter((c) => c.isDirector || (c.roomId && activeRoomIds.has(c.roomId)))
       .map((c) => `${c.roomId}:${c.actorId}`)
   )
   const enteredActorRooms = new Set(
     w.feedbacks
       .filter((f) =>
-        f.roomId &&
-        activeRoomIds.has(f.roomId) &&
+        (f.roomId === null || activeRoomIds.has(f.roomId)) &&
         (f.aspect1PrepText?.trim() || f.aspect2SimText?.trim() ||
          f.aspect3ReflectionText?.trim() || f.aspect4ProfessionalText?.trim())
       )

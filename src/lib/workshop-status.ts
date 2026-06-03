@@ -89,15 +89,14 @@ export async function checkAndAdvanceStatus(workshopId: string): Promise<string 
     const activeRoomIds = new Set(w!.rooms.map((r) => r.id))
     const expected = new Set(
       w!.castings
-        .filter((c) => !c.isDirector && c.roomId && activeRoomIds.has(c.roomId!))
+        .filter((c) => c.isDirector || (c.roomId && activeRoomIds.has(c.roomId!)))
         .map((c) => `${c.roomId}:${c.actorId}`)
     )
     if (expected.size === 0) return true // no actors cast → nothing required
     const entered = new Set(
       w!.feedbacks
         .filter((f) =>
-          f.roomId &&
-          activeRoomIds.has(f.roomId) &&
+          (f.roomId === null || activeRoomIds.has(f.roomId)) &&
           (f.aspect1PrepText?.trim() || f.aspect2SimText?.trim() ||
            f.aspect3ReflectionText?.trim() || f.aspect4ProfessionalText?.trim())
         )

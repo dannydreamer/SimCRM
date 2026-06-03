@@ -152,6 +152,88 @@ function setAspectText(s: SlotState, a: AspectKey, v: string): SlotState {
   }
 }
 
+// ─── Stable module-level helpers (must NOT be inside render) ────────────────
+
+export function hasAnyText(s: SlotState): boolean {
+  return s.aspect1Text.trim() !== "" || s.aspect2Text.trim() !== "" ||
+         s.aspect3Text.trim() !== "" || s.aspect4Text.trim() !== ""
+}
+
+interface ActorCardProps {
+  actor:         ActorRow
+  roomId:        string | null
+  slot:          SlotState | undefined
+  onColorChange: (roomId: string | null, actorId: string, aspect: AspectKey, value: RagColor) => void
+  onTextChange:  (roomId: string | null, actorId: string, aspect: AspectKey, value: string) => void
+  onTextBlur:    (roomId: string | null, actorId: string) => void
+}
+
+function ActorCard({ actor, roomId, slot, onColorChange, onTextChange, onTextBlur }: ActorCardProps) {
+  if (!slot) return null
+
+  const isSaved    = slot.saved || !!slot.feedbackId
+  const isComplete = isSaved && hasAnyText(slot)
+  const statusEl = slot.saving ? (
+    <span className="text-xs text-amber-500 font-medium">שומר...</span>
+  ) : isComplete ? (
+    <span className="text-xs text-green-600 font-medium">✓ נשמר</span>
+  ) : isSaved ? (
+    <span className="text-xs text-amber-600 font-medium">נשמר — חסר טקסט</span>
+  ) : (
+    <span className="text-xs text-gray-400">—</span>
+  )
+
+  return (
+    <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-4">
+      <div className="flex items-center justify-between mb-4">
+        <p className="font-semibold text-gray-800">{actor.actorName}</p>
+        {statusEl}
+      </div>
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        {ASPECTS.map(({ key: aspect, label, desc }) => {
+          const currentColor = getColor(slot, aspect)
+          const currentText  = getText(slot, aspect)
+          return (
+            <div key={aspect} className="space-y-2">
+              <p className="text-xs font-semibold text-gray-700 uppercase tracking-wide mb-0.5">
+                {label}
+              </p>
+              <p className="text-xs text-gray-400 leading-snug mb-1">{desc}</p>
+
+              <div className="flex gap-1.5">
+                {RAG_OPTIONS.map((opt) => {
+                  const isActive = currentColor === opt.value
+                  return (
+                    <button
+                      key={opt.value}
+                      onClick={() => onColorChange(roomId, actor.actorId, aspect, opt.value)}
+                      className={`flex-1 text-xs py-1.5 rounded-md font-medium transition-all ${
+                        isActive ? opt.activeClasses : opt.inactiveClasses
+                      }`}
+                    >
+                      {opt.label}
+                    </button>
+                  )
+                })}
+              </div>
+
+              <textarea
+                rows={2}
+                value={currentText}
+                placeholder="הערות..."
+                onChange={(e) => onTextChange(roomId, actor.actorId, aspect, e.target.value)}
+                onBlur={() => onTextBlur(roomId, actor.actorId)}
+                className={`w-full text-sm border rounded-md px-2 py-1.5 resize-none focus:outline-none focus:ring-2 focus:ring-brand-blue/40 placeholder:text-gray-300 transition-colors ${TEXTAREA_BORDER[currentColor]}`}
+              />
+            </div>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
 // ─── Inner component (needs useSearchParams) ─────────────────────────────────
 
 function FeedbackPageInner() {
@@ -300,11 +382,9 @@ function FeedbackPageInner() {
   )
 
   // ── Progress ──
-  const totalActors = workshop?.rooms.reduce((sum, r) => sum + r.actors.length, 0) ?? 0
-  // Complete = saved to server AND at least one aspect has text
-  const hasAnyText = (s: SlotState) =>
-    s.aspect1Text.trim() !== "" || s.aspect2Text.trim() !== "" ||
-    s.aspect3Text.trim() !== "" || s.aspect4Text.trim() !== ""
+  const totalActors = workshop
+    ? workshop.rooms.reduce((sum, r) => sum + r.actors.length, 0) + (workshop.director ? 1 : 0)
+    : 0
   const savedActors = Array.from(slots.values()).filter(
     (s) => (s.saved || s.feedbackId !== null) && hasAnyText(s)
   ).length
@@ -374,118 +454,58 @@ function FeedbackPageInner() {
         פידבק ייחשב כמלא לאחר מילוי טקסט לפחות בהיבט אחד
       </p>
 
-      {/* ── Shared actor card renderer ── */}
-      {(() => {
-        function ActorCard({ actor, roomId }: { actor: ActorRow; roomId: string | null }) {
-          const key  = slotKey(roomId, actor.actorId)
-          const slot = slots.get(key)
-          if (!slot) return null
+      {/* Director section */}
+      {workshop.director && (
+        <section className="mb-10">
+          <h2 className="text-lg font-semibold text-gray-700 border-b border-gray-200 pb-2 mb-4">
+            במאי/ת הסדנה
+          </h2>
+          <ActorCard
+            actor={workshop.director}
+            roomId={null}
+            slot={slots.get(slotKey(null, workshop.director.actorId))}
+            onColorChange={handleColorChange}
+            onTextChange={handleTextChange}
+            onTextBlur={handleTextBlur}
+          />
+        </section>
+      )}
 
-          const isSaved    = slot.saved || !!slot.feedbackId
-          const isComplete = isSaved && hasAnyText(slot)
-          const statusEl = slot.saving ? (
-            <span className="text-xs text-amber-500 font-medium">שומר...</span>
-          ) : isComplete ? (
-            <span className="text-xs text-green-600 font-medium">✓ נשמר</span>
-          ) : isSaved ? (
-            <span className="text-xs text-amber-600 font-medium">נשמר — חסר טקסט</span>
-          ) : (
-            <span className="text-xs text-gray-400">—</span>
-          )
+      {/* Rooms */}
+      {workshop.rooms.length === 0 && !workshop.director && (
+        <p className="text-gray-500 text-center py-12">אין חדרים פעילים בסדנה זו</p>
+      )}
 
-          return (
-            <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-4">
-              <div className="flex items-center justify-between mb-4">
-                <p className="font-semibold text-gray-800">{actor.actorName}</p>
-                {statusEl}
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                {ASPECTS.map(({ key: aspect, label, desc }) => {
-                  const currentColor = getColor(slot, aspect)
-                  const currentText  = getText(slot, aspect)
-                  return (
-                    <div key={aspect} className="space-y-2">
-                      <p className="text-xs font-semibold text-gray-700 uppercase tracking-wide mb-0.5">
-                        {label}
-                      </p>
-                      <p className="text-xs text-gray-400 leading-snug mb-1">{desc}</p>
-
-                      <div className="flex gap-1.5">
-                        {RAG_OPTIONS.map((opt) => {
-                          const isActive = currentColor === opt.value
-                          return (
-                            <button
-                              key={opt.value}
-                              onClick={() => handleColorChange(roomId, actor.actorId, aspect, opt.value)}
-                              className={`flex-1 text-xs py-1.5 rounded-md font-medium transition-all ${
-                                isActive ? opt.activeClasses : opt.inactiveClasses
-                              }`}
-                            >
-                              {opt.label}
-                            </button>
-                          )
-                        })}
-                      </div>
-
-                      <textarea
-                        rows={2}
-                        value={currentText}
-                        placeholder="הערות..."
-                        onChange={(e) => handleTextChange(roomId, actor.actorId, aspect, e.target.value)}
-                        onBlur={() => handleTextBlur(roomId, actor.actorId)}
-                        className={`w-full text-sm border rounded-md px-2 py-1.5 resize-none focus:outline-none focus:ring-2 focus:ring-brand-blue/40 placeholder:text-gray-300 transition-colors ${TEXTAREA_BORDER[currentColor]}`}
-                      />
-                    </div>
-                  )
-                })}
-              </div>
-            </div>
-          )
-        }
-
-        return (
-          <>
-            {/* Director section */}
-            {workshop.director && (
-              <section className="mb-10">
-                <h2 className="text-lg font-semibold text-gray-700 border-b border-gray-200 pb-2 mb-4">
-                  במאי/ת הסדנה
-                </h2>
-                <ActorCard actor={workshop.director} roomId={null} />
-              </section>
+      {workshop.rooms.map((room) => (
+        <section key={room.id} className="mb-10">
+          <h2 className="text-lg font-semibold text-gray-700 border-b border-gray-200 pb-2 mb-4">
+            חדר {room.roomNumber}
+            {room.facilitatorName && (
+              <span className="text-gray-400 font-normal text-base mr-2">
+                — {room.facilitatorName}
+              </span>
             )}
+          </h2>
 
-            {/* Rooms */}
-            {workshop.rooms.length === 0 && !workshop.director && (
-              <p className="text-gray-500 text-center py-12">אין חדרים פעילים בסדנה זו</p>
-            )}
+          {room.actors.length === 0 && (
+            <p className="text-sm text-gray-400 pr-2">אין שחקנים בחדר זה</p>
+          )}
 
-            {workshop.rooms.map((room) => (
-              <section key={room.id} className="mb-10">
-                <h2 className="text-lg font-semibold text-gray-700 border-b border-gray-200 pb-2 mb-4">
-                  חדר {room.roomNumber}
-                  {room.facilitatorName && (
-                    <span className="text-gray-400 font-normal text-base mr-2">
-                      — {room.facilitatorName}
-                    </span>
-                  )}
-                </h2>
-
-                {room.actors.length === 0 && (
-                  <p className="text-sm text-gray-400 pr-2">אין שחקנים בחדר זה</p>
-                )}
-
-                <div className="space-y-6">
-                  {room.actors.map((actor) => (
-                    <ActorCard key={actor.actorId} actor={actor} roomId={room.id} />
-                  ))}
-                </div>
-              </section>
+          <div className="space-y-6">
+            {room.actors.map((actor) => (
+              <ActorCard
+                key={actor.actorId}
+                actor={actor}
+                roomId={room.id}
+                slot={slots.get(slotKey(room.id, actor.actorId))}
+                onColorChange={handleColorChange}
+                onTextChange={handleTextChange}
+                onTextBlur={handleTextBlur}
+              />
             ))}
-          </>
-        )
-      })()}
+          </div>
+        </section>
+      ))}
     </div>
   )
 }
