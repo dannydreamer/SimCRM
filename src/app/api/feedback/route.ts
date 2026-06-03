@@ -136,7 +136,12 @@ export async function POST(req: NextRequest) {
   }
 
   const existing = await prisma.feedback.findFirst({
-    where: { workshopId, roomId: roomId ?? null, actorId },
+    where: {
+      workshopId,
+      actorId,
+      // Prisma 7 requires { equals: null } to match NULL on a nullable field
+      roomId: roomId != null ? roomId : { equals: null },
+    },
     select: { id: true },
   })
 
