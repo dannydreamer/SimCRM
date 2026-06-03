@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
+import { checkAndAdvanceStatus } from "@/lib/workshop-status"
 
 function allowed(roles: string[]) {
   return roles.includes("MANAGER") || roles.includes("FEEDBACK_DOCUMENTER")
@@ -155,6 +156,10 @@ export async function POST(req: NextRequest) {
         data:   { workshopId, roomId: roomId ?? null, actorId, ...updateData },
         select: { id: true },
       })
+
+  // Re-evaluate workshop status — editing feedback can advance CLOSING→CLOSED
+  // or revert CLOSED→CLOSING if a record is cleared of all text
+  await checkAndAdvanceStatus(workshopId)
 
   return NextResponse.json({ id: result.id })
 }
