@@ -76,19 +76,19 @@ type AspectKey = (typeof ASPECTS)[number]["key"]
 const RAG_OPTIONS: { value: RagColor; label: string; activeClasses: string; inactiveClasses: string }[] = [
   {
     value:          "RED",
-    label:          "🔴 חמור — דרושה התערבות",
+    label:          "חמור",
     activeClasses:  "bg-red-500 text-white",
     inactiveClasses:"bg-red-50 text-red-700 hover:bg-red-100",
   },
   {
     value:          "YELLOW",
-    label:          "🟡 בעייתי — דרוש מעקב",
+    label:          "במעקב",
     activeClasses:  "bg-amber-400 text-white",
     inactiveClasses:"bg-amber-50 text-amber-700 hover:bg-amber-100",
   },
   {
     value:          "GREEN",
-    label:          "🟢 עומד בסטנדרט",
+    label:          "תקין",
     activeClasses:  "bg-brand-green text-white",
     inactiveClasses:"bg-green-50 text-green-700 hover:bg-green-100",
   },
@@ -429,7 +429,7 @@ function FeedbackPageInner() {
                           <p className="text-xs text-gray-400 leading-snug mb-1">{desc}</p>
 
                           {/* RAG picker */}
-                          <div className="flex flex-col gap-1">
+                          <div className="flex gap-1.5">
                             {RAG_OPTIONS.map((opt) => {
                               const isActive = currentColor === opt.value
                               return (
@@ -438,7 +438,7 @@ function FeedbackPageInner() {
                                   onClick={() =>
                                     handleColorChange(room.id, actor.actorId, aspect, opt.value)
                                   }
-                                  className={`w-full text-xs text-right px-2.5 py-1.5 rounded-md font-medium transition-all ${
+                                  className={`flex-1 text-xs py-1.5 rounded-md font-medium transition-all ${
                                     isActive ? opt.activeClasses : opt.inactiveClasses
                                   }`}
                                 >
