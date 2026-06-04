@@ -1,6 +1,6 @@
 "use client"
 
-import { Fragment, useEffect, useState } from "react"
+import { Fragment, useEffect, useMemo, useState } from "react"
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -9,7 +9,7 @@ interface WorkshopEntry {
   date: string
   groupName: string
   orgName: string
-  rooms: number[]    // room numbers where they facilitate
+  rooms: number[]
   asAuthor: boolean
 }
 
@@ -21,6 +21,11 @@ interface FacilitatorRow {
   workshops: WorkshopEntry[]
 }
 
+type SortCol = "name" | "roomCount" | "authorCount"
+type SortDir = "asc" | "desc"
+
+type Window = "1" | "2" | "3" | "4" | "all"
+
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function fmtDate(iso: string) {
@@ -28,44 +33,61 @@ function fmtDate(iso: string) {
   return `${d.getUTCDate()}.${d.getUTCMonth() + 1}.${d.getUTCFullYear()}`
 }
 
-// Color thresholds based on total load (rooms + authored workshops).
-// Scaled by the selected week window so 1 week and 4 weeks feel proportional.
-function loadColor(total: number, weeks: number): "green" | "amber" | "red" | "none" {
-  if (total === 0) return "none"
-  const perWeek = total / weeks
-  if (perWeek <= 1.5) return "green"
-  if (perWeek <= 3)   return "amber"
-  return "red"
-}
-
-const LOAD_STYLES = {
-  none:  { row: "bg-white",           badge: "bg-gray-100 text-gray-400",     label: "אין עומס"     },
-  green: { row: "bg-green-50/40",     badge: "bg-green-100 text-green-700",   label: "עומס נמוך"    },
-  amber: { row: "bg-amber-50/40",     badge: "bg-amber-100 text-amber-700",   label: "עומס בינוני"  },
-  red:   { row: "bg-red-50/40",       badge: "bg-red-100 text-red-700",       label: "עומס גבוה"    },
-}
+const WINDOW_OPTIONS: { value: Window; label: string }[] = [
+  { value: "1",   label: "שבוע" },
+  { value: "2",   label: "שבועיים" },
+  { value: "3",   label: "3 שבועות" },
+  { value: "4",   label: "4 שבועות" },
+  { value: "all", label: "הכל" },
+]
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function OmasPage() {
-  const [weeks, setWeeks]           = useState(2)
-  const [rows, setRows]             = useState<FacilitatorRow[]>([])
-  const [loading, setLoading]       = useState(true)
-  const [expanded, setExpanded]     = useState<Set<string>>(new Set())
+  const [window_, setWindow]      = useState<Window>("2")
+  const [rows, setRows]           = useState<FacilitatorRow[]>([])
+  const [loading, setLoading]     = useState(true)
+  const [expanded, setExpanded]   = useState<Set<string>>(new Set())
+  const [sortCol, setSortCol]     = useState<SortCol>("roomCount")
+  const [sortDir, setSortDir]     = useState<SortDir>("desc")
 
   useEffect(() => {
     setLoading(true)
-    fetch(`/api/omas?weeks=${weeks}`)
+    fetch(`/api/omas?weeks=${window_}`)
       .then((r) => r.json())
       .then((data) => { setRows(data); setLoading(false) })
-  }, [weeks])
+  }, [window_])
 
-  function toggle(id: string) {
+  function toggleExpand(id: string) {
     setExpanded((prev) => {
       const next = new Set(prev)
       next.has(id) ? next.delete(id) : next.add(id)
       return next
     })
+  }
+
+  function handleSort(col: SortCol) {
+    if (sortCol === col) {
+      setSortDir((d) => (d === "asc" ? "desc" : "asc"))
+    } else {
+      setSortCol(col)
+      setSortDir(col === "name" ? "asc" : "desc")
+    }
+  }
+
+  const sorted = useMemo(() => {
+    return [...rows].sort((a, b) => {
+      let cmp = 0
+      if (sortCol === "name")        cmp = a.name.localeCompare(b.name, "he")
+      else if (sortCol === "roomCount")   cmp = a.roomCount - b.roomCount
+      else if (sortCol === "authorCount") cmp = a.authorCount - b.authorCount
+      return sortDir === "asc" ? cmp : -cmp
+    })
+  }, [rows, sortCol, sortDir])
+
+  function SortIcon({ col }: { col: SortCol }) {
+    if (sortCol !== col) return <span className="text-gray-300 ml-1">↕</span>
+    return <span className="text-navy ml-1">{sortDir === "asc" ? "↑" : "↓"}</span>
   }
 
   return (
@@ -80,32 +102,24 @@ export default function OmasPage() {
             </p>
           </div>
 
-          {/* Week selector */}
+          {/* Window selector */}
           <div className="flex items-center gap-1 shrink-0">
             <span className="text-sm text-gray-500 ml-2">חלון זמן:</span>
-            {[1, 2, 3, 4].map((w) => (
+            {WINDOW_OPTIONS.map(({ value, label }) => (
               <button
-                key={w}
-                onClick={() => setWeeks(w)}
+                key={value}
+                onClick={() => setWindow(value)}
                 className={`px-3 py-1.5 rounded-full text-sm font-medium transition-colors ${
-                  weeks === w
+                  window_ === value
                     ? "bg-navy text-white"
                     : "bg-gray-100 text-gray-600 hover:bg-gray-200"
                 }`}
               >
-                {w} {w === 1 ? "שבוע" : "שבועות"}
+                {label}
               </button>
             ))}
           </div>
         </div>
-      </div>
-
-      {/* Legend */}
-      <div className="px-8 pb-3 flex items-center gap-4 text-xs text-gray-500 shrink-0">
-        <span>עומס (חדרים + כתיבה לשבוע):</span>
-        <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-full bg-green-400 inline-block"/>עד 1.5</span>
-        <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-full bg-amber-400 inline-block"/>עד 3</span>
-        <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-full bg-red-400 inline-block"/>מעל 3</span>
       </div>
 
       {/* Table */}
@@ -115,30 +129,45 @@ export default function OmasPage() {
         ) : rows.length === 0 ? (
           <p className="text-sm text-gray-400 py-8 text-center">לא נמצאו מתחקרים פעילים</p>
         ) : (
-          <div className="border border-gray-200 rounded-lg overflow-hidden max-w-3xl">
+          <div className="border border-gray-200 rounded-lg overflow-hidden max-w-2xl">
             <table className="w-full text-sm">
               <thead>
                 <tr className="bg-gray-50 border-b border-gray-200 text-right text-xs text-gray-500 font-medium">
-                  <th className="px-4 py-2.5">שם</th>
-                  <th className="px-4 py-2.5 text-center">מתחקר/ת<br/><span className="font-normal text-gray-400">(חדרים)</span></th>
-                  <th className="px-4 py-2.5 text-center">כותב/ת תרחיש<br/><span className="font-normal text-gray-400">(סדנאות)</span></th>
-                  <th className="px-4 py-2.5 text-center">סה"כ</th>
-                  <th className="px-4 py-2.5 text-center">עומס</th>
-                  <th className="px-4 py-2.5 w-6"></th>
+                  <th
+                    className="px-4 py-2.5 cursor-pointer select-none hover:text-gray-800"
+                    onClick={() => handleSort("name")}
+                  >
+                    שם <SortIcon col="name" />
+                  </th>
+                  <th
+                    className="px-4 py-2.5 text-center cursor-pointer select-none hover:text-gray-800"
+                    onClick={() => handleSort("roomCount")}
+                  >
+                    מתחקר/ת
+                    <br />
+                    <span className="font-normal text-gray-400">(חדרים)</span>
+                    {" "}<SortIcon col="roomCount" />
+                  </th>
+                  <th
+                    className="px-4 py-2.5 text-center cursor-pointer select-none hover:text-gray-800"
+                    onClick={() => handleSort("authorCount")}
+                  >
+                    כותב/ת תרחיש
+                    <br />
+                    <span className="font-normal text-gray-400">(סדנאות)</span>
+                    {" "}<SortIcon col="authorCount" />
+                  </th>
+                  <th className="px-4 py-2.5 w-6" />
                 </tr>
               </thead>
               <tbody>
-                {rows.map((row) => {
-                  const total = row.roomCount + row.authorCount
-                  const color = loadColor(total, weeks)
-                  const styles = LOAD_STYLES[color]
+                {sorted.map((row) => {
                   const isExpanded = expanded.has(row.id)
-
                   return (
                     <Fragment key={row.id}>
                       <tr
-                        onClick={() => toggle(row.id)}
-                        className={`border-b border-gray-100 last:border-0 cursor-pointer transition-colors hover:brightness-95 ${styles.row}`}
+                        onClick={() => toggleExpand(row.id)}
+                        className="border-b border-gray-100 last:border-0 cursor-pointer hover:bg-gray-50 transition-colors"
                       >
                         <td className="px-4 py-2.5 font-medium text-gray-900">{row.name}</td>
                         <td className="px-4 py-2.5 text-center">
@@ -151,16 +180,6 @@ export default function OmasPage() {
                             {row.authorCount}
                           </span>
                         </td>
-                        <td className="px-4 py-2.5 text-center">
-                          <span className={`text-base font-bold ${total > 0 ? "text-gray-900" : "text-gray-300"}`}>
-                            {total}
-                          </span>
-                        </td>
-                        <td className="px-4 py-2.5 text-center">
-                          <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${styles.badge}`}>
-                            {styles.label}
-                          </span>
-                        </td>
                         <td className="px-4 py-2.5 text-gray-400 text-xs text-center">
                           {row.workshops.length > 0 ? (isExpanded ? "▲" : "▾") : ""}
                         </td>
@@ -168,7 +187,7 @@ export default function OmasPage() {
 
                       {isExpanded && row.workshops.length > 0 && (
                         <tr className="border-b border-gray-100">
-                          <td colSpan={6} className="px-6 py-3 bg-gray-50/60">
+                          <td colSpan={4} className="px-6 py-3 bg-gray-50/60">
                             <div className="space-y-1.5">
                               {row.workshops.map((ws) => (
                                 <div key={ws.id} className="flex items-start gap-3 text-xs text-gray-600">

@@ -10,14 +10,20 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 })
 
   const weeksParam = req.nextUrl.searchParams.get("weeks")
-  const weeks = Math.min(Math.max(Number(weeksParam) || 2, 1), 4)
+  const isAll = weeksParam === "all"
 
-  // Window: today (start of day UTC) → today + N weeks (end of day UTC)
+  // Window: today (start of day UTC) → today + N weeks, or unbounded for "all"
   const today = new Date()
   today.setUTCHours(0, 0, 0, 0)
-  const windowEnd = new Date(today)
-  windowEnd.setUTCDate(today.getUTCDate() + weeks * 7)
-  windowEnd.setUTCHours(23, 59, 59, 999)
+
+  const dateFilter: { gte: Date; lte?: Date } = { gte: today }
+  if (!isAll) {
+    const weeks = Math.min(Math.max(Number(weeksParam) || 2, 1), 4)
+    const windowEnd = new Date(today)
+    windowEnd.setUTCDate(today.getUTCDate() + weeks * 7)
+    windowEnd.setUTCHours(23, 59, 59, 999)
+    dateFilter.lte = windowEnd
+  }
 
   const facilitators = await prisma.person.findMany({
     where: {
@@ -31,13 +37,12 @@ export async function GET(req: NextRequest) {
           cancelled: false,
           workshop: {
             cancelled: false,
-            date: { gte: today, lte: windowEnd },
+            date: dateFilter,
           },
         },
         select: {
           id: true,
           roomNumber: true,
-          workshopId: true,
           workshop: {
             select: {
               id: true,
@@ -55,7 +60,7 @@ export async function GET(req: NextRequest) {
       workshopsAuthored: {
         where: {
           cancelled: false,
-          date: { gte: today, lte: windowEnd },
+          date: dateFilter,
         },
         select: {
           id: true,
@@ -73,21 +78,20 @@ export async function GET(req: NextRequest) {
 
   return NextResponse.json(
     facilitators.map((p) => {
-      // Build a merged workshop list: rooms facilitated + workshops authored, deduplicated
+      // Merge rooms + authored workshops into one list, deduped by workshop id
       const wsMap = new Map<string, {
         id: string
         date: string
         groupName: string
         orgName: string
-        rooms: number[]   // room numbers where they facilitate
+        rooms: number[]
         asAuthor: boolean
       }>()
 
       for (const room of p.roomsFacilitated) {
         const ws = room.workshop
-        const key = ws.id
-        if (!wsMap.has(key)) {
-          wsMap.set(key, {
+        if (!wsMap.has(ws.id)) {
+          wsMap.set(ws.id, {
             id: ws.id,
             date: ws.date.toISOString(),
             groupName: ws.participantGroup.name,
@@ -96,7 +100,7 @@ export async function GET(req: NextRequest) {
             asAuthor: false,
           })
         }
-        wsMap.get(key)!.rooms.push(room.roomNumber)
+        wsMap.get(ws.id)!.rooms.push(room.roomNumber)
       }
 
       for (const ws of p.workshopsAuthored) {
