@@ -15,6 +15,7 @@ const ROUTE_PERMISSIONS: { prefix: string; roles: string[] }[] = [
   { prefix: "/luach",         roles: ["MANAGER", "TECH", "CASTER", "FEEDBACK_DOCUMENTER", "FACILITATOR"] },
   { prefix: "/yaadot",        roles: ["MANAGER"] },
   { prefix: "/omas",          roles: ["MANAGER"] },
+  { prefix: "/api/omas",     roles: ["MANAGER"] },
   { prefix: "/users",         roles: ["MANAGER"] },
   // Feedback entry page + API — MANAGER and FEEDBACK_DOCUMENTER only
   { prefix: "/feedback",                  roles: ["MANAGER", "FEEDBACK_DOCUMENTER"] },
