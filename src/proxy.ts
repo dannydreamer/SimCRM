@@ -14,6 +14,7 @@ const ROUTE_PERMISSIONS: { prefix: string; roles: string[] }[] = [
   { prefix: "/lihukim",       roles: ["MANAGER", "CASTER"] },
   { prefix: "/luach",         roles: ["MANAGER", "TECH", "CASTER", "FEEDBACK_DOCUMENTER", "FACILITATOR"] },
   { prefix: "/yaadot",        roles: ["MANAGER"] },
+  { prefix: "/api/yaadot",   roles: ["MANAGER"] },
   { prefix: "/omas",          roles: ["MANAGER"] },
   { prefix: "/api/omas",     roles: ["MANAGER"] },
   { prefix: "/users",         roles: ["MANAGER"] },
