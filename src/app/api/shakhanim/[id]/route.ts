@@ -70,7 +70,7 @@ export async function GET(
     feedbacks: canSeeFeedback
       ? (actor.feedbacks ?? []).map((f) => ({
           id:       f.id,
-          date:     f.enteredAt.toISOString(),
+          date:     f.workshop.date.toISOString(),
           orgName:  f.workshop.participantGroup.organization.name,
           workshopId: f.workshopId,
           isDirector: f.roomId === null,
