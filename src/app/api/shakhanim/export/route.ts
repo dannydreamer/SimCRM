@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from "next/server"
+import { NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
@@ -9,10 +9,7 @@ const RAG_LABEL: Record<string, string> = {
   RED:    "חמור",
 }
 
-export async function GET(
-  _req: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
+export async function GET() {
   const session = await getServerSession(authOptions)
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
 
@@ -21,10 +18,8 @@ export async function GET(
     session.user.roles.includes("FEEDBACK_DOCUMENTER")
   if (!canExport) return NextResponse.json({ error: "Forbidden" }, { status: 403 })
 
-  const { id } = await params
-
-  const actor = await prisma.actor.findUnique({
-    where: { id },
+  const actors = await prisma.actor.findMany({
+    orderBy: { name: "asc" },
     include: {
       feedbacks: {
         orderBy: { workshop: { date: "desc" } },
@@ -42,38 +37,41 @@ export async function GET(
     },
   })
 
-  if (!actor) return NextResponse.json({ error: "Not found" }, { status: 404 })
-
   const header = [
-    "תאריך", "ארגון", "קבוצה", "מתחקר/ת", "תפקיד",
-    "התכוננות - דירוג",      "התכוננות - הערות",
+    "שם שחקן/ית", "תאריך", "ארגון", "קבוצה", "מתחקר/ת", "תפקיד",
+    "התכוננות - דירוג",       "התכוננות - הערות",
     "שחקן כסימולטור - דירוג", "שחקן כסימולטור - הערות",
-    "שיקוף - דירוג",          "שיקוף - הערות",
+    "שיקוף - דירוג",           "שיקוף - הערות",
     "התנהלות מקצועית - דירוג", "התנהלות מקצועית - הערות",
   ]
 
-  const rows = actor.feedbacks.map((f) => {
-    const d = new Date(f.workshop.date)
-    const dateStr = `${d.getDate()}.${d.getMonth() + 1}.${d.getFullYear()}`
-    const isDirector = f.roomId === null
-    return [
-      dateStr,
-      f.workshop.participantGroup.organization.name,
-      f.workshop.participantGroup.name,
-      f.room?.facilitator?.name ?? "",
-      isDirector ? "במאי/ת" : "שחקן/ית",
-      RAG_LABEL[f.aspect1PrepColor]         ?? f.aspect1PrepColor,         f.aspect1PrepText         ?? "",
-      RAG_LABEL[f.aspect2SimColor]          ?? f.aspect2SimColor,          f.aspect2SimText          ?? "",
-      RAG_LABEL[f.aspect3ReflectionColor]   ?? f.aspect3ReflectionColor,   f.aspect3ReflectionText   ?? "",
-      RAG_LABEL[f.aspect4ProfessionalColor] ?? f.aspect4ProfessionalColor, f.aspect4ProfessionalText ?? "",
-    ]
-  })
+  const rows: string[][] = []
+
+  for (const actor of actors) {
+    for (const f of actor.feedbacks) {
+      const d = new Date(f.workshop.date)
+      const dateStr = `${d.getDate()}.${d.getMonth() + 1}.${d.getFullYear()}`
+      const isDirector = f.roomId === null
+      rows.push([
+        actor.name,
+        dateStr,
+        f.workshop.participantGroup.organization.name,
+        f.workshop.participantGroup.name,
+        f.room?.facilitator?.name ?? "",
+        isDirector ? "במאי/ת" : "שחקן/ית",
+        RAG_LABEL[f.aspect1PrepColor]         ?? f.aspect1PrepColor,         f.aspect1PrepText         ?? "",
+        RAG_LABEL[f.aspect2SimColor]          ?? f.aspect2SimColor,          f.aspect2SimText          ?? "",
+        RAG_LABEL[f.aspect3ReflectionColor]   ?? f.aspect3ReflectionColor,   f.aspect3ReflectionText   ?? "",
+        RAG_LABEL[f.aspect4ProfessionalColor] ?? f.aspect4ProfessionalColor, f.aspect4ProfessionalText ?? "",
+      ])
+    }
+  }
 
   const csv = [header, ...rows]
     .map((row) => row.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(","))
     .join("\n")
 
-  const filename = `feedback_${actor.name.replace(/\s+/g, "_")}.csv`
+  const filename = "feedback_all_actors.csv"
 
   return new NextResponse("﻿" + csv, {
     headers: {

@@ -17,8 +17,11 @@ const ROUTE_PERMISSIONS: { prefix: string; roles: string[] }[] = [
   { prefix: "/omas",          roles: ["MANAGER"] },
   { prefix: "/users",         roles: ["MANAGER"] },
   // Feedback entry page + API — MANAGER and FEEDBACK_DOCUMENTER only
-  { prefix: "/feedback",      roles: ["MANAGER", "FEEDBACK_DOCUMENTER"] },
-  { prefix: "/api/feedback",  roles: ["MANAGER", "FEEDBACK_DOCUMENTER"] },
+  { prefix: "/feedback",                  roles: ["MANAGER", "FEEDBACK_DOCUMENTER"] },
+  { prefix: "/api/feedback",              roles: ["MANAGER", "FEEDBACK_DOCUMENTER"] },
+  // Feedback export endpoints — MANAGER and FEEDBACK_DOCUMENTER only
+  // (single-actor /api/shakhanim/[id]/export also enforced in its own handler)
+  { prefix: "/api/shakhanim/export",      roles: ["MANAGER", "FEEDBACK_DOCUMENTER"] },
 ]
 
 export default withAuth(
