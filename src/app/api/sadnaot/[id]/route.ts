@@ -47,10 +47,34 @@ export async function GET(
       castings: {
         include: { actor: { select: { id: true, name: true } } },
       },
+      feedbacks: {
+        select: {
+          actorId: true, roomId: true,
+          aspect1PrepText: true, aspect2SimText: true,
+          aspect3ReflectionText: true, aspect4ProfessionalText: true,
+        },
+      },
     },
   })
 
   if (!w) return NextResponse.json({ error: "Not found" }, { status: 404 })
+
+  // Feedback counts: expected = unique actor+room pairs from non-director castings in active rooms
+  const activeRoomIds = new Set(w.rooms.filter((r) => !r.cancelled).map((r) => r.id))
+  const expectedActorRooms = new Set(
+    w.castings
+      .filter((c) => c.isDirector || (c.roomId && activeRoomIds.has(c.roomId)))
+      .map((c) => `${c.roomId}:${c.actorId}`)
+  )
+  const enteredActorRooms = new Set(
+    w.feedbacks
+      .filter((f) =>
+        (f.roomId === null || activeRoomIds.has(f.roomId)) &&
+        (f.aspect1PrepText?.trim() || f.aspect2SimText?.trim() ||
+         f.aspect3ReflectionText?.trim() || f.aspect4ProfessionalText?.trim())
+      )
+      .map((f) => `${f.roomId}:${f.actorId}`)
+  )
 
   return NextResponse.json({
     id: w.id,
@@ -75,6 +99,8 @@ export async function GET(
     castingSentAt: w.castingSentAt?.toISOString() ?? null,
     notes: w.notes,
     frozen: FROZEN_STATUSES.includes(w.status),
+    feedbackEntered:  enteredActorRooms.size,
+    feedbackExpected: expectedActorRooms.size,
     groupId: w.participantGroup.id,
     groupName: w.participantGroup.name,
     orgId: w.participantGroup.organization.id,

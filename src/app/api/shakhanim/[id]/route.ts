@@ -12,29 +12,35 @@ export async function GET(
 
   const { id } = await params
 
+  const canSeeFeedback =
+    session.user.roles.includes("MANAGER") ||
+    session.user.roles.includes("FEEDBACK_DOCUMENTER")
+
   const actor = await prisma.actor.findUnique({
     where: { id },
     include: {
-      feedbacks: {
-        orderBy: { enteredAt: "desc" },
-        include: {
-          workshop: {
-            include: {
-              participantGroup: {
-                include: { organization: { select: { name: true } } },
+      ...(canSeeFeedback && {
+        feedbacks: {
+          orderBy: { enteredAt: "desc" },
+          include: {
+            workshop: {
+              include: {
+                participantGroup: {
+                  include: { organization: { select: { name: true } } },
+                },
               },
             },
+            room: {
+              include: { facilitator: { select: { name: true } } },
+            },
+            enteredBy: { select: { name: true } },
           },
-          room: {
-            include: { facilitator: { select: { name: true } } },
-          },
-          enteredBy: { select: { name: true } },
         },
-      },
-      developmentLogs: {
-        orderBy: { date: "desc" },
-        include: { enteredBy: { select: { name: true } } },
-      },
+        developmentLogs: {
+          orderBy: { date: "asc" },
+          include: { enteredBy: { select: { name: true } } },
+        },
+      }),
       castings: {
         select: { workshop: { select: { date: true } } },
         orderBy: { workshop: { date: "desc" } },
@@ -44,7 +50,10 @@ export async function GET(
 
   if (!actor) return NextResponse.json({ error: "Not found" }, { status: 404 })
 
-  const lastDate = actor.castings[0]?.workshop.date?.toISOString() ?? null
+  // lastDate = most recent PAST workshop date (not future, not feedback date)
+  const today = new Date(); today.setHours(23, 59, 59, 999)
+  const pastCastings = actor.castings.filter((c) => new Date(c.workshop.date) <= today)
+  const lastDate = pastCastings[0]?.workshop.date?.toISOString() ?? null
   const workshopCount = new Set(actor.castings.map((c) => c.workshop)).size
 
   return NextResponse.json({
@@ -58,24 +67,29 @@ export async function GET(
     canDirect:    actor.canDirect,
     workshopCount,
     lastDate,
-    feedbacks: actor.feedbacks.map((f) => ({
-      id:       f.id,
-      date:     f.enteredAt.toISOString(),
-      orgName:  f.workshop.participantGroup.organization.name,
-      workshopId: f.workshopId,
-      facilitatorName: f.room.facilitator?.name ?? null,
-      enteredByName:   f.enteredBy.name,
-      aspect1Color: f.aspect1PrepColor,         aspect1Text: f.aspect1PrepText,
-      aspect2Color: f.aspect2SimColor,          aspect2Text: f.aspect2SimText,
-      aspect3Color: f.aspect3ReflectionColor,   aspect3Text: f.aspect3ReflectionText,
-      aspect4Color: f.aspect4ProfessionalColor, aspect4Text: f.aspect4ProfessionalText,
-    })),
-    devLogs: actor.developmentLogs.map((l) => ({
-      id:           l.id,
-      date:         l.date.toISOString(),
-      note:         l.note,
-      enteredByName: l.enteredBy.name,
-    })),
+    feedbacks: canSeeFeedback
+      ? (actor.feedbacks ?? []).map((f) => ({
+          id:       f.id,
+          date:     f.enteredAt.toISOString(),
+          orgName:  f.workshop.participantGroup.organization.name,
+          workshopId: f.workshopId,
+          isDirector: f.roomId === null,
+          facilitatorName: f.room?.facilitator?.name ?? null,
+          enteredByName:   f.enteredBy.name,
+          aspect1Color: f.aspect1PrepColor,         aspect1Text: f.aspect1PrepText,
+          aspect2Color: f.aspect2SimColor,          aspect2Text: f.aspect2SimText,
+          aspect3Color: f.aspect3ReflectionColor,   aspect3Text: f.aspect3ReflectionText,
+          aspect4Color: f.aspect4ProfessionalColor, aspect4Text: f.aspect4ProfessionalText,
+        }))
+      : [],
+    devLogs: canSeeFeedback
+      ? (actor.developmentLogs ?? []).map((l) => ({
+          id:           l.id,
+          date:         l.date.toISOString(),
+          note:         l.note,
+          enteredByName: l.enteredBy.name,
+        }))
+      : [],
   })
 }
 

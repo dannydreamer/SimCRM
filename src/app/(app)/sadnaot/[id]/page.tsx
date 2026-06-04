@@ -51,6 +51,8 @@ interface Workshop {
   roomCancelledWarning: boolean
   roomAddedWarning: boolean
   feedbackFormAdded: boolean
+  feedbackEntered:  number
+  feedbackExpected: number
   castingSentAt: string | null
   notes: string | null
   frozen: boolean
@@ -1435,11 +1437,30 @@ export default function WorkshopDetailPage() {
         </section>
 
         {/* Feedback shortcut */}
-        <div className="flex justify-start">
-          <Link href={`/feedback?workshopId=${id}`}
-            className="px-5 py-2.5 bg-brand-green text-white text-sm font-medium rounded-lg hover:bg-brand-green/90 transition-colors">
-            הזנת פידבק לסדנה זו
-          </Link>
+        <div className="flex items-center gap-3 flex-wrap">
+          {(w.status === "CLOSING" || w.status === "CLOSED") ? (
+            <Link href={`/feedback?workshopId=${id}`}
+              className="px-5 py-2.5 bg-brand-green text-white text-sm font-medium rounded-lg hover:bg-brand-green/90 transition-colors">
+              הזנת פידבק לסדנה זו
+            </Link>
+          ) : (
+            <span
+              title="הזנת פידבק זמינה החל מבתהליך סגירה"
+              className="px-5 py-2.5 bg-gray-200 text-gray-400 text-sm font-medium rounded-lg cursor-not-allowed select-none">
+              הזנת פידבק לסדנה זו
+            </span>
+          )}
+          {w.feedbackExpected > 0 && (
+            <span className={`text-sm font-medium ${
+              w.feedbackEntered === w.feedbackExpected
+                ? "text-brand-green"
+                : "text-gray-500"
+            }`}>
+              {w.feedbackEntered === w.feedbackExpected
+                ? `✓ פידבק: ${w.feedbackEntered}/${w.feedbackExpected} שחקנים`
+                : `פידבק: ${w.feedbackEntered}/${w.feedbackExpected} שחקנים`}
+            </span>
+          )}
         </div>
 
       </div>

@@ -47,7 +47,7 @@ export default function LihukimLandingPage() {
   const user   = useUser()
   const [workshops, setWorkshops] = useState<PendingWorkshop[]>([])
   const [loading,   setLoading]   = useState(true)
-  const [pendingOnly, setPendingOnly] = useState(false)
+  const [pendingOnly, setPendingOnly] = useState(true)
   const [dismissedCancelIds, setDismissedCancelIds] = useState<Set<string>>(new Set())
   // Dismissed change-log IDs — own key, independent from the detail page
   const [dismissedLogIds, setDismissedLogIds] = useState<Set<string>>(new Set())

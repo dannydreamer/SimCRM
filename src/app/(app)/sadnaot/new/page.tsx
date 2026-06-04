@@ -273,7 +273,7 @@ function NewWorkshopForm() {
 
           {/* Author */}
           <div>
-            <label className="block text-sm text-gray-700 mb-1">מתחקר/ת (כותב/ת תרחיש)</label>
+            <label className="block text-sm text-gray-700 mb-1">כותב/ת תרחיש</label>
             <select value={authorId} onChange={(e) => setAuthorId(e.target.value)} className={inputCls} disabled={loadingOptions}>
               <option value="">ללא שיוך</option>
               {facilitators.map((f) => (

@@ -23,7 +23,13 @@ export async function GET() {
       },
       scenarios: { select: { id: true, cancelled: true, written: true, maleActorsNeeded: true, femaleActorsNeeded: true } },
       castings:  { select: { actorId: true, isDirector: true, roomId: true } },
-      feedbacks: { select: { actorId: true, roomId: true } },
+      feedbacks: {
+        select: {
+          actorId: true, roomId: true,
+          aspect1PrepText: true, aspect2SimText: true,
+          aspect3ReflectionText: true, aspect4ProfessionalText: true,
+        },
+      },
     },
   })
 
@@ -50,10 +56,22 @@ export async function GET() {
       const letterTotal  = activeRooms.length
       const letterFilled = activeRooms.filter((r) => r.letterReceived).length
 
-      const feedbackSet     = new Set(w.feedbacks.map((f) => `${f.actorId}:${f.roomId}`))
-      const feedbackMissing = nonDirCastings.filter(
-        (c) => c.roomId && !feedbackSet.has(`${c.actorId}:${c.roomId}`)
-      ).length
+      const activeRoomIds = new Set(activeRooms.map((r) => r.id))
+      const completedFeedbackSet = new Set(
+        w.feedbacks
+          .filter((f) =>
+            f.aspect1PrepText?.trim() || f.aspect2SimText?.trim() ||
+            f.aspect3ReflectionText?.trim() || f.aspect4ProfessionalText?.trim()
+          )
+          .map((f) => `${f.actorId}:${f.roomId}`)
+      )
+      const feedbackMissing =
+        nonDirCastings.filter(
+          (c) => c.roomId && activeRoomIds.has(c.roomId) &&
+                 !completedFeedbackSet.has(`${c.actorId}:${c.roomId}`)
+        ).length +
+        (w.directorRequested && directorCasting &&
+         !completedFeedbackSet.has(`${directorCasting.actorId}:null`) ? 1 : 0)
 
       const roomFacilitators = activeRooms
         .filter((r) => r.facilitator)

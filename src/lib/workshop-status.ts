@@ -10,8 +10,8 @@ import { WorkshopStatus } from "@prisma/client"
  *  SPECIFIED → READY    : all PPT received + casting fully complete + feedback form added
  *  READY     → SPECIFIED: any of the three READY conditions becomes unmet (before date)
  *  READY     → CLOSING  : workshop date has passed
- *  CLOSING   → CLOSED   : all rooms have letterReceived
- *  CLOSED    → CLOSING  : any room loses letterReceived
+ *  CLOSING   → CLOSED   : all rooms have letterReceived AND feedback complete
+ *  CLOSED    → CLOSING  : any room loses letterReceived OR feedback becomes incomplete
  *
  * Returns the new status string if a change occurred, otherwise null.
  */
@@ -22,12 +22,13 @@ export async function checkAndAdvanceStatus(workshopId: string): Promise<string 
       status: true,
       cancelled: true,
       date: true,
+      endTime: true,
       castingSentAt: true,
       directorRequested: true,
       feedbackFormAdded: true,
       rooms: {
         where: { cancelled: false },
-        select: { pptReceived: true, letterReceived: true },
+        select: { id: true, pptReceived: true, letterReceived: true },
       },
       scenarios: {
         where: { cancelled: false },
@@ -40,15 +41,25 @@ export async function checkAndAdvanceStatus(workshopId: string): Promise<string 
             { room: { cancelled: false } },
           ],
         },
-        select: { isDirector: true },
+        select: { isDirector: true, roomId: true, actorId: true },
+      },
+      feedbacks: {
+        select: {
+          actorId: true, roomId: true,
+          aspect1PrepText: true, aspect2SimText: true,
+          aspect3ReflectionText: true, aspect4ProfessionalText: true,
+        },
       },
     },
   })
 
   if (!w || w.cancelled) return null
 
-  const today = new Date(); today.setHours(0, 0, 0, 0)
-  const wDate = new Date(w.date); wDate.setHours(0, 0, 0, 0)
+  // Build the precise end-of-workshop datetime from date + endTime ("HH:MM")
+  const now = new Date()
+  const wEndDateTime = new Date(w.date)
+  const [endHour, endMin] = (w.endTime ?? "23:59").split(":").map(Number)
+  wEndDateTime.setHours(endHour, endMin, 0, 0)
 
   // ── Helper: evaluate all three READY conditions ──────────────────────────
   function readyConditionsMet(): boolean {
@@ -71,29 +82,52 @@ export async function checkAndAdvanceStatus(workshopId: string): Promise<string 
     return allPpt && castingComplete && feedbackDone
   }
 
+  // ── Helper: all expected feedback records have been entered with text ────
+  // A feedback record only counts as complete when at least one aspect has
+  // free text written — default green with no text is considered incomplete.
+  function feedbackComplete(): boolean {
+    const activeRoomIds = new Set(w!.rooms.map((r) => r.id))
+    const expected = new Set(
+      w!.castings
+        .filter((c) => c.isDirector || (c.roomId && activeRoomIds.has(c.roomId!)))
+        .map((c) => `${c.roomId}:${c.actorId}`)
+    )
+    if (expected.size === 0) return true // no actors cast → nothing required
+    const entered = new Set(
+      w!.feedbacks
+        .filter((f) =>
+          (f.roomId === null || activeRoomIds.has(f.roomId)) &&
+          (f.aspect1PrepText?.trim() || f.aspect2SimText?.trim() ||
+           f.aspect3ReflectionText?.trim() || f.aspect4ProfessionalText?.trim())
+        )
+        .map((f) => `${f.roomId}:${f.actorId}`)
+    )
+    return [...expected].every((k) => entered.has(k))
+  }
+
   let newStatus: string | null = null
 
   if (w.status === "SPECIFIED") {
     if (readyConditionsMet()) newStatus = "READY"
 
   } else if (w.status === "READY") {
-    if (today > wDate) {
+    if (now >= wEndDateTime) {
       newStatus = "CLOSING"
     } else if (!readyConditionsMet()) {
-      // Regression: a condition was unmet before the date passed
+      // Regression: a condition was unmet before the end time passed
       newStatus = "SPECIFIED"
     }
 
   } else if (w.status === "CLOSING") {
     const hasRooms   = w.rooms.length > 0
     const allLetters = hasRooms && w.rooms.every((r) => r.letterReceived)
-    if (allLetters) newStatus = "CLOSED"
+    if (allLetters && feedbackComplete()) newStatus = "CLOSED"
 
   } else if (w.status === "CLOSED") {
-    // Regression: a letter was unchecked
+    // Regression: a letter was unchecked or feedback became incomplete
     const hasRooms   = w.rooms.length > 0
     const allLetters = hasRooms && w.rooms.every((r) => r.letterReceived)
-    if (!allLetters) newStatus = "CLOSING"
+    if (!allLetters || !feedbackComplete()) newStatus = "CLOSING"
   }
 
   if (newStatus) {
