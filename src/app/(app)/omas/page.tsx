@@ -143,18 +143,14 @@ export default function OmasPage() {
                     className="px-4 py-2.5 text-center cursor-pointer select-none hover:text-gray-800"
                     onClick={() => handleSort("roomCount")}
                   >
-                    מתחקר/ת
-                    <br />
-                    <span className="font-normal text-gray-400">(חדרים)</span>
+                    תחקור
                     {" "}<SortIcon col="roomCount" />
                   </th>
                   <th
                     className="px-4 py-2.5 text-center cursor-pointer select-none hover:text-gray-800"
                     onClick={() => handleSort("authorCount")}
                   >
-                    כותב/ת תרחיש
-                    <br />
-                    <span className="font-normal text-gray-400">(סדנאות)</span>
+                    כתיבת תרחישים
                     {" "}<SortIcon col="authorCount" />
                   </th>
                   <th className="px-4 py-2.5 w-6" />
