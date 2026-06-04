@@ -21,8 +21,9 @@ function fmtDate(iso: string) {
 type GenderFilter = "all" | "MALE" | "FEMALE"
 
 export default function ShakhanimPage() {
-  const user      = useUser()
-  const isManager = user.roles.includes("MANAGER")
+  const user         = useUser()
+  const isManager    = user.roles.includes("MANAGER")
+  const canExport    = isManager || user.roles.includes("FEEDBACK_DOCUMENTER")
 
   const [actors, setActors]   = useState<ActorRow[]>([])
   const [loading, setLoading] = useState(true)
@@ -55,14 +56,24 @@ export default function ShakhanimPage() {
             {loading ? "טוען..." : `${filtered.length} שחקנים`}
           </p>
         </div>
-        {isManager && (
-          <Link
-            href="/shakhanim/new"
-            className="px-4 py-2 bg-navy text-white text-sm font-medium rounded hover:bg-navy-dark transition-colors"
-          >
-            + שחקן/ית חדש/ה
-          </Link>
-        )}
+        <div className="flex items-center gap-2">
+          {canExport && (
+            <a
+              href="/api/shakhanim/export"
+              className="px-3 py-2 text-sm border border-gray-300 rounded hover:bg-gray-50 text-gray-700 transition-colors"
+            >
+              ייצוא CSV
+            </a>
+          )}
+          {isManager && (
+            <Link
+              href="/shakhanim/new"
+              className="px-4 py-2 bg-navy text-white text-sm font-medium rounded hover:bg-navy-dark transition-colors"
+            >
+              + שחקן/ית חדש/ה
+            </Link>
+          )}
+        </div>
       </div>
 
       {/* Filters */}
