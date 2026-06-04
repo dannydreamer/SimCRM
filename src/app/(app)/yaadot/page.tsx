@@ -15,9 +15,9 @@ interface GoalRow {
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 const CURRENT_YEAR = new Date().getFullYear()
-const YEARS = Array.from({ length: 5 }, (_, i) => CURRENT_YEAR - 2 + i)
 
 export default function YaadotPage() {
+  const [years, setYears]   = useState([CURRENT_YEAR, CURRENT_YEAR + 1, CURRENT_YEAR + 2])
   const [year, setYear]     = useState(CURRENT_YEAR)
   const [rows, setRows]     = useState<GoalRow[]>([])
   const [loading, setLoading] = useState(true)
@@ -27,6 +27,15 @@ export default function YaadotPage() {
   const [editingAlloc, setEditingAlloc] = useState(false)
   const [draftAllocs, setDraftAllocs]   = useState<Record<string, string>>({})
   const [savingAlloc, setSavingAlloc]   = useState(false)
+
+  // Add year flow
+  const [showAddYear, setShowAddYear] = useState(false)
+  const nextYear = years[years.length - 1] + 1
+
+  function confirmAddYear() {
+    setYears((prev) => [...prev, nextYear])
+    setShowAddYear(false)
+  }
 
   async function fetchRows(y: number) {
     setLoading(true)
@@ -95,7 +104,7 @@ export default function YaadotPage() {
           {/* Year selector */}
           <div className="flex items-center gap-1 shrink-0">
             <span className="text-sm text-gray-500 ml-2">שנה:</span>
-            {YEARS.map((y) => (
+            {years.map((y) => (
               <button
                 key={y}
                 onClick={() => setYear(y)}
@@ -108,6 +117,32 @@ export default function YaadotPage() {
                 {y}
               </button>
             ))}
+            {!showAddYear && (
+              <button
+                onClick={() => setShowAddYear(true)}
+                className="px-2.5 py-1.5 rounded-full text-sm font-medium bg-gray-100 text-gray-500 hover:bg-gray-200 transition-colors"
+                title={`הוספת שנת ${nextYear}`}
+              >
+                +
+              </button>
+            )}
+            {showAddYear && (
+              <div className="flex items-center gap-1 mr-1 border border-gray-200 rounded-full px-3 py-1 bg-white shadow-sm">
+                <span className="text-xs text-gray-600">להוסיף {nextYear}?</span>
+                <button
+                  onClick={confirmAddYear}
+                  className="text-xs font-medium text-navy hover:underline mr-1"
+                >
+                  כן
+                </button>
+                <button
+                  onClick={() => setShowAddYear(false)}
+                  className="text-xs text-gray-400 hover:text-gray-600"
+                >
+                  ביטול
+                </button>
+              </div>
+            )}
           </div>
         </div>
       </div>
