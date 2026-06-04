@@ -153,8 +153,13 @@ export default function OrgDetailPage() {
   if (!org)    return <div className="p-8 text-sm text-red-500">ארגון לא נמצא</div>
 
   const totalWorkshops = org.groups.reduce((s, g) => s + g.workshopCount, 0)
-  const allDates       = org.groups.flatMap((g) => g.workshops.map((w) => w.date))
-  const lastDate       = allDates.length ? allDates.sort().reverse()[0] : null
+  const now = new Date()
+  const allDates = org.groups.flatMap((g) =>
+    g.workshops
+      .filter((w) => !w.cancelled && new Date(w.date) <= now)
+      .map((w) => w.date)
+  )
+  const lastDate = allDates.length ? allDates.sort().reverse()[0] : null
 
   return (
     <div className="flex flex-col h-full overflow-auto">

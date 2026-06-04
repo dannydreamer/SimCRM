@@ -36,6 +36,7 @@ export async function GET(
 
   if (!org) return NextResponse.json({ error: "Not found" }, { status: 404 })
 
+  const now = new Date()
   const allWorkshops = org.participantGroups.flatMap((g) => g.workshops)
   const totalRoomsDone    = allWorkshops
     .filter((w) => new Date(w.date) < new Date())
@@ -59,8 +60,10 @@ export async function GET(
     groups: org.participantGroups.map((g) => ({
       id:   g.id,
       name: g.name,
-      workshopCount: g.workshops.length,
-      lastWorkshopDate: g.workshops[0]?.date.toISOString() ?? null,
+      workshopCount: g.workshops.filter((w) => !w.cancelled).length,
+      lastWorkshopDate: g.workshops.find(
+        (w) => !w.cancelled && w.date <= now
+      )?.date.toISOString() ?? null,
       workshops: g.workshops.map((w) => ({
         id:         w.id,
         date:       w.date.toISOString(),
