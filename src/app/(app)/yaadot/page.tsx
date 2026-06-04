@@ -18,42 +18,61 @@ const CURRENT_YEAR = new Date().getFullYear()
 const YEARS = Array.from({ length: 5 }, (_, i) => CURRENT_YEAR - 2 + i)
 
 export default function YaadotPage() {
-  const [year, setYear]   = useState(CURRENT_YEAR)
-  const [rows, setRows]   = useState<GoalRow[]>([])
+  const [year, setYear]     = useState(CURRENT_YEAR)
+  const [rows, setRows]     = useState<GoalRow[]>([])
   const [loading, setLoading] = useState(true)
-  // Local allocation edits keyed by shiyuchTakzivi
-  const [allocs, setAllocs] = useState<Record<string, string>>({})
-  const [saving, setSaving] = useState<Record<string, boolean>>({})
+
+  // Allocation edit flow
+  const [showConfirm, setShowConfirm] = useState(false)
+  const [editingAlloc, setEditingAlloc] = useState(false)
+  const [draftAllocs, setDraftAllocs]   = useState<Record<string, string>>({})
+  const [savingAlloc, setSavingAlloc]   = useState(false)
 
   async function fetchRows(y: number) {
     setLoading(true)
     const res  = await fetch(`/api/yaadot?year=${y}`)
     const data: GoalRow[] = await res.json()
     setRows(data)
-    // Initialise local allocation inputs from fetched data
-    const init: Record<string, string> = {}
-    data.forEach((r) => { init[r.shiyuchTakzivi] = String(r.allocation) })
-    setAllocs(init)
     setLoading(false)
   }
 
-  useEffect(() => { fetchRows(year) }, [year])
+  useEffect(() => {
+    setEditingAlloc(false)
+    setShowConfirm(false)
+    fetchRows(year)
+  }, [year])
 
-  async function saveAlloc(tv: string) {
-    const raw = allocs[tv]
-    const value = Math.max(0, Number(raw) || 0)
-    // Normalise the displayed value
-    setAllocs((prev) => ({ ...prev, [tv]: String(value) }))
-    setSaving((prev) => ({ ...prev, [tv]: true }))
-    await fetch("/api/yaadot", {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ year, shiyuchTakzivi: tv, allocation: value }),
-    })
-    setRows((prev) =>
-      prev.map((r) => r.shiyuchTakzivi === tv ? { ...r, allocation: value } : r)
+  function openConfirm() { setShowConfirm(true) }
+
+  function onConfirmEdit() {
+    const draft: Record<string, string> = {}
+    rows.forEach((r) => { draft[r.shiyuchTakzivi] = String(r.allocation) })
+    setDraftAllocs(draft)
+    setShowConfirm(false)
+    setEditingAlloc(true)
+  }
+
+  function onCancelEdit() {
+    setEditingAlloc(false)
+    setDraftAllocs({})
+  }
+
+  async function onSaveAlloc() {
+    setSavingAlloc(true)
+    await Promise.all(
+      rows.map((r) => {
+        const value = Math.max(0, Number(draftAllocs[r.shiyuchTakzivi]) || 0)
+        return fetch("/api/yaadot", {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ year, shiyuchTakzivi: r.shiyuchTakzivi, allocation: value }),
+        })
+      })
     )
-    setSaving((prev) => ({ ...prev, [tv]: false }))
+    setSavingAlloc(false)
+    setEditingAlloc(false)
+    setDraftAllocs({})
+    await fetchRows(year)
   }
 
   // Totals
@@ -93,6 +112,56 @@ export default function YaadotPage() {
         </div>
       </div>
 
+      {/* Confirmation dialog */}
+      {showConfirm && (
+        <div className="px-8 pb-4 shrink-0">
+          <div className="max-w-3xl border border-amber-200 bg-amber-50 rounded-lg px-5 py-4 flex items-center justify-between gap-4">
+            <p className="text-sm text-amber-800 font-medium">
+              האם ברצונך לערוך את ערכי ההקצאה השנתית?
+            </p>
+            <div className="flex gap-2 shrink-0">
+              <button
+                onClick={onConfirmEdit}
+                className="px-4 py-1.5 bg-navy text-white text-sm font-medium rounded hover:bg-navy-dark transition-colors"
+              >
+                עריכה
+              </button>
+              <button
+                onClick={() => setShowConfirm(false)}
+                className="px-4 py-1.5 border border-gray-300 text-sm text-gray-600 rounded hover:bg-gray-50 transition-colors"
+              >
+                ביטול
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Edit mode action bar */}
+      {editingAlloc && (
+        <div className="px-8 pb-4 shrink-0">
+          <div className="max-w-3xl border border-navy/20 bg-navy/5 rounded-lg px-5 py-3 flex items-center justify-between gap-4">
+            <p className="text-sm text-navy font-medium">מצב עריכת הקצאה שנתית</p>
+            <div className="flex gap-2 shrink-0">
+              <button
+                onClick={onSaveAlloc}
+                disabled={savingAlloc}
+                className="px-4 py-1.5 bg-navy text-white text-sm font-medium rounded hover:bg-navy-dark disabled:opacity-50 transition-colors"
+              >
+                {savingAlloc ? "שומר..." : "אישור"}
+              </button>
+              <button
+                onClick={onCancelEdit}
+                disabled={savingAlloc}
+                className="px-4 py-1.5 border border-gray-300 text-sm text-gray-600 rounded hover:bg-gray-50 disabled:opacity-50 transition-colors"
+              >
+                ביטול
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Table */}
       <div className="flex-1 overflow-auto px-8 pb-8">
         {loading ? (
@@ -103,7 +172,17 @@ export default function YaadotPage() {
               <thead>
                 <tr className="bg-gray-50 border-b border-gray-200 text-right text-xs text-gray-500 font-medium">
                   <th className="px-4 py-2.5">שיוך תקציבי</th>
-                  <th className="px-4 py-2.5 text-center">הקצאה שנתית</th>
+                  <th className="px-4 py-2.5 text-center">
+                    <button
+                      onClick={openConfirm}
+                      disabled={editingAlloc}
+                      className="hover:text-navy transition-colors disabled:pointer-events-none group"
+                      title="לחץ לעריכת הקצאה שנתית"
+                    >
+                      הקצאה שנתית
+                      <span className="opacity-0 group-hover:opacity-100 transition-opacity mr-1">✎</span>
+                    </button>
+                  </th>
                   <th className="px-4 py-2.5 text-center">נוצלו</th>
                   <th className="px-4 py-2.5 text-center">עתידי</th>
                   <th className="px-4 py-2.5 text-center">סה"כ</th>
@@ -119,26 +198,32 @@ export default function YaadotPage() {
                       key={row.shiyuchTakzivi}
                       className="border-b border-gray-100 last:border-0 hover:bg-gray-50/50"
                     >
-                      <td className="px-4 py-2.5 font-medium text-gray-800">
+                      <td className="px-4 py-3 font-medium text-gray-800">
                         {TAKZIVI_LABELS[row.shiyuchTakzivi] ?? row.shiyuchTakzivi}
                       </td>
                       <td className="px-4 py-2.5 text-center">
-                        <input
-                          type="number"
-                          min={0}
-                          value={allocs[row.shiyuchTakzivi] ?? ""}
-                          onChange={(e) =>
-                            setAllocs((prev) => ({ ...prev, [row.shiyuchTakzivi]: e.target.value }))
-                          }
-                          onBlur={() => saveAlloc(row.shiyuchTakzivi)}
-                          disabled={saving[row.shiyuchTakzivi]}
-                          className="w-20 border border-gray-200 rounded px-2 py-1 text-center text-sm focus:outline-none focus:ring-2 focus:ring-navy/30 disabled:opacity-50"
-                        />
+                        {editingAlloc ? (
+                          <input
+                            type="number"
+                            min={0}
+                            value={draftAllocs[row.shiyuchTakzivi] ?? ""}
+                            onChange={(e) =>
+                              setDraftAllocs((prev) => ({
+                                ...prev,
+                                [row.shiyuchTakzivi]: e.target.value,
+                              }))
+                            }
+                            className="w-20 border border-navy/40 rounded px-2 py-1 text-center text-sm focus:outline-none focus:ring-2 focus:ring-navy/30"
+                            autoFocus={row === rows[0]}
+                          />
+                        ) : (
+                          <span className="font-medium text-gray-700">{row.allocation}</span>
+                        )}
                       </td>
-                      <td className="px-4 py-2.5 text-center text-gray-700 font-medium">{row.utilized}</td>
-                      <td className="px-4 py-2.5 text-center text-gray-500">{row.planned}</td>
-                      <td className="px-4 py-2.5 text-center text-gray-700 font-semibold">{total}</td>
-                      <td className={`px-4 py-2.5 text-center font-semibold ${remain < 0 ? "text-red-600" : "text-gray-700"}`}>
+                      <td className="px-4 py-3 text-center text-gray-700 font-medium">{row.utilized}</td>
+                      <td className="px-4 py-3 text-center text-gray-500">{row.planned}</td>
+                      <td className="px-4 py-3 text-center text-gray-700 font-semibold">{total}</td>
+                      <td className={`px-4 py-3 text-center font-semibold ${remain < 0 ? "text-red-600" : "text-gray-700"}`}>
                         {remain}
                       </td>
                     </tr>
