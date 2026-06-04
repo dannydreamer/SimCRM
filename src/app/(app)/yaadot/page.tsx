@@ -176,11 +176,11 @@ export default function YaadotPage() {
                     <button
                       onClick={openConfirm}
                       disabled={editingAlloc}
-                      className="hover:text-navy transition-colors disabled:pointer-events-none group"
+                      className="hover:text-navy transition-colors disabled:pointer-events-none"
                       title="לחץ לעריכת הקצאה שנתית"
                     >
                       הקצאה שנתית
-                      <span className="opacity-0 group-hover:opacity-100 transition-opacity mr-1">✎</span>
+                      <span className="mr-1">✎</span>
                     </button>
                   </th>
                   <th className="px-4 py-2.5 text-center">נוצלו</th>
