@@ -17,7 +17,9 @@ const ROUTE_PERMISSIONS: { prefix: string; roles: string[] }[] = [
   { prefix: "/api/yaadot",   roles: ["MANAGER"] },
   { prefix: "/omas",          roles: ["MANAGER"] },
   { prefix: "/api/omas",     roles: ["MANAGER"] },
-  { prefix: "/users",         roles: ["MANAGER"] },
+  { prefix: "/users",          roles: ["MANAGER"] },
+  { prefix: "/settings",       roles: ["MANAGER"] },
+  { prefix: "/api/settings",   roles: ["MANAGER"] },
   // Feedback entry page + API — MANAGER and FEEDBACK_DOCUMENTER only
   { prefix: "/feedback",                  roles: ["MANAGER", "FEEDBACK_DOCUMENTER"] },
   { prefix: "/api/feedback",              roles: ["MANAGER", "FEEDBACK_DOCUMENTER"] },

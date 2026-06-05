@@ -56,4 +56,9 @@ export const NAV_ITEMS = [
     label: "ניהול משתמשים",
     roles: ["MANAGER"],
   },
+  {
+    href: "/settings",
+    label: "הגדרות",
+    roles: ["MANAGER"],
+  },
 ]

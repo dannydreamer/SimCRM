@@ -65,6 +65,11 @@ enum BackupType {
   MANUAL
 }
 
+enum BackupStatus {
+  SUCCESS
+  FAILED
+}
+
 // ─── Person (internal staff) ─────────────────────────────────────────────────
 
 model Person {
@@ -345,9 +350,11 @@ model AnnualGoal {
 // ─── Backup Log ───────────────────────────────────────────────────────────────
 
 model BackupLog {
-  id        String     @id @default(uuid())
+  id        String       @id @default(uuid())
   type      BackupType
+  status    BackupStatus @default(SUCCESS)
   filePath  String?
   fileSize  Int?
-  createdAt DateTime   @default(now())
+  errorMsg  String?
+  createdAt DateTime     @default(now())
 }
