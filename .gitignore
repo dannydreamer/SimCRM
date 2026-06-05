@@ -1,4 +1,5 @@
 node_modules/
+.env
 .env.local
 dev.db
 dev.db-journal
@@ -7,3 +8,4 @@ dev.db-journal
 /src/generated/
 .next/
 tsconfig.tsbuildinfo
+.vercel

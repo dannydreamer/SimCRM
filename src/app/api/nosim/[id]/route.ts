@@ -21,7 +21,7 @@ export async function PATCH(
 
   if (name !== undefined) {
     const conflict = await prisma.topic.findFirst({
-      where: { name: { equals: name.trim() }, id: { not: id } },
+      where: { name: { equals: name.trim(), mode: "insensitive" }, id: { not: id } },
     })
     if (conflict) return NextResponse.json({ error: "נושא בשם זה כבר קיים" }, { status: 409 })
   }

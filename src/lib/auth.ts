@@ -22,7 +22,7 @@ export const authOptions: NextAuthOptions = {
         if (!credentials?.email || !credentials?.password) return null
 
         const person = await prisma.person.findUnique({
-          where: { email: credentials.email },
+          where: { email: credentials.email.toLowerCase() },
           include: { roles: true },
         })
 
