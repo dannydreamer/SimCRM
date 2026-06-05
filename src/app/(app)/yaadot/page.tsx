@@ -258,7 +258,7 @@ export default function YaadotPage() {
                       <td className="px-4 py-3 text-center text-gray-700 font-medium">{row.utilized}</td>
                       <td className="px-4 py-3 text-center text-gray-500">{row.planned}</td>
                       <td className="px-4 py-3 text-center text-gray-700 font-semibold">{total}</td>
-                      <td className={`px-4 py-3 text-center font-semibold ${remain < 0 ? "text-red-600" : "text-gray-700"}`}>
+                      <td dir="ltr" className={`px-4 py-3 text-center font-semibold ${remain < 0 ? "text-red-600" : "text-gray-700"}`}>
                         {remain}
                       </td>
                     </tr>
@@ -272,7 +272,7 @@ export default function YaadotPage() {
                   <td className="px-4 py-2.5 text-center">{totUtilized}</td>
                   <td className="px-4 py-2.5 text-center">{totPlanned}</td>
                   <td className="px-4 py-2.5 text-center">{totTotal}</td>
-                  <td className={`px-4 py-2.5 text-center ${totRemain < 0 ? "text-red-600" : "text-gray-800"}`}>
+                  <td dir="ltr" className={`px-4 py-2.5 text-center ${totRemain < 0 ? "text-red-600" : "text-gray-800"}`}>
                     {totRemain}
                   </td>
                 </tr>
