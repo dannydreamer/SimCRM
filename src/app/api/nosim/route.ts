@@ -33,7 +33,7 @@ export async function POST(req: NextRequest) {
   const { name } = await req.json()
   if (!name?.trim()) return NextResponse.json({ error: "שם נושא הוא שדה חובה" }, { status: 400 })
 
-  const existing = await prisma.topic.findFirst({ where: { name: { equals: name.trim() } } })
+  const existing = await prisma.topic.findFirst({ where: { name: { equals: name.trim(), mode: "insensitive" } } })
   if (existing) return NextResponse.json({ error: "נושא בשם זה כבר קיים" }, { status: 409 })
 
   const topic = await prisma.topic.create({ data: { name: name.trim() } })
