@@ -19,28 +19,26 @@ export async function GET(
   const actor = await prisma.actor.findUnique({
     where: { id },
     include: {
-      ...(canSeeFeedback && {
-        feedbacks: {
-          orderBy: { enteredAt: "desc" },
-          include: {
-            workshop: {
-              include: {
-                participantGroup: {
-                  include: { organization: { select: { name: true } } },
-                },
+      feedbacks: {
+        orderBy: { enteredAt: "desc" },
+        include: {
+          workshop: {
+            include: {
+              participantGroup: {
+                include: { organization: { select: { name: true } } },
               },
             },
-            room: {
-              include: { facilitator: { select: { name: true } } },
-            },
-            enteredBy: { select: { name: true } },
           },
+          room: {
+            include: { facilitator: { select: { name: true } } },
+          },
+          enteredBy: { select: { name: true } },
         },
-        developmentLogs: {
-          orderBy: { date: "asc" },
-          include: { enteredBy: { select: { name: true } } },
-        },
-      }),
+      },
+      developmentLogs: {
+        orderBy: { date: "asc" },
+        include: { enteredBy: { select: { name: true } } },
+      },
       castings: {
         select: { workshop: { select: { date: true } } },
         orderBy: { workshop: { date: "desc" } },

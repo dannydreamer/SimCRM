@@ -68,8 +68,8 @@ export async function POST(
   // If counts were reduced, trim excess confirmed actors so Step 1 stays consistent
   if (isResend) {
     const gendersToCheck: Array<{ gender: string; newCount: number; oldCount: number }> = [
-      { gender: "MALE",   newCount: newMale,   oldCount: workshop.castingMaleNeeded },
-      { gender: "FEMALE", newCount: newFemale, oldCount: workshop.castingFemaleNeeded },
+      { gender: "MALE",   newCount: newMale,   oldCount: workshop.castingMaleNeeded   ?? 0 },
+      { gender: "FEMALE", newCount: newFemale, oldCount: workshop.castingFemaleNeeded ?? 0 },
     ]
     for (const { gender, newCount, oldCount } of gendersToCheck) {
       if (newCount >= oldCount) continue
