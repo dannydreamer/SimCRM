@@ -10,6 +10,7 @@ export default defineConfig({
     seed: "tsx prisma/seed.ts",
   },
   datasource: {
-    url: process.env["DATABASE_URL"],
+    url:       process.env["DATABASE_URL"],   // Supabase pooled URL (Supavisor) — used at runtime
+    directUrl: process.env["DIRECT_URL"],     // Supabase direct URL — used for migrations only
   },
 });

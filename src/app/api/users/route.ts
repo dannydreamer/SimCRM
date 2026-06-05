@@ -46,7 +46,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "שדות חובה חסרים" }, { status: 400 })
   }
 
-  const existing = await prisma.person.findUnique({ where: { email } })
+  const existing = await prisma.person.findUnique({ where: { email: email.trim().toLowerCase() } })
   if (existing) {
     return NextResponse.json({ error: "כתובת אימייל כבר קיימת במערכת" }, { status: 400 })
   }
