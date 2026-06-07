@@ -34,7 +34,8 @@ export async function GET(req: NextRequest) {
     })
 
     return NextResponse.redirect(`${base}/settings?drive=connected`)
-  } catch {
+  } catch (err) {
+    console.error("[drive/callback] token exchange failed:", err)
     return NextResponse.redirect(`${base}/settings?drive=error`)
   }
 }
