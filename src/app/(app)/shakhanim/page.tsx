@@ -33,8 +33,7 @@ export default function ShakhanimPage() {
   const [q,              setQ]              = useState("")
   const [gender,         setGender]         = useState<GenderFilter>("all")
   const [directorsOnly,  setDirectorsOnly]  = useState(false)
-  const [languageFilter, setLanguageFilter] = useState<string>("all")
-  const [sortBy,         setSortBy]         = useState<SortBy>("name")
+  const [sortBy, setSortBy] = useState<SortBy>("name")
 
   useEffect(() => {
     fetch("/api/shakhanim")
@@ -42,29 +41,11 @@ export default function ShakhanimPage() {
       .then((data) => { setActors(data); setLoading(false) })
   }, [])
 
-  const languageOptions = useMemo(() => {
-    const langs = new Set<string>()
-    actors.forEach((a) => {
-      if (a.languages) {
-        a.languages.split(",").forEach((l) => {
-          const t = l.trim()
-          if (t) langs.add(t)
-        })
-      }
-    })
-    return Array.from(langs).sort((a, b) => a.localeCompare(b, "he"))
-  }, [actors])
-
   const filtered = useMemo(() => {
     const list = actors.filter((a) => {
       if (gender !== "all" && a.gender !== gender) return false
       if (directorsOnly && !a.canDirect) return false
       if (q && !a.name.toLowerCase().includes(q.toLowerCase())) return false
-      if (languageFilter !== "all") {
-        if (!a.languages) return false
-        const langs = a.languages.split(",").map((l) => l.trim())
-        if (!langs.includes(languageFilter)) return false
-      }
       return true
     })
 
@@ -76,7 +57,7 @@ export default function ShakhanimPage() {
       if (!b.lastDate) return -1
       return new Date(b.lastDate).getTime() - new Date(a.lastDate).getTime()
     })
-  }, [actors, q, gender, directorsOnly, languageFilter, sortBy])
+  }, [actors, q, gender, directorsOnly, sortBy])
 
   return (
     <div className="flex flex-col h-full">
@@ -136,15 +117,6 @@ export default function ShakhanimPage() {
           }`}>
           במאי/ת בלבד
         </button>
-
-        {/* Language filter */}
-        {languageOptions.length > 0 && (
-          <select value={languageFilter} onChange={(e) => setLanguageFilter(e.target.value)}
-            className="border border-gray-200 rounded px-2 py-1.5 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-navy/30">
-            <option value="all">כל השפות</option>
-            {languageOptions.map((l) => <option key={l} value={l}>{l}</option>)}
-          </select>
-        )}
 
         <div className="w-px h-5 bg-gray-200" />
 
