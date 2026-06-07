@@ -111,7 +111,7 @@ export default function LihukimPage() {
   const [dismissedIds, setDismissedIds] = useState<Set<string>>(new Set())
 
   // canCast = may perform edits; false for cancelled workshops (view-only for everyone)
-  const canCast = isCaster && !data?.cancelled
+  const canCast = (isCaster || isManager) && !data?.cancelled
 
   // Load per-user dismissed log IDs from localStorage
   useEffect(() => {
