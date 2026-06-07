@@ -6,6 +6,7 @@ import CredentialsProvider from "next-auth/providers/credentials"
 const SESSION_MAX_AGE = parseInt(process.env.SESSION_MAX_AGE ?? "2592000", 10)
 
 export const authOptions: NextAuthOptions = {
+  secret: process.env.NEXTAUTH_SECRET,
   session: { strategy: "jwt", maxAge: SESSION_MAX_AGE },
   jwt: { maxAge: SESSION_MAX_AGE },
   pages: {
