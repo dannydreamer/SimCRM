@@ -40,6 +40,7 @@ function SettingsInner() {
   const [loading, setLoading] = useState(true)
   const [backing, setBacking] = useState(false)
   const [result, setResult]   = useState<"success" | "error" | null>(null)
+  const [backupError, setBackupError] = useState<string | null>(null)
 
   async function fetchStatus() {
     setLoading(true)
@@ -53,10 +54,17 @@ function SettingsInner() {
   async function handleManualBackup() {
     setBacking(true)
     setResult(null)
+    setBackupError(null)
     const res = await fetch("/api/settings/backup", { method: "POST" })
-    setResult(res.ok ? "success" : "error")
+    if (res.ok) {
+      setResult("success")
+      await fetchStatus()
+    } else {
+      const body = await res.json().catch(() => ({}))
+      setBackupError(body.error ?? `HTTP ${res.status}`)
+      setResult("error")
+    }
     setBacking(false)
-    if (res.ok) await fetchStatus()
   }
 
   const envOk       = status?.envWarning === null
@@ -223,7 +231,10 @@ function SettingsInner() {
               <span className="text-sm text-green-700 font-medium">✓ גיבוי נוצר בהצלחה</span>
             )}
             {result === "error" && (
-              <span className="text-sm text-red-600 font-medium">✗ הגיבוי נכשל — נסה שוב</span>
+              <span className="text-sm text-red-600 font-medium">
+                ✗ הגיבוי נכשל — נסה שוב
+                {backupError && <span className="block font-mono text-xs mt-1">{backupError}</span>}
+              </span>
             )}
           </div>
         </section>
