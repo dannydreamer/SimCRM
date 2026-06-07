@@ -21,7 +21,7 @@ export async function GET() {
           facilitator: { select: { id: true, name: true } },
         },
       },
-      scenarios: { select: { id: true, cancelled: true, written: true, maleActorsNeeded: true, femaleActorsNeeded: true } },
+      scenarios: { select: { id: true, cancelled: true, written: true, maleActorsNeeded: true, femaleActorsNeeded: true, topic: { select: { id: true, name: true } } } },
       castings:  { select: { actorId: true, isDirector: true, roomId: true } },
       feedbacks: {
         select: {
@@ -103,6 +103,9 @@ export async function GET() {
         postponedWarning:     w.postponedWarning,
         roomCancelledWarning: w.roomCancelledWarning,
         feedbackMissing,
+        topics: [...new Map(
+          activeScenarios.filter((s) => s.topic).map((s) => [s.topic.id, s.topic.name])
+        ).entries()].map(([id, name]) => ({ id, name })),
       }
     }),
     { headers: { "Cache-Control": "no-store" } }
