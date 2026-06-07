@@ -347,6 +347,17 @@ model AnnualGoal {
   @@unique([year, shiyuchTakzivi])
 }
 
+// ─── App Settings (singleton, id=1) ──────────────────────────────────────────
+
+model AppSettings {
+  id                 Int       @id @default(1)
+  driveFolderId      String?
+  googleAccessToken  String?
+  googleRefreshToken String?
+  googleTokenExpiry  DateTime?
+  updatedAt          DateTime  @updatedAt
+}
+
 // ─── Backup Log ───────────────────────────────────────────────────────────────
 
 model BackupLog {

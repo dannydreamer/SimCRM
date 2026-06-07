@@ -1,6 +1,7 @@
 import { Client } from "pg"
 import { google } from "googleapis"
 import { Readable } from "stream"
+import { prisma } from "@/lib/prisma"
 
 // ─── Table dump order (respects FK dependencies) ─────────────────────────────
 
@@ -8,7 +9,7 @@ const TABLE_ORDER = [
   "Person", "PersonRole", "Organization", "ParticipantGroup",
   "Workshop", "Room", "Topic", "Scenario", "Actor", "Casting",
   "ActorWorkshopAvailability", "WorkshopConfirmedActor", "CastingChangeLog",
-  "Feedback", "ActorDevelopmentLog", "AnnualGoal", "BackupLog",
+  "Feedback", "ActorDevelopmentLog", "AnnualGoal", "AppSettings", "BackupLog",
 ]
 
 // ─── SQL value escaping ───────────────────────────────────────────────────────
@@ -18,7 +19,6 @@ function escapeSqlValue(val: unknown): string {
   if (typeof val === "boolean") return val ? "TRUE" : "FALSE"
   if (typeof val === "number") return String(val)
   if (val instanceof Date) return `'${val.toISOString()}'`
-  // String — escape single quotes by doubling them
   return `'${String(val).replace(/'/g, "''")}'`
 }
 
@@ -31,7 +31,7 @@ export async function dumpDatabase(): Promise<string> {
 
   try {
     const now = new Date().toISOString()
-    let sql = `-- SimCRM Database Backup\n-- Generated: ${now}\n-- Format: INSERT statements (restore after applying migrations)\n\n`
+    let sql = `-- SimCRM Database Backup\n-- Generated: ${now}\n-- Restore: apply migrations first, then run this file\n\n`
     sql += `SET session_replication_role = replica; -- disable FK checks during restore\n\n`
 
     for (const table of TABLE_ORDER) {
@@ -54,16 +54,65 @@ export async function dumpDatabase(): Promise<string> {
   }
 }
 
-// ─── Google Drive helpers ─────────────────────────────────────────────────────
+// ─── OAuth2 client ────────────────────────────────────────────────────────────
 
-function getDriveClient() {
-  const credentials = JSON.parse(process.env.GOOGLE_SERVICE_ACCOUNT_KEY!)
-  const auth = new google.auth.GoogleAuth({
-    credentials,
-    scopes: ["https://www.googleapis.com/auth/drive.file"],
-  })
-  return google.drive({ version: "v3", auth })
+function buildOAuth2Client() {
+  return new google.auth.OAuth2(
+    process.env.GOOGLE_CLIENT_ID,
+    process.env.GOOGLE_CLIENT_SECRET,
+    `${process.env.NEXTAUTH_URL}/api/auth/google-drive/callback`
+  )
 }
+
+export function getGoogleAuthUrl(): string {
+  const client = buildOAuth2Client()
+  return client.generateAuthUrl({
+    access_type: "offline",
+    scope: "https://www.googleapis.com/auth/drive.file",
+    prompt: "consent", // always return refresh_token
+  })
+}
+
+export async function exchangeCodeForTokens(code: string) {
+  const client = buildOAuth2Client()
+  const { tokens } = await client.getToken(code)
+  return tokens
+}
+
+// ─── Drive client (uses stored OAuth tokens) ──────────────────────────────────
+
+async function getDriveClient() {
+  const settings = await prisma.appSettings.findUnique({ where: { id: 1 } })
+  if (!settings?.googleAccessToken || !settings.googleRefreshToken) {
+    throw new Error("Google Drive not connected — complete OAuth setup in Settings")
+  }
+
+  const oauth2Client = buildOAuth2Client()
+  oauth2Client.setCredentials({
+    access_token:  settings.googleAccessToken,
+    refresh_token: settings.googleRefreshToken,
+    expiry_date:   settings.googleTokenExpiry?.getTime(),
+  })
+
+  // Proactively refresh if token expires within the next 2 minutes
+  const expiry = settings.googleTokenExpiry?.getTime() ?? 0
+  if (expiry < Date.now() + 2 * 60 * 1000) {
+    const { credentials } = await oauth2Client.refreshAccessToken()
+    await prisma.appSettings.update({
+      where: { id: 1 },
+      data: {
+        googleAccessToken:  credentials.access_token   ?? settings.googleAccessToken,
+        googleTokenExpiry:  credentials.expiry_date    ? new Date(credentials.expiry_date) : null,
+        ...(credentials.refresh_token && { googleRefreshToken: credentials.refresh_token }),
+      },
+    })
+    oauth2Client.setCredentials(credentials)
+  }
+
+  return google.drive({ version: "v3", auth: oauth2Client })
+}
+
+// ─── Folder helpers ───────────────────────────────────────────────────────────
 
 async function getOrCreateSubfolder(
   drive: ReturnType<typeof google.drive>,
@@ -87,6 +136,28 @@ async function getOrCreateSubfolder(
   return created.data.id!
 }
 
+// Ensure the root SimCRM Files folder exists; create and save it if not.
+async function getRootFolderId(drive: ReturnType<typeof google.drive>): Promise<string> {
+  const settings = await prisma.appSettings.findUnique({ where: { id: 1 } })
+
+  if (settings?.driveFolderId) return settings.driveFolderId
+
+  // Create the root folder
+  const created = await drive.files.create({
+    requestBody: { name: "SimCRM Files", mimeType: "application/vnd.google-apps.folder" },
+    fields: "id",
+  })
+  const folderId = created.data.id!
+
+  await prisma.appSettings.upsert({
+    where:  { id: 1 },
+    update: { driveFolderId: folderId },
+    create: { id: 1, driveFolderId: folderId },
+  })
+
+  return folderId
+}
+
 // ─── Upload ───────────────────────────────────────────────────────────────────
 
 export async function uploadToDrive(
@@ -94,46 +165,23 @@ export async function uploadToDrive(
   filename: string,
   subfolder: "daily" | "manual"
 ): Promise<{ fileId: string; fileSize: number }> {
-  const drive = getDriveClient()
-  const parentId = process.env.BACKUP_FOLDER_ID!
-  const subfolderId = await getOrCreateSubfolder(drive, parentId, subfolder)
+  const drive = await getDriveClient()
+  const rootId = await getRootFolderId(drive)
+  const subfolderId = await getOrCreateSubfolder(drive, rootId, subfolder)
 
   const res = await drive.files.create({
-    requestBody: {
-      name: filename,
-      parents: [subfolderId],
-    },
-    media: {
-      mimeType: "text/plain",
-      body: Readable.from([content]),
-    },
+    requestBody: { name: filename, parents: [subfolderId] },
+    media: { mimeType: "text/plain", body: Readable.from([content]) },
     fields: "id,size",
   })
 
   return {
-    fileId: res.data.id!,
+    fileId:   res.data.id!,
     fileSize: parseInt(res.data.size ?? "0", 10),
   }
 }
 
-// ─── Retention: delete daily backups older than 30 days ──────────────────────
-
-export async function pruneOldDailyBackups(): Promise<void> {
-  const drive = getDriveClient()
-  const parentId = process.env.BACKUP_FOLDER_ID!
-  const dailyFolderId = await getOrCreateSubfolder(drive, parentId, "daily")
-
-  const cutoff = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString()
-  const res = await drive.files.list({
-    q: `'${dailyFolderId}' in parents and createdTime < '${cutoff}' and trashed=false`,
-    fields: "files(id)",
-  })
-  for (const file of res.data.files ?? []) {
-    await drive.files.delete({ fileId: file.id! })
-  }
-}
-
-// ─── Filename generator ───────────────────────────────────────────────────────
+// ─── Filename ─────────────────────────────────────────────────────────────────
 
 export function buildFilename(): string {
   const now = new Date()
@@ -143,21 +191,25 @@ export function buildFilename(): string {
   return `simcrm_backup_${date}_${time}.sql`
 }
 
-// ─── Env / credentials check ──────────────────────────────────────────────────
+// ─── Env / connection check ───────────────────────────────────────────────────
 
-export type BackupWarning = "missing_env" | "invalid_key" | null
+export type BackupWarning = "missing_env" | null
 
 export function getBackupWarning(): BackupWarning {
-  const key = process.env.GOOGLE_SERVICE_ACCOUNT_KEY
-  const folderId = process.env.BACKUP_FOLDER_ID
+  if (!process.env.GOOGLE_CLIENT_ID || !process.env.GOOGLE_CLIENT_SECRET) {
+    return "missing_env"
+  }
+  return null
+}
 
-  if (!key || !folderId) return "missing_env"
-
-  try {
-    const parsed = JSON.parse(key)
-    if (!parsed.client_email || !parsed.private_key) return "invalid_key"
-    return null
-  } catch {
-    return "invalid_key"
+// Drive connection status — requires DB, used only on Settings page
+export async function getDriveConnectionStatus(): Promise<{
+  connected: boolean
+  driveFolderId: string | null
+}> {
+  const settings = await prisma.appSettings.findUnique({ where: { id: 1 } })
+  return {
+    connected:     !!(settings?.googleAccessToken && settings.googleRefreshToken),
+    driveFolderId: settings?.driveFolderId ?? null,
   }
 }

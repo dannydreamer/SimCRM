@@ -2,13 +2,13 @@ import { NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
-import { dumpDatabase, uploadToDrive, buildFilename, getBackupWarning } from "@/lib/backup"
+import { dumpDatabase, uploadToDrive, buildFilename, getBackupWarning, getDriveConnectionStatus } from "@/lib/backup"
 
 export const maxDuration = 300
 
 const MIN_FILE_SIZE = 10 * 1024 // 10 KB
 
-// ─── GET — backup status for the Settings page ───────────────────────────────
+// ─── GET — backup + Drive status ─────────────────────────────────────────────
 
 export async function GET() {
   const session = await getServerSession(authOptions)
@@ -16,13 +16,12 @@ export async function GET() {
   if (!session.user.roles.includes("MANAGER"))
     return NextResponse.json({ error: "Forbidden" }, { status: 403 })
 
-  const [lastSuccess, lastFailed, totalCount] = await Promise.all([
+  const [lastSuccess, lastLog, totalCount, driveStatus] = await Promise.all([
     prisma.backupLog.findFirst({ where: { status: "SUCCESS" }, orderBy: { createdAt: "desc" } }),
-    prisma.backupLog.findFirst({ where: { status: "FAILED" },  orderBy: { createdAt: "desc" } }),
+    prisma.backupLog.findFirst({ orderBy: { createdAt: "desc" } }),
     prisma.backupLog.count(),
+    getDriveConnectionStatus(),
   ])
-
-  const lastLog = await prisma.backupLog.findFirst({ orderBy: { createdAt: "desc" } })
 
   return NextResponse.json({
     lastSuccess: lastSuccess
@@ -32,7 +31,9 @@ export async function GET() {
     lastError:  lastLog?.status === "FAILED" ? lastLog.errorMsg : null,
     lastDate:   lastLog?.createdAt.toISOString() ?? null,
     totalCount,
-    warning: getBackupWarning(),
+    envWarning:     getBackupWarning(),
+    driveConnected: driveStatus.connected,
+    driveFolderId:  driveStatus.driveFolderId,
   })
 }
 
@@ -44,10 +45,12 @@ export async function POST() {
   if (!session.user.roles.includes("MANAGER"))
     return NextResponse.json({ error: "Forbidden" }, { status: 403 })
 
-  const warning = getBackupWarning()
-  if (warning !== null) {
-    return NextResponse.json({ error: "Backup not configured" }, { status: 400 })
-  }
+  if (getBackupWarning() !== null)
+    return NextResponse.json({ error: "Backup env vars not configured" }, { status: 400 })
+
+  const { connected } = await getDriveConnectionStatus()
+  if (!connected)
+    return NextResponse.json({ error: "Google Drive not connected" }, { status: 400 })
 
   const filename = buildFilename()
 
@@ -57,13 +60,8 @@ export async function POST() {
 
     if (fileSize < MIN_FILE_SIZE) {
       await prisma.backupLog.create({
-        data: {
-          type: "MANUAL",
-          status: "FAILED",
-          filePath: filename,
-          fileSize,
-          errorMsg: `גיבוי חשוד כקטן מדי: ${fileSize} bytes`,
-        },
+        data: { type: "MANUAL", status: "FAILED", filePath: filename, fileSize,
+          errorMsg: `גיבוי חשוד כקטן מדי: ${fileSize} bytes` },
       })
       return NextResponse.json({ error: "Backup file too small" }, { status: 500 })
     }
@@ -71,7 +69,6 @@ export async function POST() {
     await prisma.backupLog.create({
       data: { type: "MANUAL", status: "SUCCESS", filePath: filename, fileSize },
     })
-
     return NextResponse.json({ ok: true, filename, fileSize })
   } catch (err) {
     const errorMsg = err instanceof Error ? err.message : String(err)
