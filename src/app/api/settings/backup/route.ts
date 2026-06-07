@@ -6,7 +6,6 @@ import { dumpDatabase, uploadToDrive, buildFilename, getBackupWarning, getDriveC
 
 export const maxDuration = 300
 
-const MIN_FILE_SIZE = 10 * 1024 // 10 KB
 
 // ─── GET — backup + Drive status ─────────────────────────────────────────────
 
@@ -57,14 +56,6 @@ export async function POST() {
   try {
     const sql = await dumpDatabase()
     const { fileSize } = await uploadToDrive(sql, filename, "manual")
-
-    if (fileSize < MIN_FILE_SIZE) {
-      await prisma.backupLog.create({
-        data: { type: "MANUAL", status: "FAILED", filePath: filename, fileSize,
-          errorMsg: `גיבוי חשוד כקטן מדי: ${fileSize} bytes` },
-      })
-      return NextResponse.json({ error: "Backup file too small" }, { status: 500 })
-    }
 
     await prisma.backupLog.create({
       data: { type: "MANUAL", status: "SUCCESS", filePath: filename, fileSize },

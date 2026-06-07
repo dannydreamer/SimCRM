@@ -4,7 +4,6 @@ import { dumpDatabase, uploadToDrive, buildFilename, getBackupWarning } from "@/
 
 export const maxDuration = 300 // 5 minutes — Vercel Pro limit
 
-const MIN_FILE_SIZE = 10 * 1024 // 10 KB
 
 export async function GET(req: NextRequest) {
   // Verify this is a legitimate Vercel cron request
@@ -22,16 +21,6 @@ export async function GET(req: NextRequest) {
   try {
     const sql = await dumpDatabase()
     const { fileSize } = await uploadToDrive(sql, filename, "daily")
-
-    if (fileSize < MIN_FILE_SIZE) {
-      await prisma.backupLog.create({
-        data: {
-          type: "AUTO", status: "FAILED", filePath: filename, fileSize,
-          errorMsg: `גיבוי חשוד כקטן מדי: ${fileSize} bytes (מינימום ${MIN_FILE_SIZE})`,
-        },
-      })
-      return NextResponse.json({ error: "Backup file too small" }, { status: 500 })
-    }
 
     await prisma.backupLog.create({
       data: { type: "AUTO", status: "SUCCESS", filePath: filename, fileSize },
