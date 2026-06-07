@@ -13,7 +13,7 @@ interface AppShellProps {
     roles: string[]
   }
   version: string
-  backupWarning?: "missing_env" | "invalid_key" | null
+  backupWarning?: "missing_env" | null
   children: React.ReactNode
 }
 
@@ -88,15 +88,9 @@ export function AppShell({ user, version, backupWarning, children }: AppShellPro
       {/* Backup warning banner — Manager only, not dismissible */}
       {backupWarning === "missing_env" && (
         <div className="bg-amber-50 border-b border-amber-200 px-6 py-2 text-sm text-amber-800 shrink-0">
-          ⚠ משתני סביבה לגיבוי חסרים — הגיבוי האוטומטי אינו פעיל. יש להגדיר{" "}
-          <code className="font-mono bg-amber-100 px-1 rounded text-xs">GOOGLE_SERVICE_ACCOUNT_KEY</code>{" "}
-          ו-<code className="font-mono bg-amber-100 px-1 rounded text-xs">BACKUP_FOLDER_ID</code> ב-Vercel.
-        </div>
-      )}
-      {backupWarning === "invalid_key" && (
-        <div className="bg-amber-50 border-b border-amber-200 px-6 py-2 text-sm text-amber-800 shrink-0">
-          ⚠ אימות חשבון הגיבוי נכשל — יש לבדוק את תקינות{" "}
-          <code className="font-mono bg-amber-100 px-1 rounded text-xs">GOOGLE_SERVICE_ACCOUNT_KEY</code> ב-Vercel.
+          ⚠ משתני הסביבה לגיבוי חסרים — הגיבוי האוטומטי אינו פעיל. יש להגדיר{" "}
+          <code className="font-mono bg-amber-100 px-1 rounded text-xs">GOOGLE_CLIENT_ID</code>{" "}
+          ו-<code className="font-mono bg-amber-100 px-1 rounded text-xs">GOOGLE_CLIENT_SECRET</code> ב-Vercel.
         </div>
       )}
 
