@@ -1,27 +1,21 @@
 import { NextRequest, NextResponse } from "next/server"
-import { getServerSession } from "next-auth"
-import { authOptions } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
 import { exchangeCodeForTokens } from "@/lib/backup"
 
 export async function GET(req: NextRequest) {
-  const session = await getServerSession(authOptions)
-  if (!session || !session.user.roles.includes("MANAGER")) {
-    return NextResponse.redirect(new URL("/login", req.url))
-  }
-
   const code  = req.nextUrl.searchParams.get("code")
   const error = req.nextUrl.searchParams.get("error")
+  const base  = process.env.NEXTAUTH_URL ?? req.nextUrl.origin
 
   if (error || !code) {
-    return NextResponse.redirect(new URL("/settings?drive=error", req.url))
+    return NextResponse.redirect(`${base}/settings?drive=error`)
   }
 
   try {
     const tokens = await exchangeCodeForTokens(code)
 
     if (!tokens.access_token || !tokens.refresh_token) {
-      return NextResponse.redirect(new URL("/settings?drive=error", req.url))
+      return NextResponse.redirect(`${base}/settings?drive=error`)
     }
 
     await prisma.appSettings.upsert({
@@ -39,8 +33,8 @@ export async function GET(req: NextRequest) {
       },
     })
 
-    return NextResponse.redirect(new URL("/settings?drive=connected", req.url))
+    return NextResponse.redirect(`${base}/settings?drive=connected`)
   } catch {
-    return NextResponse.redirect(new URL("/settings?drive=error", req.url))
+    return NextResponse.redirect(`${base}/settings?drive=error`)
   }
 }
