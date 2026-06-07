@@ -128,7 +128,7 @@ function SettingsInner() {
 
                 {!driveOk && envOk && (
                   <a
-                    href="/api/auth/google-drive/connect"
+                    href="/api/drive/connect"
                     className="px-4 py-2 bg-navy text-white text-sm font-medium rounded hover:bg-navy-dark transition-colors"
                   >
                     חיבור Google Drive
@@ -136,7 +136,7 @@ function SettingsInner() {
                 )}
                 {driveOk && (
                   <a
-                    href="/api/auth/google-drive/connect"
+                    href="/api/drive/connect"
                     className="text-xs text-gray-400 hover:text-gray-600 transition-colors"
                   >
                     חיבור מחדש
