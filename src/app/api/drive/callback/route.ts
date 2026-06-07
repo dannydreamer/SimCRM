@@ -35,8 +35,7 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.redirect(`${base}/settings?drive=connected`)
   } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err)
-    console.error("[drive/callback] token exchange failed:", msg)
-    return NextResponse.redirect(`${base}/settings?drive=error&reason=${encodeURIComponent(msg)}`)
+    console.error("[drive/callback] token exchange failed:", err)
+    return NextResponse.redirect(`${base}/settings?drive=error`)
   }
 }

@@ -33,14 +33,12 @@ function formatFileSize(bytes: number | null) {
 
 function SettingsInner() {
   const searchParams = useSearchParams()
-  const driveParam  = searchParams.get("drive")  // "connected" | "error" | null
-  const driveReason = searchParams.get("reason")
+  const driveParam = searchParams.get("drive") // "connected" | "error" | null
 
   const [status, setStatus]   = useState<BackupStatus | null>(null)
   const [loading, setLoading] = useState(true)
   const [backing, setBacking] = useState(false)
   const [result, setResult]   = useState<"success" | "error" | null>(null)
-  const [backupError, setBackupError] = useState<string | null>(null)
 
   async function fetchStatus() {
     setLoading(true)
@@ -54,17 +52,10 @@ function SettingsInner() {
   async function handleManualBackup() {
     setBacking(true)
     setResult(null)
-    setBackupError(null)
     const res = await fetch("/api/settings/backup", { method: "POST" })
-    if (res.ok) {
-      setResult("success")
-      await fetchStatus()
-    } else {
-      const body = await res.json().catch(() => ({}))
-      setBackupError(body.error ?? `HTTP ${res.status}`)
-      setResult("error")
-    }
+    setResult(res.ok ? "success" : "error")
     setBacking(false)
+    if (res.ok) await fetchStatus()
   }
 
   const envOk       = status?.envWarning === null
@@ -91,7 +82,6 @@ function SettingsInner() {
         {driveParam === "error" && (
           <div className="border border-red-200 bg-red-50 rounded-lg px-5 py-3 text-sm text-red-700">
             חיבור Google Drive נכשל — נסה שנית.
-            {driveReason && <div className="mt-1 font-mono text-xs break-all">{driveReason}</div>}
           </div>
         )}
 
@@ -231,10 +221,7 @@ function SettingsInner() {
               <span className="text-sm text-green-700 font-medium">✓ גיבוי נוצר בהצלחה</span>
             )}
             {result === "error" && (
-              <span className="text-sm text-red-600 font-medium">
-                ✗ הגיבוי נכשל — נסה שוב
-                {backupError && <span className="block font-mono text-xs mt-1">{backupError}</span>}
-              </span>
+              <span className="text-sm text-red-600 font-medium">✗ הגיבוי נכשל — נסה שוב</span>
             )}
           </div>
         </section>
