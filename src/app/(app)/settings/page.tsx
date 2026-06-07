@@ -33,7 +33,8 @@ function formatFileSize(bytes: number | null) {
 
 function SettingsInner() {
   const searchParams = useSearchParams()
-  const driveParam = searchParams.get("drive") // "connected" | "error" | null
+  const driveParam  = searchParams.get("drive")  // "connected" | "error" | null
+  const driveReason = searchParams.get("reason")
 
   const [status, setStatus]   = useState<BackupStatus | null>(null)
   const [loading, setLoading] = useState(true)
@@ -82,6 +83,7 @@ function SettingsInner() {
         {driveParam === "error" && (
           <div className="border border-red-200 bg-red-50 rounded-lg px-5 py-3 text-sm text-red-700">
             חיבור Google Drive נכשל — נסה שנית.
+            {driveReason && <div className="mt-1 font-mono text-xs break-all">{driveReason}</div>}
           </div>
         )}
 
