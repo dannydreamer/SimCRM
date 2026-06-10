@@ -13,10 +13,11 @@ interface AppShellProps {
     roles: string[]
   }
   version: string
+  backupWarning?: "missing_env" | null
   children: React.ReactNode
 }
 
-export function AppShell({ user, version, children }: AppShellProps) {
+export function AppShell({ user, version, backupWarning, children }: AppShellProps) {
   const pathname = usePathname()
 
   const visibleNav = NAV_ITEMS.filter((item) =>
@@ -83,6 +84,15 @@ export function AppShell({ user, version, children }: AppShellProps) {
           )
         })}
       </nav>
+
+      {/* Backup warning banner — Manager only, not dismissible */}
+      {backupWarning === "missing_env" && (
+        <div className="bg-amber-50 border-b border-amber-200 px-6 py-2 text-sm text-amber-800 shrink-0">
+          ⚠ משתני הסביבה לגיבוי חסרים — הגיבוי האוטומטי אינו פעיל. יש להגדיר{" "}
+          <code className="font-mono bg-amber-100 px-1 rounded text-xs">GOOGLE_CLIENT_ID</code>{" "}
+          ו-<code className="font-mono bg-amber-100 px-1 rounded text-xs">GOOGLE_CLIENT_SECRET</code> ב-Vercel.
+        </div>
+      )}
 
       {/* Page content */}
       <main className="flex-1 overflow-auto">

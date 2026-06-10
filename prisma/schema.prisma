@@ -65,6 +65,11 @@ enum BackupType {
   MANUAL
 }
 
+enum BackupStatus {
+  SUCCESS
+  FAILED
+}
+
 // ─── Person (internal staff) ─────────────────────────────────────────────────
 
 model Person {
@@ -342,12 +347,25 @@ model AnnualGoal {
   @@unique([year, shiyuchTakzivi])
 }
 
+// ─── App Settings (singleton, id=1) ──────────────────────────────────────────
+
+model AppSettings {
+  id                 Int       @id @default(1)
+  driveFolderId      String?
+  googleAccessToken  String?
+  googleRefreshToken String?
+  googleTokenExpiry  DateTime?
+  updatedAt          DateTime  @updatedAt
+}
+
 // ─── Backup Log ───────────────────────────────────────────────────────────────
 
 model BackupLog {
-  id        String     @id @default(uuid())
+  id        String       @id @default(uuid())
   type      BackupType
+  status    BackupStatus @default(SUCCESS)
   filePath  String?
   fileSize  Int?
-  createdAt DateTime   @default(now())
+  errorMsg  String?
+  createdAt DateTime     @default(now())
 }

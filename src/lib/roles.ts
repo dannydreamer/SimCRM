@@ -21,11 +21,10 @@ export const NAV_ITEMS = [
     roles: ["MANAGER", "TECH"],
   },
   {
-    href: "/nosim",
-    label: "נושאים",
-    roles: ["MANAGER", "TECH"],
+    href: "/luach",
+    label: "לוח שנה",
+    roles: ["MANAGER", "TECH", "CASTER", "FEEDBACK_DOCUMENTER", "FACILITATOR"],
   },
-  // ליהוק placed before שחקנים so Caster's first tab is the casting page
   {
     href: "/lihukim",
     label: "ליהוק",
@@ -37,9 +36,14 @@ export const NAV_ITEMS = [
     roles: ["MANAGER", "TECH", "CASTER", "FEEDBACK_DOCUMENTER"],
   },
   {
-    href: "/luach",
-    label: "לוח שנה",
-    roles: ["MANAGER", "TECH", "CASTER", "FEEDBACK_DOCUMENTER", "FACILITATOR"],
+    href: "/omas",
+    label: "עומס מתחקרים",
+    roles: ["MANAGER"],
+  },
+  {
+    href: "/nosim",
+    label: "נושאים",
+    roles: ["MANAGER", "TECH"],
   },
   {
     href: "/yaadot",
@@ -47,13 +51,13 @@ export const NAV_ITEMS = [
     roles: ["MANAGER"],
   },
   {
-    href: "/omas",
-    label: "עומס מתחקרים",
+    href: "/users",
+    label: "ניהול משתמשים",
     roles: ["MANAGER"],
   },
   {
-    href: "/users",
-    label: "ניהול משתמשים",
+    href: "/settings",
+    label: "הגדרות",
     roles: ["MANAGER"],
   },
 ]
