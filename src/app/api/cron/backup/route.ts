@@ -18,19 +18,26 @@ export async function GET(req: NextRequest) {
 
   const filename = buildFilename()
 
+  // Write a RUNNING entry immediately so we know the cron fired even if it times out
+  const logEntry = await prisma.backupLog.create({
+    data: { type: "AUTO", status: "RUNNING", filePath: filename },
+  })
+
   try {
     const sql = await dumpDatabase()
     const { fileSize } = await uploadToDrive(sql, filename, "daily")
 
-    await prisma.backupLog.create({
-      data: { type: "AUTO", status: "SUCCESS", filePath: filename, fileSize },
+    await prisma.backupLog.update({
+      where: { id: logEntry.id },
+      data: { status: "SUCCESS", fileSize },
     })
 
     return NextResponse.json({ ok: true, filename, fileSize })
   } catch (err) {
     const errorMsg = err instanceof Error ? err.message : String(err)
-    await prisma.backupLog.create({
-      data: { type: "AUTO", status: "FAILED", filePath: filename, errorMsg },
+    await prisma.backupLog.update({
+      where: { id: logEntry.id },
+      data: { status: "FAILED", errorMsg },
     })
     return NextResponse.json({ error: errorMsg }, { status: 500 })
   }
