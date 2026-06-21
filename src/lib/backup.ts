@@ -191,6 +191,44 @@ export function buildFilename(): string {
   return `simcrm_backup_${date}_${time}.sql`
 }
 
+// ─── Auto-backup on manager activity ─────────────────────────────────────────
+
+const AUTO_BACKUP_INTERVAL_MS = 3 * 24 * 60 * 60 * 1000 // 3 days
+
+export async function maybeAutoBackup(): Promise<void> {
+  if (getBackupWarning() !== null) return
+
+  try {
+    const last = await prisma.backupLog.findFirst({
+      where: { status: "SUCCESS" },
+      orderBy: { createdAt: "desc" },
+    })
+
+    if (last && Date.now() - last.createdAt.getTime() < AUTO_BACKUP_INTERVAL_MS) return
+
+    const filename = buildFilename()
+    const logEntry = await prisma.backupLog.create({
+      data: { type: "AUTO", status: "RUNNING", filePath: filename },
+    })
+
+    try {
+      const sql = await dumpDatabase()
+      const { fileSize } = await uploadToDrive(sql, filename, "daily")
+      await prisma.backupLog.update({
+        where: { id: logEntry.id },
+        data: { status: "SUCCESS", fileSize },
+      })
+    } catch (err) {
+      await prisma.backupLog.update({
+        where: { id: logEntry.id },
+        data: { status: "FAILED", errorMsg: err instanceof Error ? err.message : String(err) },
+      })
+    }
+  } catch {
+    // Never crash the page load
+  }
+}
+
 // ─── Env / connection check ───────────────────────────────────────────────────
 
 export type BackupWarning = "missing_env" | null

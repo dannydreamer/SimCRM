@@ -3,7 +3,7 @@ import { authOptions } from "@/lib/auth"
 import { redirect } from "next/navigation"
 import { AppShell } from "@/components/AppShell"
 import { UserProvider } from "./user-context"
-import { getBackupWarning } from "@/lib/backup"
+import { getBackupWarning, maybeAutoBackup } from "@/lib/backup"
 
 const VERSION = "0.1.0"
 
@@ -14,6 +14,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   // Show backup warning banner to Managers if env vars are missing/invalid
   const isManager = session.user.roles.includes("MANAGER")
   const backupWarning = isManager ? getBackupWarning() : null
+  if (isManager) void maybeAutoBackup()
 
   return (
     <UserProvider user={session.user}>
