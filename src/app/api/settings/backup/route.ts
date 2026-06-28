@@ -18,7 +18,7 @@ export async function GET() {
   const [lastSuccess, lastLog, totalCount, driveStatus] = await Promise.all([
     prisma.backupLog.findFirst({ where: { status: "SUCCESS" }, orderBy: { createdAt: "desc" } }),
     prisma.backupLog.findFirst({ orderBy: { createdAt: "desc" } }),
-    prisma.backupLog.count(),
+    prisma.backupLog.count({ where: { status: "SUCCESS" } }),
     getDriveConnectionStatus(),
   ])
 
