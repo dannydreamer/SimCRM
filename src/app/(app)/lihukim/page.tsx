@@ -329,8 +329,12 @@ export default function LihukimLandingPage() {
                           <span className="text-xs text-red-500 font-medium">בוטל</span>
                         ) : (
                           <span className="inline-flex items-center gap-1.5">
-                            <span className={`text-sm font-medium ${complete ? "text-green-600" : "text-amber-600"}`}>
-                              {complete ? "✓ הושלם" : `${w.castingFilled}/${w.castingTotal}`}
+                            <span className={`text-sm font-medium ${
+                              complete ? "text-green-600"
+                              : w.castingTotal === 0 ? "text-gray-400"
+                              : "text-amber-600"
+                            }`}>
+                              {complete ? "✓ הושלם" : w.castingTotal === 0 ? "אין תרחישים פעילים" : `${w.castingFilled}/${w.castingTotal}`}
                             </span>
                             {hasRoomWarning && (
                               <span className="px-1.5 py-0.5 rounded bg-amber-100 text-amber-700 text-xs font-bold leading-none">⚠</span>

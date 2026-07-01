@@ -413,6 +413,11 @@ export default function SadnaotPage() {
                       <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium ${STATUS_COLOR[w.status] ?? "bg-gray-100 text-gray-500"}`}>
                         {STATUS_HE[w.status] ?? w.status}
                       </span>
+                      {w.status === "NEW" && new Date(w.date) < new Date() && (
+                        <span className="block mt-0.5 px-1.5 py-0.5 rounded bg-red-100 text-red-700 text-xs font-semibold">
+                          ⚠ תאריך עבר ולא בוצע איתור צרכים
+                        </span>
+                      )}
                     </td>
 
                     <td className="px-3 py-2.5 text-center">

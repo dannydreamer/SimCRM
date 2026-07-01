@@ -567,6 +567,7 @@ export default function WorkshopDetailPage() {
     })
     if (res.ok) {
       const updated = await res.json()
+      const FROZEN = ["CLOSING", "CLOSED", "CANCELLED"]
       setW((prev) => {
         if (!prev) return prev
         return {
@@ -584,6 +585,10 @@ export default function WorkshopDetailPage() {
           roomCancelledWarning: updated.roomCancelledWarning ?? prev.roomCancelledWarning,
           roomAddedWarning:     updated.roomAddedWarning     ?? prev.roomAddedWarning,
           rooms: updated.rooms ?? prev.rooms,
+          ...(updated.status !== undefined && {
+            status: updated.status,
+            frozen: FROZEN.includes(updated.status),
+          }),
         }
       })
       setHeaderDraft(null)

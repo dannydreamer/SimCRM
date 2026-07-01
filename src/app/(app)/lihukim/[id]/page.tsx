@@ -1,7 +1,7 @@
 "use client"
 
 import { useCallback, useEffect, useMemo, useState } from "react"
-import { useParams } from "next/navigation"
+import { useParams, useRouter } from "next/navigation"
 import { useUser } from "@/app/(app)/user-context"
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -101,6 +101,7 @@ const LS_KEY = "simcrm:dismissed-logs"
 
 export default function LihukimPage() {
   const { id: workshopId } = useParams<{ id: string }>()
+  const router   = useRouter()
   const user     = useUser()
   const isCaster  = user.roles.includes("CASTER")
   const isManager = user.roles.includes("MANAGER")
@@ -211,6 +212,7 @@ export default function LihukimPage() {
   const step2Complete = useMemo(() => {
     if (!data || !step1Complete) return false
     const scenarios = data.scenarios
+    if (scenarios.length === 0) return false  // no active scenarios = not complete
     const rooms     = data.rooms
     for (const s of scenarios) {
       for (const r of rooms) {
@@ -255,6 +257,8 @@ export default function LihukimPage() {
               : prev.assignments,
           }
         })
+        // Removing from Step 1 can revert READY→SPECIFIED; invalidate router cache
+        router.refresh()
       } else {
         const newConfirmed: ConfirmedActor = await r.json()
         setData((prev) => {
@@ -340,6 +344,9 @@ export default function LihukimPage() {
         ? { ...prev, assignments: prev.assignments.filter((a) => a.id !== castingId) }
         : prev
       )
+      // Removing a slot can revert READY→SPECIFIED; invalidate router cache
+      // so the workshop list re-fetches on next visit
+      router.refresh()
     }
     setSaving(false)
   }
@@ -643,6 +650,10 @@ export default function LihukimPage() {
               {castingComplete ? (
                 <span className="px-2 py-0.5 rounded-full bg-green-100 text-green-700 text-xs font-semibold">
                   ליהוק ✓
+                </span>
+              ) : step1Complete && scenarios.length === 0 ? (
+                <span className="px-2 py-0.5 rounded-full bg-gray-100 text-gray-500 text-xs font-semibold">
+                  אין תרחישים פעילים
                 </span>
               ) : step1Complete ? (
                 <span className="px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 text-xs font-semibold">

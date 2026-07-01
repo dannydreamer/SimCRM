@@ -76,15 +76,16 @@ export async function PATCH(
       const effectiveFacilitatorId = facilitatorId !== undefined ? (facilitatorId || null) : room.facilitatorId
       if (!effectiveFacilitatorId)
         return NextResponse.json({ error: "יש לשבץ מתחקר/ת לפני סימון מצגת" }, { status: 400 })
-      // PPT only allowed before or on workshop date
-      const today = dayOnly(new Date())
-      const wDate = dayOnly(new Date(workshop.date))
-      if (today > wDate)
-        return NextResponse.json({ error: "לא ניתן לסמן מצגת לאחר תאריך הסדנה" }, { status: 400 })
-      // All scenarios must be marked written
-      const allWritten = workshop.scenarios.length > 0 && workshop.scenarios.every((s) => s.written)
-      if (!allWritten)
-        return NextResponse.json({ error: "יש לסמן את כל התרחישים כנכתב לפני סימון מצגת" }, { status: 400 })
+      // Date and written-scenarios checks don't apply in CLOSING (workshop already ran)
+      if (workshop.status !== "CLOSING") {
+        const today = dayOnly(new Date())
+        const wDate = dayOnly(new Date(workshop.date))
+        if (today > wDate)
+          return NextResponse.json({ error: "לא ניתן לסמן מצגת לאחר תאריך הסדנה" }, { status: 400 })
+        const allWritten = workshop.scenarios.length > 0 && workshop.scenarios.every((s) => s.written)
+        if (!allWritten)
+          return NextResponse.json({ error: "יש לסמן את כל התרחישים כנכתב לפני סימון מצגת" }, { status: 400 })
+      }
     }
     data.pptReceived = pptReceived
   }

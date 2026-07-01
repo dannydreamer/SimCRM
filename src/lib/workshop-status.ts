@@ -108,7 +108,16 @@ export async function checkAndAdvanceStatus(workshopId: string): Promise<string 
   let newStatus: string | null = null
 
   if (w.status === "SPECIFIED") {
-    if (readyConditionsMet()) newStatus = "READY"
+    // Transition once the calendar date is in the past, OR today's end time has passed
+    const todayStart = new Date()
+    todayStart.setHours(0, 0, 0, 0)
+    const wDateStart = new Date(w.date)
+    wDateStart.setHours(0, 0, 0, 0)
+    if (wDateStart < todayStart || now >= wEndDateTime) {
+      newStatus = "CLOSING"
+    } else if (readyConditionsMet()) {
+      newStatus = "READY"
+    }
 
   } else if (w.status === "READY") {
     if (now >= wEndDateTime) {

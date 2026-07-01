@@ -27,12 +27,22 @@ export async function GET() {
       },
       scenarios: { where: { cancelled: false }, select: { id: true, maleActorsNeeded: true, femaleActorsNeeded: true } },
       rooms:     { where: { cancelled: false }, select: { id: true } },
-      // Only count castings tied to non-cancelled rooms
+      // Only count castings tied to active rooms AND active scenarios
       castings:  {
         where: {
-          OR: [
-            { roomId: null },                              // director has no roomId
-            { room: { cancelled: false } },
+          AND: [
+            {
+              OR: [
+                { roomId: null },                              // director has no roomId
+                { room: { cancelled: false } },
+              ],
+            },
+            {
+              OR: [
+                { scenarioId: null },                         // director has no scenarioId
+                { scenario: { cancelled: false } },
+              ],
+            },
           ],
         },
         select: { id: true, isDirector: true },
