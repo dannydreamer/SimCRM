@@ -981,7 +981,7 @@ export default function WorkshopDetailPage() {
                     </div>
                   )
                 })()}
-                {isManager && !w.cancelled && !w.frozen && (
+                {isManager && !w.cancelled && (
                   <button onClick={cancelWorkshop}
                     className="px-4 py-1.5 text-sm rounded-lg border border-red-200 text-red-600 hover:bg-red-50">
                     ביטול סדנה
