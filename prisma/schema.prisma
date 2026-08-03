@@ -47,6 +47,7 @@ enum WorkshopStatus {
 enum LocationType {
   CENTER
   EXTERNAL
+  ZOOM
 }
 
 enum RagColor {

@@ -67,7 +67,7 @@ function NewWorkshopForm() {
     }
   }
   const [numRooms,          setNumRooms]          = useState("1")
-  const [locationType,      setLocationType]      = useState<"CENTER" | "EXTERNAL">("CENTER")
+  const [locationType,      setLocationType]      = useState<"CENTER" | "EXTERNAL" | "ZOOM">("CENTER")
   const [locationName,      setLocationName]      = useState("")
   const [authorId,          setAuthorId]          = useState("")
   const [directorRequested, setDirectorRequested] = useState(false)
@@ -132,7 +132,7 @@ function NewWorkshopForm() {
         endTime,
         numRooms:         parseInt(numRooms),
         locationType,
-        locationName:     locationType === "EXTERNAL" ? locationName.trim() || null : null,
+        locationName:     (locationType === "EXTERNAL" || locationType === "ZOOM") ? locationName.trim() || null : null,
         authorId:         authorId || null,
         directorRequested,
         tentative,
@@ -259,15 +259,18 @@ function NewWorkshopForm() {
           <div>
             <label className="block text-sm text-gray-700 mb-2">מיקום *</label>
             <div className="flex gap-6 mb-2">
-              {(["CENTER", "EXTERNAL"] as const).map((t) => (
+              {(["CENTER", "EXTERNAL", "ZOOM"] as const).map((t) => (
                 <label key={t} className="flex items-center gap-2 cursor-pointer">
-                  <input type="radio" name="locationType" value={t} checked={locationType === t} onChange={() => setLocationType(t)} className="accent-navy" />
-                  <span className="text-sm text-gray-700">{t === "CENTER" ? "מרכז" : "חיצוני"}</span>
+                  <input type="radio" name="locationType" value={t} checked={locationType === t} onChange={() => { setLocationType(t); setLocationName("") }} className="accent-navy" />
+                  <span className="text-sm text-gray-700">{t === "CENTER" ? "מרכז" : t === "EXTERNAL" ? "חיצוני" : "זום"}</span>
                 </label>
               ))}
             </div>
             {locationType === "EXTERNAL" && (
               <input type="text" value={locationName} onChange={(e) => setLocationName(e.target.value)} className={inputCls} placeholder="כתובת / שם המקום" />
+            )}
+            {locationType === "ZOOM" && (
+              <input type="text" value={locationName} onChange={(e) => setLocationName(e.target.value)} className={inputCls} placeholder="קישור לפגישה (אופציונלי)" />
             )}
           </div>
 

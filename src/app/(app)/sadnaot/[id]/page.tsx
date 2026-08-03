@@ -874,10 +874,11 @@ export default function WorkshopDetailPage() {
                 <div>
                   <label className="block text-xs text-gray-500 mb-1">מיקום</label>
                   <select value={hd.locationType}
-                    onChange={(e) => setHeaderDraft({ ...hd, locationType: e.target.value })}
+                    onChange={(e) => setHeaderDraft({ ...hd, locationType: e.target.value, locationName: "" })}
                     className="border border-gray-300 rounded px-2 py-1.5 text-sm w-full">
                     <option value="CENTER">מרכז</option>
                     <option value="EXTERNAL">חיצוני</option>
+                    <option value="ZOOM">זום</option>
                   </select>
                 </div>
                 {hd.locationType === "EXTERNAL" && (
@@ -885,6 +886,15 @@ export default function WorkshopDetailPage() {
                     <label className="block text-xs text-gray-500 mb-1">כתובת</label>
                     <input value={hd.locationName}
                       onChange={(e) => setHeaderDraft({ ...hd, locationName: e.target.value })}
+                      className="border border-gray-300 rounded px-2 py-1.5 text-sm w-full" />
+                  </div>
+                )}
+                {hd.locationType === "ZOOM" && (
+                  <div>
+                    <label className="block text-xs text-gray-500 mb-1">קישור לפגישה (אופציונלי)</label>
+                    <input value={hd.locationName}
+                      onChange={(e) => setHeaderDraft({ ...hd, locationName: e.target.value })}
+                      placeholder="https://..."
                       className="border border-gray-300 rounded px-2 py-1.5 text-sm w-full" />
                   </div>
                 )}
@@ -925,7 +935,16 @@ export default function WorkshopDetailPage() {
               <div>
                 <span className="text-gray-400">מיקום:</span>{" "}
                 <span className="font-medium">
-                  {w.locationType === "CENTER" ? "מרכז" : `חיצוני${w.locationName ? ` — ${w.locationName}` : ""}`}
+                  {w.locationType === "CENTER" ? "מרכז"
+                    : w.locationType === "EXTERNAL" ? `חיצוני${w.locationName ? ` — ${w.locationName}` : ""}`
+                    : w.locationType === "ZOOM" ? (
+                      <>
+                        זום{w.locationName && (
+                          <> — <a href={w.locationName} target="_blank" rel="noopener noreferrer"
+                            className="underline text-blue-600 hover:text-blue-800">קישור</a></>
+                        )}
+                      </>
+                    ) : w.locationType}
                 </span>
               </div>
               <div><span className="text-gray-400">חדרים:</span> <span className="font-medium">{w.numRooms}</span></div>
