@@ -25,6 +25,7 @@ type SortBy       = "name" | "lastActivity"
 export default function ShakhanimPage() {
   const user      = useUser()
   const isManager = user.roles.includes("MANAGER")
+  const isTech    = user.roles.includes("TECH")
   const canExport = isManager || user.roles.includes("FEEDBACK_DOCUMENTER")
 
   const [actors, setActors]   = useState<ActorRow[]>([])
@@ -76,7 +77,7 @@ export default function ShakhanimPage() {
               ייצוא CSV
             </a>
           )}
-          {isManager && (
+          {(isManager || isTech) && (
             <Link href="/shakhanim/new"
               className="px-4 py-2 bg-navy text-white text-sm font-medium rounded hover:bg-navy-dark transition-colors">
               + שחקן/ית חדש/ה

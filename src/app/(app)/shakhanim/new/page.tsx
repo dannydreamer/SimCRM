@@ -19,12 +19,13 @@ export default function NewActorPage() {
   const user      = useUser()
   const router    = useRouter()
   const isManager = user.roles.includes("MANAGER")
+  const isTech    = user.roles.includes("TECH")
 
   const [form, setForm]     = useState({ ...EMPTY })
   const [saving, setSaving] = useState(false)
   const [error, setError]   = useState("")
 
-  if (!isManager) {
+  if (!isManager && !isTech) {
     return (
       <div className="p-8">
         <p className="text-sm text-red-500">אין הרשאה לדף זה.</p>
