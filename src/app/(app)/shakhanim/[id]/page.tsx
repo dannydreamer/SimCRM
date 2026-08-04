@@ -63,6 +63,7 @@ export default function ActorProfilePage() {
   const { id }       = useParams<{ id: string }>()
   const user         = useUser()
   const isManager    = user.roles.includes("MANAGER")
+  const isTech       = user.roles.includes("TECH")
   const canFeedback  = isManager || user.roles.includes("FEEDBACK_DOCUMENTER")
   const canDevLog    = isManager || user.roles.includes("FEEDBACK_DOCUMENTER")
 
@@ -180,7 +181,7 @@ export default function ActorProfilePage() {
                 )}
               </div>
               <div className="flex items-center gap-2 shrink-0">
-                {isManager && !editing && (
+                {(isManager || isTech) && !editing && (
                   <button
                     onClick={openEdit}
                     className="px-3 py-1.5 text-sm border border-gray-300 rounded hover:bg-gray-50 text-gray-700 transition-colors"
