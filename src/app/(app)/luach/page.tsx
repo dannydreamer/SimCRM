@@ -19,6 +19,7 @@ interface WorkshopBlock {
   orgName: string
   facilitators: string[]
   roomLocations: string[]
+  otherRoomNotes: string | null
 }
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -112,11 +113,15 @@ function Block({ w, onClick }: { w: WorkshopBlock; onClick: () => void }) {
       </div>
       <div className="truncate text-gray-500">{w.orgName}</div>
       <div className="text-gray-400">{w.startTime}–{w.endTime} · {w.numRooms} חד׳</div>
-      {w.roomLocations.length > 0 && (
-        <div className="truncate text-gray-500">
-          {w.roomLocations.map((l) => ROOM_LOCATION_LABELS[l]).join(" · ")}
-        </div>
-      )}
+      {w.roomLocations.length > 0 && (() => {
+        // חדר אחר shows its free text when there is any — that detail is the
+        // point of the room on the calendar. Falls back to the plain label.
+        const parts = w.roomLocations.map((l) =>
+          l === "OTHER" ? (w.otherRoomNotes?.trim() || ROOM_LOCATION_LABELS[l]) : ROOM_LOCATION_LABELS[l]
+        )
+        const text = parts.join(" · ")
+        return <div className="truncate text-gray-500" title={text}>{text}</div>
+      })()}
       <div className="truncate text-gray-400">
         {w.facilitators.length > 0 ? w.facilitators.join(", ") : "לא שובצו מתחקרים"}
       </div>

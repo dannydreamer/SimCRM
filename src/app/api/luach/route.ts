@@ -47,6 +47,7 @@ export async function GET() {
       roomLocations: w.locationType === "CENTER"
         ? sortRoomLocations(w.roomLocations.map((l) => l.location))
         : [],
+      otherRoomNotes: w.locationType === "CENTER" ? w.otherRoomNotes : null,
       facilitators: w.rooms
         .filter((r) => r.facilitator)
         .map((r) => r.facilitator!.name),
