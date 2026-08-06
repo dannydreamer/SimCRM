@@ -34,9 +34,10 @@ export async function PATCH(
   const sc = await prisma.scenario.findUnique({ where: { id: sid } })
   if (!sc || sc.workshopId !== id) return NextResponse.json({ error: "Not found" }, { status: 404 })
 
-  const { topicId, name, actorRequirements, maleActorsNeeded, femaleActorsNeeded, written } = await req.json()
+  const { topicId, modelId, name, actorRequirements, maleActorsNeeded, femaleActorsNeeded, written } = await req.json()
   const data: Record<string, unknown> = {}
   if (topicId !== undefined) data.topicId = topicId
+  if (modelId !== undefined) data.modelId = modelId || null
   if (name !== undefined) data.name = name?.trim() || null
   if (actorRequirements !== undefined) data.actorRequirements = actorRequirements?.trim() || null
   if (maleActorsNeeded !== undefined)   data.maleActorsNeeded   = Math.max(0, Number(maleActorsNeeded)   || 0)
@@ -46,8 +47,13 @@ export async function PATCH(
   const updated = await prisma.scenario.update({
     where: { id: sid },
     data,
-    include: { topic: { select: { id: true, name: true } } },
+    include: {
+      topic: { select: { id: true, name: true } },
+      model: { select: { id: true, name: true } },
+    },
   })
+
+  const scenarioLabel = sc.name ? `תרחיש "${sc.name}"` : `תרחיש ${sc.orderIndex + 1}`
 
   // Log if requirements changed after casting was sent
   if (
@@ -55,12 +61,29 @@ export async function PATCH(
     actorRequirements !== undefined &&
     (actorRequirements?.trim() || null) !== sc.actorRequirements
   ) {
-    const label = sc.name ? `תרחיש "${sc.name}"` : `תרחיש ${sc.orderIndex + 1}`
     await prisma.castingChangeLog.create({
       data: {
         workshopId: id,
         changeType: "SCENARIO_REQ",
-        detail: `דרישות ${label} עודכנו`,
+        detail: `דרישות ${scenarioLabel} עודכנו`,
+      },
+    })
+  }
+
+  // Log if the simulation model changed after casting was sent — before that it is
+  // ordinary Tech workflow and must stay silent
+  if (
+    w.castingSentAt &&
+    modelId !== undefined &&
+    (modelId || null) !== sc.modelId
+  ) {
+    await prisma.castingChangeLog.create({
+      data: {
+        workshopId: id,
+        changeType: "MODEL_CHANGED",
+        detail: updated.model
+          ? `מודל הסימולציה של ${scenarioLabel} עודכן ל"${updated.model.name}"`
+          : `מודל הסימולציה של ${scenarioLabel} הוסר`,
       },
     })
   }
@@ -81,6 +104,8 @@ export async function PATCH(
     name: updated.name,
     topicId: updated.topicId,
     topicName: updated.topic.name,
+    modelId: updated.modelId,
+    modelName: updated.model?.name ?? null,
     actorRequirements: updated.actorRequirements,
     maleActorsNeeded: updated.maleActorsNeeded,
     femaleActorsNeeded: updated.femaleActorsNeeded,

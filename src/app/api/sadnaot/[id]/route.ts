@@ -42,7 +42,10 @@ export async function GET(
       },
       scenarios: {
         orderBy: { orderIndex: "asc" },
-        include: { topic: { select: { id: true, name: true } } },
+        include: {
+          topic: { select: { id: true, name: true } },
+          model: { select: { id: true, name: true } },
+        },
       },
       castings: {
         include: { actor: { select: { id: true, name: true } } },
@@ -114,6 +117,8 @@ export async function GET(
       name: s.name,
       topicId: s.topicId,
       topicName: s.topic.name,
+      modelId: s.modelId,
+      modelName: s.model?.name ?? null,
       actorRequirements: s.actorRequirements,
       maleActorsNeeded: s.maleActorsNeeded,
       femaleActorsNeeded: s.femaleActorsNeeded,

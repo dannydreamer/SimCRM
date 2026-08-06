@@ -23,6 +23,8 @@ interface Scenario {
   name: string | null
   topicId: string
   topicName: string
+  modelId: string | null
+  modelName: string | null
   actorRequirements: string | null
   maleActorsNeeded: number
   femaleActorsNeeded: number
@@ -77,6 +79,7 @@ interface CastingSlot {
 }
 
 interface Topic { id: string; name: string; active: boolean }
+interface SimulationModel { id: string; name: string; active: boolean }
 interface Facilitator { id: string; name: string }
 
 interface HeaderDraft {
@@ -155,13 +158,14 @@ function Check({ on }: { on: boolean }) {
 // ─── ScenarioRow ──────────────────────────────────────────────────────────────
 
 function ScenarioRow({
-  s, workshopId, canEdit, canCancel, topics, onUpdate, onCancel,
+  s, workshopId, canEdit, canCancel, topics, models, onUpdate, onCancel,
 }: {
   s: Scenario
   workshopId: string
   canEdit: boolean
   canCancel: boolean
   topics: Topic[]
+  models: SimulationModel[]
   onUpdate: (sid: string, data: Partial<Scenario>) => void
   onCancel: (sid: string) => void
 }) {
@@ -172,6 +176,7 @@ function ScenarioRow({
   const [maleCount,   setMaleCount]   = useState(String(s.maleActorsNeeded))
   const [femaleCount, setFemaleCount] = useState(String(s.femaleActorsNeeded))
   const [saving, setSaving] = useState(false)
+  const [modelSaving, setModelSaving] = useState(false)
 
   async function save() {
     setSaving(true)
@@ -201,7 +206,51 @@ function ScenarioRow({
     if (res.ok) onUpdate(s.id, { written: !s.written })
   }
 
+  // The model saves on its own, independently of the edit form — it is set later in
+  // the workflow than the rest of the scenario and is a precondition for שלח לליהוק
+  async function changeModel(modelId: string) {
+    setModelSaving(true)
+    const res = await fetch(`/api/sadnaot/${workshopId}/scenarios/${s.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ modelId: modelId || null }),
+    })
+    if (res.ok) {
+      const updated = await res.json()
+      onUpdate(s.id, { modelId: updated.modelId, modelName: updated.modelName })
+    }
+    setModelSaving(false)
+  }
+
   const rowClass = s.cancelled ? "opacity-40 line-through" : ""
+
+  // Rendered identically whether or not the row is in edit mode
+  const modelCell = (
+    <td className="py-2 px-3">
+      {canEdit && !s.cancelled ? (
+        <select
+          value={s.modelId ?? ""}
+          onChange={(e) => changeModel(e.target.value)}
+          disabled={modelSaving}
+          className={`border border-gray-200 rounded px-2 py-1 text-sm w-full ${
+            s.modelId ? "text-gray-800" : "text-gray-400"
+          }`}
+        >
+          <option value="">— מודל טרם נבחר —</option>
+          {s.modelId && !models.some((m) => m.id === s.modelId) && (
+            <option value={s.modelId}>{s.modelName}</option>
+          )}
+          {models.filter((m) => m.active).map((m) => (
+            <option key={m.id} value={m.id}>{m.name}</option>
+          ))}
+        </select>
+      ) : (
+        <span className={s.modelName ? "text-gray-600" : "text-gray-300"}>
+          {s.modelName ?? "מודל טרם נבחר"}
+        </span>
+      )}
+    </td>
+  )
 
   return (
     <tr className={`border-b border-gray-100 text-sm ${rowClass}`}>
@@ -215,6 +264,7 @@ function ScenarioRow({
               ))}
             </select>
           </td>
+          {modelCell}
           <td className="py-2 px-3">
             <input value={name} onChange={(e) => setName(e.target.value)}
               className="border border-gray-300 rounded px-2 py-1 text-sm w-full" placeholder="שם תרחיש (אופציונלי)" />
@@ -250,6 +300,7 @@ function ScenarioRow({
       ) : (
         <>
           <td className="py-2 px-3 font-medium">{s.topicName}</td>
+          {modelCell}
           <td className="py-2 px-3 text-gray-600">{s.name ?? <span className="text-gray-300">—</span>}</td>
           <td className="py-2 px-3 text-gray-600 whitespace-pre-wrap">
             {s.actorRequirements ?? <span className="text-gray-300">—</span>}
@@ -412,6 +463,7 @@ export default function WorkshopDetailPage() {
 
   const [w, setW] = useState<Workshop | null>(null)
   const [topics, setTopics] = useState<Topic[]>([])
+  const [models, setModels] = useState<SimulationModel[]>([])
   const [facilitators, setFacilitators] = useState<Facilitator[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -428,6 +480,7 @@ export default function WorkshopDetailPage() {
   // Add scenario form
   const [showAddScenario, setShowAddScenario] = useState(false)
   const [newTopicId, setNewTopicId] = useState("")
+  const [newModelId, setNewModelId] = useState("")
   const [newScenarioName, setNewScenarioName] = useState("")
   const [newScenarioReq, setNewScenarioReq] = useState("")
   const [newScenarioMale, setNewScenarioMale] = useState("0")
@@ -452,6 +505,7 @@ export default function WorkshopDetailPage() {
   const [castingFemale, setCastingFemale] = useState("0")
   const [castingOverlayNotes, setCastingOverlayNotes] = useState("")
   const [castingSending, setCastingSending] = useState(false)
+  const [castingError, setCastingError] = useState<string | null>(null)
 
   const roles = session?.user?.roles ?? []
   const isManager = roles.includes("MANAGER")
@@ -461,15 +515,17 @@ export default function WorkshopDetailPage() {
 
   const load = useCallback(async () => {
     setLoading(true)
-    const [wRes, tRes, fRes] = await Promise.all([
+    const [wRes, tRes, mRes, fRes] = await Promise.all([
       fetch(`/api/sadnaot/${id}`, { cache: "no-store" }),
       fetch("/api/nosim"),
+      fetch("/api/modelim"),
       fetch("/api/facilitators"),
     ])
     if (!wRes.ok) { setError("שגיאה בטעינה"); setLoading(false); return }
-    const [wData, tData, fData] = await Promise.all([wRes.json(), tRes.json(), fRes.json()])
+    const [wData, tData, mData, fData] = await Promise.all([wRes.json(), tRes.json(), mRes.json(), fRes.json()])
     setW(wData)
     setTopics(tData)
+    setModels(mData)
     setFacilitators(fData)
     setLoading(false)
   }, [id])
@@ -636,7 +692,7 @@ export default function WorkshopDetailPage() {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        topicId: newTopicId, name: newScenarioName, actorRequirements: newScenarioReq,
+        topicId: newTopicId, modelId: newModelId, name: newScenarioName, actorRequirements: newScenarioReq,
         maleActorsNeeded:   Math.max(0, Number(newScenarioMale)   || 0),
         femaleActorsNeeded: Math.max(0, Number(newScenarioFemale) || 0),
       }),
@@ -646,6 +702,7 @@ export default function WorkshopDetailPage() {
       setW((prev) => prev ? { ...prev, scenarios: [...prev.scenarios, s] } : prev)
       setShowAddScenario(false)
       setNewTopicId("")
+      setNewModelId("")
       setNewScenarioName("")
       setNewScenarioReq("")
       setNewScenarioMale("0")
@@ -735,12 +792,14 @@ export default function WorkshopDetailPage() {
     setCastingMale(w.castingMaleNeeded != null ? String(w.castingMaleNeeded) : "0")
     setCastingFemale(w.castingFemaleNeeded != null ? String(w.castingFemaleNeeded) : "0")
     setCastingOverlayNotes(w.castingNotes ?? "")
+    setCastingError(null)
     setShowCastingOverlay(true)
   }
 
   async function confirmSendToCasting() {
     if (!w) return
     setCastingSending(true)
+    setCastingError(null)
     const res = await fetch(`/api/sadnaot/${id}/send-to-casting`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -760,6 +819,9 @@ export default function WorkshopDetailPage() {
         castingNotes: data.castingNotes,
       } : prev)
       setShowCastingOverlay(false)
+    } else {
+      const body = await res.json().catch(() => ({}))
+      setCastingError(body.error ?? `שגיאה (${res.status})`)
     }
     setCastingSending(false)
   }
@@ -1197,6 +1259,16 @@ export default function WorkshopDetailPage() {
                   </select>
                 </div>
                 <div>
+                  <label className="block text-xs text-gray-500 mb-1">מודל סימולציה</label>
+                  <select value={newModelId} onChange={(e) => setNewModelId(e.target.value)}
+                    className="border border-gray-300 rounded px-2 py-1.5 text-sm w-full">
+                    <option value="">— מודל טרם נבחר —</option>
+                    {models.filter((m) => m.active).map((m) => (
+                      <option key={m.id} value={m.id}>{m.name}</option>
+                    ))}
+                  </select>
+                </div>
+                <div className="col-span-2">
                   <label className="block text-xs text-gray-500 mb-1">שם תרחיש (אופציונלי)</label>
                   <input value={newScenarioName} onChange={(e) => setNewScenarioName(e.target.value)}
                     className="border border-gray-300 rounded px-2 py-1.5 text-sm w-full" />
@@ -1242,6 +1314,7 @@ export default function WorkshopDetailPage() {
                 <thead className="bg-gray-50 text-xs text-gray-500 uppercase">
                   <tr>
                     <th className="py-2 px-3 font-medium">נושא</th>
+                    <th className="py-2 px-3 font-medium">מודל סימולציה</th>
                     <th className="py-2 px-3 font-medium">שם</th>
                     <th className="py-2 px-3 font-medium">דרישות שחקנים</th>
                     <th className="py-2 px-3 font-medium text-center">נכתב</th>
@@ -1257,6 +1330,7 @@ export default function WorkshopDetailPage() {
                       canEdit={canEditScenarios && !w.frozen && !w.cancelled}
                       canCancel={canCancelScenario}
                       topics={topics}
+                      models={models}
                       onUpdate={updateScenario}
                       onCancel={cancelScenario}
                     />
@@ -1270,7 +1344,8 @@ export default function WorkshopDetailPage() {
         {/* Send to casting section */}
         {(isManager || isTech) && !w.cancelled && (w.status !== "NEW") && (() => {
           const scenariosWithReq = w.scenarios.filter((s) => !s.cancelled && s.actorRequirements?.trim())
-          const canSend = scenariosWithReq.length > 0
+          const scenariosWithoutModel = w.scenarios.filter((s) => !s.cancelled && !s.modelId)
+          const canSend = scenariosWithReq.length > 0 && scenariosWithoutModel.length === 0
           const wasSent = !!w.castingSentAt
 
           // Casting progress — same logic as the workshops table column
@@ -1298,8 +1373,11 @@ export default function WorkshopDetailPage() {
                       {castingComplete ? "✓ ליהוק הושלם" : `ליהוק ${castingFilled}/${castingTotal}`}
                     </p>
                   )}
-                  {!canSend && (
+                  {scenariosWithReq.length === 0 && (
                     <p className="text-xs text-gray-400 mt-0.5">יש להזין דרישות שחקנים לפחות לתרחיש אחד</p>
+                  )}
+                  {scenariosWithoutModel.length > 0 && (
+                    <p className="text-xs text-gray-400 mt-0.5">יש לבחור מודל סימולציה לכל התרחישים הפעילים</p>
                   )}
                 </div>
                 <button
@@ -1513,6 +1591,7 @@ export default function WorkshopDetailPage() {
                     {/* Scenario label */}
                     <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">
                       תרחיש {i + 1}{s.name ? ` — ${s.name}` : ""} · {s.topicName}
+                      {s.modelName && <span className="mr-1.5 normal-case text-indigo-600">· {s.modelName}</span>}
                     </p>
                     {/* Actor counts — prominent */}
                     <div className="flex gap-6 mb-2">
@@ -1584,7 +1663,11 @@ export default function WorkshopDetailPage() {
             </div>
 
             {/* Footer actions */}
-            <div className="px-6 py-4 border-t border-gray-100 flex gap-3 justify-end shrink-0">
+            <div className="px-6 py-4 border-t border-gray-100 flex flex-col gap-3 items-end shrink-0">
+
+            {castingError && (
+              <p className="text-xs text-red-600 font-medium w-full text-right">{castingError}</p>
+            )}
 
             {/* Actions */}
             <div className="flex gap-3 justify-end">

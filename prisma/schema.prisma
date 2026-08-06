@@ -201,6 +201,17 @@ model Topic {
   scenarios Scenario[]
 }
 
+// ─── Simulation Model ─────────────────────────────────────────────────────────
+
+model SimulationModel {
+  id        String   @id @default(uuid())
+  name      String
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+
+  scenarios Scenario[]
+}
+
 // ─── Scenario ─────────────────────────────────────────────────────────────────
 
 model Scenario {
@@ -208,6 +219,7 @@ model Scenario {
   workshopId         String
   name               String?
   topicId            String
+  modelId            String?
   actorRequirements  String?
   maleActorsNeeded   Int     @default(0)
   femaleActorsNeeded Int     @default(0)
@@ -215,8 +227,9 @@ model Scenario {
   cancelled          Boolean @default(false)
   orderIndex         Int     @default(0)
 
-  workshop Workshop  @relation(fields: [workshopId], references: [id])
-  topic    Topic     @relation(fields: [topicId], references: [id])
+  workshop Workshop         @relation(fields: [workshopId], references: [id])
+  topic    Topic            @relation(fields: [topicId], references: [id])
+  model    SimulationModel? @relation(fields: [modelId], references: [id])
   castings Casting[]
 }
 

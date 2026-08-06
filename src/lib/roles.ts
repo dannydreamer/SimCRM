@@ -42,7 +42,7 @@ export const NAV_ITEMS = [
   },
   {
     href: "/nosim",
-    label: "נושאים",
+    label: "רשימות מערכת",
     roles: ["MANAGER", "TECH"],
   },
   {
