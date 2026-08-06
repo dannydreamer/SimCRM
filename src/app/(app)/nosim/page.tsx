@@ -1,20 +1,66 @@
 "use client"
 
-import { useEffect, useRef, useState } from "react"
+import { useCallback, useEffect, useRef, useState } from "react"
 import { useUser } from "@/app/(app)/user-context"
 
-interface TopicRow {
+interface ListRow {
   id: string
   name: string
   active: boolean
   scenarioCount: number
 }
 
-export default function NosimPage() {
+interface SectionLabels {
+  heading:        string   // section title
+  activeCount:    (n: number) => string
+  columnName:     string
+  emptyActive:    string
+  inactiveHeader: (n: number) => string
+  addPlaceholder: string
+}
+
+const TOPIC_LABELS: SectionLabels = {
+  heading:        "נושאים",
+  activeCount:    (n) => `${n} נושאים פעילים`,
+  columnName:     "שם הנושא",
+  emptyActive:    "אין נושאים פעילים",
+  inactiveHeader: (n) => `נושאים לא פעילים (${n})`,
+  addPlaceholder: "+ נושא חדש",
+}
+
+const MODEL_LABELS: SectionLabels = {
+  heading:        "מודלי סימולציה",
+  activeCount:    (n) => `${n} מודלים פעילים`,
+  columnName:     "שם המודל",
+  emptyActive:    "אין מודלים פעילים",
+  inactiveHeader: (n) => `מודלים לא פעילים (${n})`,
+  addPlaceholder: "+ מודל חדש",
+}
+
+export default function SystemListsPage() {
   const user      = useUser()
   const isManager = user.roles.includes("MANAGER")
 
-  const [topics, setTopics]   = useState<TopicRow[]>([])
+  return (
+    <div className="p-8 max-w-2xl">
+      <h1 className="text-2xl font-bold text-gray-900 mb-8">רשימות מערכת</h1>
+
+      <ManagedListSection endpoint="/api/nosim"   labels={TOPIC_LABELS} isManager={isManager} />
+      <ManagedListSection endpoint="/api/modelim" labels={MODEL_LABELS} isManager={isManager} />
+    </div>
+  )
+}
+
+// ─── Managed list section ──────────────────────────────────────────────────────
+
+function ManagedListSection({
+  endpoint, labels, isManager,
+}: {
+  endpoint: string
+  labels: SectionLabels
+  isManager: boolean
+}) {
+  const [rows, setRows]       = useState<ListRow[]>([])
   const [loading, setLoading] = useState(true)
 
   // Add-new state
@@ -23,7 +69,7 @@ export default function NosimPage() {
   const [addError, setAddError] = useState("")
   const addInputRef             = useRef<HTMLInputElement>(null)
 
-  // Inline-rename state: topicId → draft name
+  // Inline-rename state: row id → draft name
   const [renamingId, setRenamingId]     = useState<string | null>(null)
   const [renameDraft, setRenameDraft]   = useState("")
   const [renameError, setRenameError]   = useState("")
@@ -32,20 +78,20 @@ export default function NosimPage() {
   // Deactivate-confirm state
   const [confirmId, setConfirmId] = useState<string | null>(null)
 
-  async function fetchTopics() {
-    const res  = await fetch("/api/nosim")
+  const fetchRows = useCallback(async () => {
+    const res  = await fetch(endpoint)
     const data = await res.json()
-    setTopics(data)
+    setRows(data)
     setLoading(false)
-  }
+  }, [endpoint])
 
-  useEffect(() => { fetchTopics() }, [])
+  useEffect(() => { fetchRows() }, [fetchRows])
 
   async function handleAdd() {
     setAddError("")
     if (!newName.trim()) return
     setAdding(true)
-    const res  = await fetch("/api/nosim", {
+    const res  = await fetch(endpoint, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ name: newName }),
@@ -54,22 +100,22 @@ export default function NosimPage() {
     if (!res.ok) { setAddError(data.error ?? "שגיאה"); setAdding(false); return }
     setNewName("")
     setAdding(false)
-    await fetchTopics()
+    await fetchRows()
     addInputRef.current?.focus()
   }
 
-  function startRename(topic: TopicRow) {
-    setRenamingId(topic.id)
-    setRenameDraft(topic.name)
+  function startRename(row: ListRow) {
+    setRenamingId(row.id)
+    setRenameDraft(row.name)
     setRenameError("")
   }
 
   async function commitRename(id: string) {
     if (!renameDraft.trim()) { setRenameError("שם לא יכול להיות ריק"); return }
-    const current = topics.find((t) => t.id === id)
+    const current = rows.find((r) => r.id === id)
     if (current?.name === renameDraft.trim()) { setRenamingId(null); return }
     setRenameSaving(true)
-    const res  = await fetch(`/api/nosim/${id}`, {
+    const res  = await fetch(`${endpoint}/${id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ name: renameDraft }),
@@ -78,44 +124,59 @@ export default function NosimPage() {
     setRenameSaving(false)
     if (!res.ok) { setRenameError(data.error ?? "שגיאה"); return }
     setRenamingId(null)
-    await fetchTopics()
+    await fetchRows()
   }
 
-  async function toggleActive(topic: TopicRow) {
+  async function toggleActive(row: ListRow) {
     setConfirmId(null)
-    await fetch(`/api/nosim/${topic.id}`, {
+    await fetch(`${endpoint}/${row.id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ active: !topic.active }),
+      body: JSON.stringify({ active: !row.active }),
     })
-    await fetchTopics()
+    await fetchRows()
   }
 
-  const active   = topics.filter((t) => t.active)
-  const inactive = topics.filter((t) => !t.active)
+  const active   = rows.filter((r) => r.active)
+  const inactive = rows.filter((r) => !r.active)
+
+  const rowProps = (row: ListRow) => ({
+    row,
+    isManager,
+    isRenaming: renamingId === row.id,
+    renameDraft,
+    renameError,
+    renameSaving,
+    confirmId,
+    onStartRename: () => startRename(row),
+    onRenameDraftChange: (v: string) => { setRenameDraft(v); setRenameError("") },
+    onCommitRename: () => commitRename(row.id),
+    onCancelRename: () => setRenamingId(null),
+    onRequestConfirm: () => setConfirmId(row.id),
+    onCancelConfirm: () => setConfirmId(null),
+    onToggleActive: () => toggleActive(row),
+  })
 
   return (
-    <div className="p-8 max-w-2xl">
-      {/* Header */}
-      <div className="flex items-center justify-between mb-6">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">נושאים</h1>
-          <p className="text-sm text-gray-400 mt-0.5">
-            {loading ? "טוען..." : `${active.length} נושאים פעילים`}
-          </p>
-        </div>
+    <section className="mb-10 last:mb-0">
+      {/* Section header */}
+      <div className="mb-3">
+        <h2 className="text-base font-semibold text-gray-800">{labels.heading}</h2>
+        <p className="text-sm text-gray-400 mt-0.5">
+          {loading ? "טוען..." : labels.activeCount(active.length)}
+        </p>
       </div>
 
       {loading ? (
-        <p className="text-sm text-gray-400">טוען נושאים...</p>
+        <p className="text-sm text-gray-400">טוען...</p>
       ) : (
         <>
-          {/* Active topics */}
+          {/* Active */}
           <div className="border border-gray-200 rounded-lg overflow-hidden mb-6">
             <table className="w-full text-sm">
               <thead>
                 <tr className="bg-gray-50 border-b border-gray-200 text-right text-gray-500 text-xs font-medium">
-                  <th className="px-4 py-2.5">שם הנושא</th>
+                  <th className="px-4 py-2.5">{labels.columnName}</th>
                   <th className="px-4 py-2.5 text-left">תרחישים</th>
                   {isManager && <th className="px-4 py-2.5"></th>}
                 </tr>
@@ -124,28 +185,12 @@ export default function NosimPage() {
                 {active.length === 0 && (
                   <tr>
                     <td colSpan={isManager ? 3 : 2} className="px-4 py-6 text-center text-sm text-gray-400">
-                      אין נושאים פעילים
+                      {labels.emptyActive}
                     </td>
                   </tr>
                 )}
-                {active.map((topic) => (
-                  <TopicRowView
-                    key={topic.id}
-                    topic={topic}
-                    isManager={isManager}
-                    isRenaming={renamingId === topic.id}
-                    renameDraft={renameDraft}
-                    renameError={renameError}
-                    renameSaving={renameSaving}
-                    confirmId={confirmId}
-                    onStartRename={() => startRename(topic)}
-                    onRenameDraftChange={(v) => { setRenameDraft(v); setRenameError("") }}
-                    onCommitRename={() => commitRename(topic.id)}
-                    onCancelRename={() => setRenamingId(null)}
-                    onRequestConfirm={() => setConfirmId(topic.id)}
-                    onCancelConfirm={() => setConfirmId(null)}
-                    onToggleActive={() => toggleActive(topic)}
-                  />
+                {active.map((row) => (
+                  <ListRowView key={row.id} {...rowProps(row)} />
                 ))}
 
                 {/* Add row — Manager only */}
@@ -159,7 +204,7 @@ export default function NosimPage() {
                           value={newName}
                           onChange={(e) => { setNewName(e.target.value); setAddError("") }}
                           onKeyDown={(e) => e.key === "Enter" && handleAdd()}
-                          placeholder="+ נושא חדש"
+                          placeholder={labels.addPlaceholder}
                           className="flex-1 border border-dashed border-gray-300 rounded px-3 py-1.5 text-sm text-gray-700 placeholder:text-gray-400 focus:outline-none focus:border-navy focus:ring-1 focus:ring-navy/30"
                         />
                         {newName.trim() && (
@@ -180,33 +225,17 @@ export default function NosimPage() {
             </table>
           </div>
 
-          {/* Inactive topics */}
+          {/* Inactive */}
           {inactive.length > 0 && (
             <div>
-              <h2 className="text-sm font-medium text-gray-500 mb-2">
-                נושאים לא פעילים ({inactive.length})
-              </h2>
+              <h3 className="text-sm font-medium text-gray-500 mb-2">
+                {labels.inactiveHeader(inactive.length)}
+              </h3>
               <div className="border border-gray-200 rounded-lg overflow-hidden opacity-60">
                 <table className="w-full text-sm">
                   <tbody>
-                    {inactive.map((topic) => (
-                      <TopicRowView
-                        key={topic.id}
-                        topic={topic}
-                        isManager={isManager}
-                        isRenaming={renamingId === topic.id}
-                        renameDraft={renameDraft}
-                        renameError={renameError}
-                        renameSaving={renameSaving}
-                        confirmId={confirmId}
-                        onStartRename={() => startRename(topic)}
-                        onRenameDraftChange={(v) => { setRenameDraft(v); setRenameError("") }}
-                        onCommitRename={() => commitRename(topic.id)}
-                        onCancelRename={() => setRenamingId(null)}
-                        onRequestConfirm={() => setConfirmId(topic.id)}
-                        onCancelConfirm={() => setConfirmId(null)}
-                        onToggleActive={() => toggleActive(topic)}
-                      />
+                    {inactive.map((row) => (
+                      <ListRowView key={row.id} {...rowProps(row)} />
                     ))}
                   </tbody>
                 </table>
@@ -215,14 +244,14 @@ export default function NosimPage() {
           )}
         </>
       )}
-    </div>
+    </section>
   )
 }
 
 // ─── Row component ─────────────────────────────────────────────────────────────
 
-function TopicRowView({
-  topic,
+function ListRowView({
+  row,
   isManager,
   isRenaming,
   renameDraft,
@@ -237,7 +266,7 @@ function TopicRowView({
   onCancelConfirm,
   onToggleActive,
 }: {
-  topic: TopicRow
+  row: ListRow
   isManager: boolean
   isRenaming: boolean
   renameDraft: string
@@ -275,27 +304,27 @@ function TopicRowView({
           </div>
         ) : (
           <span
-            className={`text-gray-800 ${isManager ? "cursor-pointer hover:text-navy" : ""} ${!topic.active ? "line-through text-gray-400" : ""}`}
+            className={`text-gray-800 ${isManager ? "cursor-pointer hover:text-navy" : ""} ${!row.active ? "line-through text-gray-400" : ""}`}
             onClick={isManager ? onStartRename : undefined}
             title={isManager ? "לחץ לשינוי שם" : undefined}
           >
-            {topic.name}
+            {row.name}
           </span>
         )}
       </td>
 
       {/* Scenario count */}
       <td className="px-4 py-2.5 text-left text-gray-500 text-xs">
-        {topic.scenarioCount > 0 ? `${topic.scenarioCount} תרחישים` : "—"}
+        {row.scenarioCount > 0 ? `${row.scenarioCount} תרחישים` : "—"}
       </td>
 
       {/* Actions — Manager only */}
       {isManager && (
         <td className="px-4 py-2.5 text-left">
-          {confirmId === topic.id ? (
+          {confirmId === row.id ? (
             <span className="flex items-center gap-2 justify-end">
               <span className="text-xs text-gray-600">
-                {topic.active ? "להשבית?" : "להפעיל?"}
+                {row.active ? "להשבית?" : "להפעיל?"}
               </span>
               <button
                 onClick={onToggleActive}
@@ -315,7 +344,7 @@ function TopicRowView({
               onClick={onRequestConfirm}
               className="text-xs text-gray-400 hover:text-gray-700 hover:underline"
             >
-              {topic.active ? "השבתה" : "הפעלה"}
+              {row.active ? "השבתה" : "הפעלה"}
             </button>
           )}
         </td>

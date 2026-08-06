@@ -10,6 +10,7 @@ interface Scenario {
   id: string
   name: string | null
   topicName: string
+  modelName: string | null
   actorRequirements: string | null
   maleActorsNeeded: number
   femaleActorsNeeded: number
@@ -91,6 +92,7 @@ const CHANGE_TYPE_LABELS: Record<string, string> = {
   ROOM_CANCELLED:     "חדר בוטל",
   ROOM_ADDED:         "חדר נוסף לסדנה",
   COUNTS_CHANGED:     "מספרים כמותיים עודכנו",
+  MODEL_CHANGED:      "מודל סימולציה עודכן",
   RESENT:             "עדכון ושליחה חוזרת לליהוק",
   DATE_CHANGED:       "הסדנה נדחתה",
 }
@@ -790,7 +792,7 @@ export default function LihukimPage() {
 // ─── Requirements panel (collapsible) ────────────────────────────────────────
 
 function RequirementsPanel({ data, scenarios }: { data: CastingData; scenarios: Scenario[] }) {
-  const [open, setOpen] = useState(false)
+  const [open, setOpen] = useState(true)
   return (
     <section className="bg-white border border-gray-200 rounded-xl overflow-hidden">
       <button
@@ -824,6 +826,7 @@ function RequirementsPanel({ data, scenarios }: { data: CastingData; scenarios: 
                 <div key={s.id} className="border border-gray-100 rounded-lg px-4 py-3">
                   <p className="text-sm font-semibold text-gray-800 mb-1">
                     תרחיש {i + 1}{s.name ? ` — ${s.name}` : ""} · {s.topicName}
+                    {s.modelName ? ` · מודל: ${s.modelName}` : ""}
                     <span className="mr-2 font-normal text-gray-500 text-xs">♂ {s.maleActorsNeeded} · ♀ {s.femaleActorsNeeded} לחדר</span>
                   </p>
                   {s.actorRequirements && (

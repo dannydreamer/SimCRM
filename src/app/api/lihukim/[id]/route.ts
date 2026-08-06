@@ -25,7 +25,10 @@ export async function GET(
       scenarios: {
         where: { cancelled: false },
         orderBy: { orderIndex: "asc" },
-        include: { topic: { select: { name: true } } },
+        include: {
+          topic: { select: { name: true } },
+          model: { select: { name: true } },
+        },
       },
       rooms: {
         where: { cancelled: false },
@@ -41,7 +44,7 @@ export async function GET(
       castingChangeLogs: {
         where: {
           dismissed: false,
-          changeType: { in: ["SCENARIO_REQ", "SCENARIO_CANCELLED", "ROOM_CANCELLED", "ROOM_ADDED", "COUNTS_CHANGED", "RESENT", "DATE_CHANGED"] },
+          changeType: { in: ["SCENARIO_REQ", "SCENARIO_CANCELLED", "ROOM_CANCELLED", "ROOM_ADDED", "COUNTS_CHANGED", "MODEL_CHANGED", "RESENT", "DATE_CHANGED"] },
         },
         orderBy: { createdAt: "asc" },
       },
@@ -78,6 +81,7 @@ export async function GET(
       id:                s.id,
       name:              s.name,
       topicName:         s.topic.name,
+      modelName:         s.model?.name ?? null,
       actorRequirements: s.actorRequirements,
       maleActorsNeeded:  s.maleActorsNeeded,
       femaleActorsNeeded: s.femaleActorsNeeded,

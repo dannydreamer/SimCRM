@@ -32,6 +32,23 @@ async function main() {
     console.log(`  ✓ ${person.name} (${data.email}) — ${role}`)
   }
 
+  // מודלי סימולציה — the managed list backing Scenario.modelId
+  const simulationModels = [
+    "קלאסי",
+    "2*7",
+    "כיסא חם",
+    "סימולציה בראש אחר",
+    "אייכה",
+    "סימולציה בתנועה",
+  ]
+
+  for (const name of simulationModels) {
+    const existing = await prisma.simulationModel.findFirst({ where: { name } })
+    if (existing) continue
+    await prisma.simulationModel.create({ data: { name } })
+    console.log(`  ✓ מודל סימולציה: ${name}`)
+  }
+
   console.log("\nSeed complete.")
   console.log(`Manager login:   ronit@simcenter.co.il / ${TEMP_PASSWORD}`)
   console.log(`All other users: <email> / ${TEMP_PASSWORD} (forced password change on first login)`)

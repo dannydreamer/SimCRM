@@ -20,7 +20,7 @@ export async function POST(
   const workshop = await prisma.workshop.findUnique({
     where: { id },
     include: {
-      scenarios: { where: { cancelled: false }, select: { id: true, actorRequirements: true } },
+      scenarios: { where: { cancelled: false }, select: { id: true, actorRequirements: true, modelId: true } },
     },
   })
   if (!workshop) return NextResponse.json({ error: "Not found" }, { status: 404 })
@@ -33,6 +33,10 @@ export async function POST(
   const hasRequirements = workshop.scenarios.some((s) => s.actorRequirements?.trim())
   if (!hasRequirements)
     return NextResponse.json({ error: "יש להזין דרישות שחקנים לפחות לתרחיש אחד" }, { status: 400 })
+
+  // Every active scenario must carry a simulation model — checked on first send and re-send alike
+  if (workshop.scenarios.some((s) => !s.modelId))
+    return NextResponse.json({ error: "יש לבחור מודל סימולציה לכל התרחישים הפעילים" }, { status: 400 })
 
   const { castingMaleNeeded, castingFemaleNeeded, castingNotes } = await req.json()
 
