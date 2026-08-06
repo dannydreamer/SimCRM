@@ -246,7 +246,7 @@ Multiple groups with the same name under one organization are permitted — no d
 | tentative | Boolean | Shows `?` badge |
 | postponedWarning | Boolean | Set when date changes after casting/slotting |
 | **roomCancelledWarning** | Boolean | Caster alert flag |
-| **roomAddedWarning** | Boolean | Caster alert flag |
+| **roomAddedWarning** | Boolean | Caster alert flag. Raised **only** when a room is added to a workshop whose `castingSentAt` is already set |
 | feedbackFormAdded | Boolean | משוב משתתפים — Tech confirms the Google Form string was added |
 | **castingMaleNeeded** | Int? | Total male actors required (set by Tech at send-to-casting) |
 | **castingFemaleNeeded** | Int? | Total female actors required |
@@ -1251,6 +1251,7 @@ Sessions 1–19 as built. Branch naming `session-N-*`, merged to `develop` then 
 | Aug 2026 | — | Post-review UI corrections to F-08: דרישות הסדנה expanded by default (§7.3); model rendered as plain text beside the topic rather than a coloured pill; workshop header casting line reads `שחקנים: N  שחקניות: N` instead of `ליהוק: N גברים`; scenario **name** removed from the table, add form and edit form, kept in the schema for F-03 (§3.7). |
 | Aug 2026 | — | **F-08 מודל סימולציה shipped** (branch `sim_model`). New `SimulationModel` managed list; nullable `Scenario.modelId`; hard precondition at שלח לליהוק; `MODEL_CHANGED` change alert; scenario-card selector; נושאים page becomes **רשימות מערכת** with a second section. No historical backfill; group-history surfacing deferred. |
 | **Aug 2026** | **2.0** | **Consolidation.** All sources merged and reconciled against source code. Documents as-built reality: PostgreSQL/Supabase + Vercel + Next.js 16; two-stage casting flow; three-condition READY with regressions; ZOOM location type; OAuth backup; revised permissions; RAG relabel to תקין/במעקב/חמור. Backup retention policy withdrawn — manual by design (§9.9). Unbuilt gaps catalogued in §13; V2 roadmap absorbed as §14. |
+| Aug 2026 | — | Fix: `roomAddedWarning` was raised whenever a room was added, so the "חדר נוסף — יש לשלוח מחדש לליהוק" banner appeared on workshops that had never been sent to casting. Now gated on `castingSentAt`, matching the rule already applied to the `ROOM_ADDED` change log and to `MODEL_CHANGED` (§3.12). |
 
 ---
 
