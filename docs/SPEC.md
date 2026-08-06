@@ -252,6 +252,9 @@ Multiple groups with the same name under one organization are permitted — no d
 | **castingFemaleNeeded** | Int? | Total female actors required |
 | **castingNotes** | String? | Tech's free-text brief to the Caster |
 | **castingSentAt** | DateTime? | Timestamp of send-to-casting. Null = not yet sent |
+| **estimatedParticipants** | Int? | מספר משתתפים משוער. Nullable in the database so existing rows need no backfill, but **required by the business rules** — a precondition for READY (§4.3) |
+| **otherRoomNotes** | String? | Free text, only meaningful while `OTHER` is among the selected room locations |
+| **otherRoomApproved** | Boolean | Default false. Only consulted when `OTHER` is selected |
 | notes | String? | |
 | createdAt / createdById | | |
 
@@ -271,6 +274,24 @@ Bolded fields are **not in either prior spec** — they were added during implem
 | letterReceived | Boolean | |
 
 > **Changed from spec:** the original specified `room_label` as free text ("Room 1", "Blue Room"). Implementation uses an integer `roomNumber` with a `@@unique([workshopId, roomNumber])` constraint. `[code]`
+
+### 3.6.1 WorkshopRoomLocation — the physical room
+
+**Not to be confused with `Room` above.** `Room` is a simulation track — a facilitator slot with its own PPT, letter and casting. `WorkshopRoomLocation` is the *physical space the workshop occupies*. Both are labelled **חדר** in the UI; the distinction exists only in the schema. `[code]`
+
+| Field | Type | Notes |
+|---|---|---|
+| id | uuid | PK |
+| workshopId | FK | Cascade delete |
+| location | RoomLocation | `ROOM_1` · `ROOM_2` · `ROOM_3` · `OTHER` |
+
+`@@unique([workshopId, location])`. Any combination may be selected, including none. Selection is **Manager and Tech**, and is disabled once the workshop is frozen (CLOSING/CLOSED/CANCELLED).
+
+**The whole feature applies only when `locationType = CENTER`.** The rooms are the simulation centre's own; a חיצוני or זום workshop has none. The picker is hidden on those workshops, their calendar blocks carry no room label, and READY condition 5 is satisfied automatically. Rows are *not* deleted when the location changes — a workshop switched away from מרכז and back keeps its selection.
+
+Stored as one row per selected room rather than as flags on `Workshop`, so a future room-column or timeline view is a pure rendering change rather than a data migration.
+
+Selecting `OTHER` reveals two `Workshop` fields: `otherRoomNotes` (free-running text, same character as `castingNotes`) and `otherRoomApproved` (**חדר אושר**). Rooms 1–3 never require approval.
 
 ### 3.7 Scenario
 
@@ -438,16 +459,22 @@ NEW ──(Tech marks needs assessment)──▶ SPECIFIED
       CLOSED ──(letter unchecked OR feedback incomplete)──▶ CLOSING
 ```
 
-### 4.3 The three READY conditions
+### 4.3 The five READY conditions
 
-A workshop advances SPECIFIED → READY only when **all three** hold:
+A workshop advances SPECIFIED → READY only when **all five** hold:
 
 1. **All active (non-cancelled) rooms have `pptReceived = true`** — and there is at least one room.
 2. **Casting is fully complete** — `castingSentAt` is set, and filled slots equal total slots, where
    `total = (Σ per-scenario male+female needed across active scenarios) × (number of active rooms) + (1 if directorRequested)`
 3. **`feedbackFormAdded = true`** — the משוב משתתפים checkbox.
+4. **`estimatedParticipants` is set (non-null)** — מספר משתתפים משוער. Note this gates READY, **not** send-to-casting.
+5. **The physical room is approved** — if the workshop is at the centre (`locationType = CENTER`) **and** `OTHER` is among the selected room locations, `otherRoomApproved` must be true. Otherwise the condition is automatically satisfied: rooms 1–3 never need approval, and a חיצוני or זום workshop has no centre room to approve at all.
 
-> **Resolved conflict:** the original spec (§3.1 stage 5) said READY = "casting complete AND all rooms have PPT ✓" — two conditions. The design spec added the משוב עודכן blocker as a third. **The three-condition version is correct and is what runs.**
+> **Selecting a room is never itself required.** Only *approval* of חדר אחר is. A מרכז workshop with no room selected still reaches READY.
+
+All five regress identically: if any becomes unmet before the date passes, READY → SPECIFIED.
+
+> **Resolved conflict:** the original spec (§3.1 stage 5) said READY = "casting complete AND all rooms have PPT ✓" — two conditions. The design spec added the משוב עודכן blocker as a third. Conditions 4 and 5 were added later, with the physical-room feature.
 
 ### 4.4 Critical rules
 
@@ -465,7 +492,7 @@ if (wDateStart < todayStart || now >= wEndDateTime) → CLOSING
 ```
 A workshop dated in the past transitions immediately. A workshop dated *today* waits for its end time. `[code]`
 
-**READY can regress to SPECIFIED** if any of the three conditions becomes unmet before the date passes — e.g. an actor is removed from Step 1 casting, or a scenario is un-written (which auto-unchecks PPT on all active rooms).
+**READY can regress to SPECIFIED** if any of the five conditions becomes unmet before the date passes — e.g. an actor is removed from Step 1 casting, a scenario is un-written (which auto-unchecks PPT on all active rooms), מספר משתתפים משוער is cleared, or חדר אחר is selected on a workshop where it has not been approved.
 
 **CLOSED can regress to CLOSING** if a letter is unchecked or feedback becomes incomplete.
 
@@ -738,6 +765,9 @@ Two-column layout: right (~65%) content sections, left (~35%) checklist sidebar.
 - **חדרים ושיבוץ מתחקרים** — one card per room: room number, facilitator (or red *"לא שובצ/ה"*), `?` badge if tentative, ✓ מצגת, ✓ מכתב, soft-cancel link. PPT checkbox disabled until facilitator assigned **and** all scenarios written (lifted in CLOSING).
 - **ליהוק** — casting progress and collapsible actor names.
 - **משוב משתתפים** — the auto-generated Google Form string with a copy button and the confirmation checkbox.
+- **חדר** — the physical-room multi-select (חדר 1 · חדר 2 · חדר 3 · חדר אחר), in the header card below the workshop fields, **shown only when the location is מרכז**. Any combination allowed, **Manager and Tech**, saving on each change rather than behind a שמור button. Selecting **חדר אחר** reveals the free-text `otherRoomNotes` area and the **חדר אושר** checkbox beside the picker. See §3.6.1.
+
+**מספר משתתפים משוער** sits beside חדרים in the header's read grid as an inline input that saves on blur. It is **Manager and Tech** — deliberately *not* inside the Manager-only header edit form, since Tech drives workshop prep and this field gates READY. Empty renders as `—` for read-only viewers, not an error; it is enforced only at the READY check (§4.3).
 
 **Left sidebar:** רשימת תיוג split into **ידני** (real checkboxes) and **אוטומטי** (status lines, no checkboxes) · הערות · פרטי רקע · a full-width **"הזנת פידבק לסדנה זו"** button.
 
@@ -756,7 +786,7 @@ See §7. The landing page lists workshops pending casting with change-alert bann
 
 Open to **all roles**. Views: שבוע / שבועיים / חודש (default חודש). Prev/next navigation with a "היום" button; the anchor date persists in localStorage. `[code]`
 
-Each block shows org — group, room count, and facilitator first names (*"לא שובץ"* in red if unassigned), with a left border in the status colour. Cancelled blocks have distinct styling. Clicking a block opens Workshop Detail. Clicking an empty day cell opens the new-workshop form with the date pre-filled. `[spec]`
+Each block shows org — group, room count, the selected **physical room label(s)** (חדר 1 · חדר אחר — the label only, never `otherRoomNotes`; omitted when nothing is selected or the workshop is not at מרכז), and facilitator first names (*"לא שובץ"* in red if unassigned), with a left border in the status colour. Cancelled blocks have distinct styling. Clicking a block opens Workshop Detail. Clicking an empty day cell opens the new-workshop form with the date pre-filled. `[spec]`
 
 > A timezone date-offset bug was fixed in `96568d9`; arrow directions were corrected for RTL in `56d0597`. `[code]`
 
@@ -1252,6 +1282,7 @@ Sessions 1–19 as built. Branch naming `session-N-*`, merged to `develop` then 
 | Aug 2026 | — | **F-08 מודל סימולציה shipped** (branch `sim_model`). New `SimulationModel` managed list; nullable `Scenario.modelId`; hard precondition at שלח לליהוק; `MODEL_CHANGED` change alert; scenario-card selector; נושאים page becomes **רשימות מערכת** with a second section. No historical backfill; group-history surfacing deferred. |
 | **Aug 2026** | **2.0** | **Consolidation.** All sources merged and reconciled against source code. Documents as-built reality: PostgreSQL/Supabase + Vercel + Next.js 16; two-stage casting flow; three-condition READY with regressions; ZOOM location type; OAuth backup; revised permissions; RAG relabel to תקין/במעקב/חמור. Backup retention policy withdrawn — manual by design (§9.9). Unbuilt gaps catalogued in §13; V2 roadmap absorbed as §14. |
 | Aug 2026 | — | Fix: `roomAddedWarning` was raised whenever a room was added, so the "חדר נוסף — יש לשלוח מחדש לליהוק" banner appeared on workshops that had never been sent to casting. Now gated on `castingSentAt`, matching the rule already applied to the `ROOM_ADDED` change log and to `MODEL_CHANGED` (§3.12). |
+| Aug 2026 | — | **מספר משתתפים משוער + חדר פיזי added** (branch `sim_location_room_numbers`). New nullable `Workshop.estimatedParticipants`; new `WorkshopRoomLocation` model and `RoomLocation` enum (§3.6.1) with `otherRoomNotes` / `otherRoomApproved`. **§4.3 grows from three READY conditions to five** — participants must be set, and חדר אחר must be approved when selected; both regress READY → SPECIFIED like the others. Selecting a room is never itself required, and the whole room feature applies only to מרכז workshops. Room labels now appear on calendar blocks (§8.6). No backfill: existing workshops have no participant count, so **anything currently in מוכן regresses to בוצע איתור צרכים until the count is entered.** Both fields are Manager **and** Tech. |
 
 ---
 

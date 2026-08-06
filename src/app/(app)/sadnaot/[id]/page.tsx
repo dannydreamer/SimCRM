@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback, type ReactNode } from "react"
 import { useParams } from "next/navigation"
 import Link from "next/link"
 import { useSession } from "next-auth/react"
+import { ROOM_LOCATION_LABELS, ROOM_LOCATION_VALUES, sortRoomLocations } from "@/lib/room-locations"
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -57,6 +58,10 @@ interface Workshop {
   feedbackExpected: number
   castingSentAt: string | null
   notes: string | null
+  estimatedParticipants: number | null
+  roomLocations: string[]
+  otherRoomNotes: string | null
+  otherRoomApproved: boolean
   frozen: boolean
   groupName: string
   orgId: string
@@ -462,6 +467,10 @@ export default function WorkshopDetailPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [actionError, setActionError] = useState<string | null>(null)
+  const [headerError, setHeaderError] = useState<string | null>(null)
+  // null = not being edited, so the input shows the saved value
+  const [otherNotesDraft, setOtherNotesDraft] = useState<string | null>(null)
+  const [participantsDraft, setParticipantsDraft] = useState<string | null>(null)
 
   // Header inline edit
   const [headerDraft, setHeaderDraft] = useState<HeaderDraft | null>(null)
@@ -599,6 +608,7 @@ export default function WorkshopDetailPage() {
     }
 
     setHeaderSaving(true)
+    setHeaderError(null)
     const res = await fetch(`/api/sadnaot/${id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
@@ -641,8 +651,48 @@ export default function WorkshopDetailPage() {
         }
       })
       setHeaderDraft(null)
+    } else {
+      const body = await res.json().catch(() => ({}))
+      setHeaderError(body.error ?? `שגיאה (${res.status})`)
     }
     setHeaderSaving(false)
+  }
+
+  // ── Inline fields: physical room + estimated participants ──────────────────
+  // Both are editable by Manager AND Tech, so they live outside the Manager-only
+  // header form and save on change/blur rather than behind a שמור button.
+
+  async function patchInline(payload: Record<string, unknown>) {
+    if (!w) return
+    const res = await fetch(`/api/sadnaot/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    })
+    if (!res.ok) return
+    const updated = await res.json()
+    const FROZEN = ["CLOSING", "CLOSED", "CANCELLED"]
+    setW((prev) => prev ? {
+      ...prev,
+      roomLocations:         updated.roomLocations     ?? prev.roomLocations,
+      otherRoomNotes:        updated.otherRoomNotes    ?? null,
+      otherRoomApproved:     updated.otherRoomApproved ?? prev.otherRoomApproved,
+      estimatedParticipants: updated.estimatedParticipants ?? null,
+      ...(updated.status !== undefined && {
+        status: updated.status,
+        frozen: FROZEN.includes(updated.status),
+      }),
+    } : prev)
+  }
+
+  function toggleRoomLocation(location: string) {
+    if (!w) return
+    const next = w.roomLocations.includes(location)
+      ? w.roomLocations.filter((l) => l !== location)
+      : [...w.roomLocations, location]
+    // Optimistic — the response re-sorts into canonical order
+    setW((prev) => prev ? { ...prev, roomLocations: sortRoomLocations(next) } : prev)
+    patchInline({ roomLocations: sortRoomLocations(next) })
   }
 
   // ── Author ─────────────────────────────────────────────────────────────────
@@ -975,10 +1025,13 @@ export default function WorkshopDetailPage() {
                     className="border border-gray-300 rounded px-2 py-1.5 text-sm w-full" />
                 </div>
               )}
+              {headerError && (
+                <p className="text-xs text-red-600 font-medium">{headerError}</p>
+              )}
               <div className="flex gap-2 pt-1">
                 <button onClick={saveHeader} disabled={headerSaving}
                   className="px-3 py-1.5 bg-navy text-white text-sm rounded disabled:opacity-50">שמור</button>
-                <button onClick={() => setHeaderDraft(null)}
+                <button onClick={() => { setHeaderDraft(null); setHeaderError(null) }}
                   className="px-3 py-1.5 border border-gray-300 text-sm rounded">ביטול</button>
               </div>
             </div>
@@ -1002,6 +1055,26 @@ export default function WorkshopDetailPage() {
                 </span>
               </div>
               <div><span className="text-gray-400">חדרים:</span> <span className="font-medium">{w.numRooms}</span></div>
+              {/* Manager AND Tech — saves inline, outside the Manager-only edit form */}
+              <div className="flex items-center gap-2">
+                <span className="text-gray-400">משתתפים משוער:</span>
+                {(isManager || isTech) && !w.frozen && !w.cancelled ? (
+                  <input type="number" min={1}
+                    value={participantsDraft ?? w.estimatedParticipants?.toString() ?? ""}
+                    onChange={(e) => setParticipantsDraft(e.target.value)}
+                    onBlur={() => {
+                      if (participantsDraft !== null &&
+                          participantsDraft !== (w.estimatedParticipants?.toString() ?? ""))
+                        patchInline({ estimatedParticipants: participantsDraft })
+                      setParticipantsDraft(null)
+                    }}
+                    className="border border-gray-300 rounded px-2 py-0.5 text-sm w-20" />
+                ) : w.estimatedParticipants !== null ? (
+                  <span className="font-medium">{w.estimatedParticipants}</span>
+                ) : (
+                  <span className="text-gray-300">—</span>
+                )}
+              </div>
               <div className="col-span-2">
                 {w.directorRequested ? (
                   <span>
@@ -1021,6 +1094,70 @@ export default function WorkshopDetailPage() {
               )}
             </div>
           )}
+
+          {/* Physical room — Manager + Tech, independent of the header edit form.
+              Only meaningful at the centre; a חיצוני or זום workshop has no room to pick. */}
+          {w.locationType === "CENTER" && (() => {
+            const canEditRoomLocation = (isManager || isTech) && !w.frozen && !w.cancelled
+            const usesOther = w.roomLocations.includes("OTHER")
+            return (
+              <div className="mt-5 pt-4 border-t border-gray-100 flex flex-col gap-3">
+                <div className="flex flex-wrap items-center gap-x-5 gap-y-2">
+                  <span className="text-xs font-semibold text-gray-500">חדר:</span>
+                  {ROOM_LOCATION_VALUES.map((loc) => (
+                    <label key={loc}
+                      className={`flex items-center gap-2 text-sm ${canEditRoomLocation ? "cursor-pointer" : "cursor-default"}`}>
+                      <input type="checkbox"
+                        checked={w.roomLocations.includes(loc)}
+                        disabled={!canEditRoomLocation}
+                        onChange={() => toggleRoomLocation(loc)}
+                        className="w-4 h-4 accent-navy disabled:opacity-50" />
+                      {ROOM_LOCATION_LABELS[loc]}
+                    </label>
+                  ))}
+                  {w.roomLocations.length === 0 && (
+                    <span className="text-xs text-gray-300">לא נבחר חדר</span>
+                  )}
+
+                  {/* Rooms 1–3 never need approval — this only applies to חדר אחר */}
+                  {usesOther && (
+                    <label className={`flex items-center gap-2 text-sm font-medium mr-auto ${
+                      canEditRoomLocation ? "cursor-pointer" : "cursor-default"
+                    } ${w.otherRoomApproved ? "text-brand-green" : "text-amber-700"}`}>
+                      <input type="checkbox"
+                        checked={w.otherRoomApproved}
+                        disabled={!canEditRoomLocation}
+                        onChange={(e) => patchInline({ otherRoomApproved: e.target.checked })}
+                        className="w-4 h-4 accent-navy disabled:opacity-50" />
+                      חדר אושר
+                    </label>
+                  )}
+                </div>
+
+                {usesOther && (
+                  <div>
+                    <label className="block text-xs text-gray-500 mb-1">פרטי חדר אחר</label>
+                    {canEditRoomLocation ? (
+                      <textarea
+                        value={otherNotesDraft ?? w.otherRoomNotes ?? ""}
+                        onChange={(e) => setOtherNotesDraft(e.target.value)}
+                        onBlur={() => {
+                          if (otherNotesDraft !== null && otherNotesDraft !== (w.otherRoomNotes ?? ""))
+                            patchInline({ otherRoomNotes: otherNotesDraft })
+                          setOtherNotesDraft(null)
+                        }}
+                        rows={2}
+                        className="border border-gray-300 rounded px-3 py-2 text-sm w-full" />
+                    ) : (
+                      <p className="text-sm text-gray-600 whitespace-pre-wrap">
+                        {w.otherRoomNotes ?? <span className="text-gray-300">—</span>}
+                      </p>
+                    )}
+                  </div>
+                )}
+              </div>
+            )
+          })()}
 
           {/* Status actions — Manager + Tech */}
           {(isManager || isTech) && !hd && (
@@ -1083,7 +1220,14 @@ export default function WorkshopDetailPage() {
                 // Condition 3: Feedback form
                 const feedbackDone = w.feedbackFormAdded
 
-                const allDone = allPpt && castingComplete && feedbackDone
+                // Condition 4: Estimated participants set
+                const participantsSet = w.estimatedParticipants !== null
+
+                // Condition 5: חדר אחר, if used at the centre, must be approved
+                const usesOtherRoom = w.locationType === "CENTER" && w.roomLocations.includes("OTHER")
+                const roomApproved  = !usesOtherRoom || w.otherRoomApproved
+
+                const allDone = allPpt && castingComplete && feedbackDone && participantsSet && roomApproved
 
                 return (
                   <div className="flex flex-col gap-2 bg-gray-50 rounded-lg px-4 py-3">
@@ -1126,6 +1270,24 @@ export default function WorkshopDetailPage() {
                     <div className="flex items-center gap-2 text-xs">
                       <span className={`font-bold ${feedbackDone ? "text-brand-green" : "text-gray-300"}`}>{feedbackDone ? "✓" : "○"}</span>
                       <span className={feedbackDone ? "text-gray-700" : "text-gray-500"}>טופס פידבק הועבר</span>
+                    </div>
+
+                    {/* Condition 4: Estimated participants — mirrors the field above */}
+                    <div className="flex items-center gap-2 text-xs">
+                      <span className={`font-bold ${participantsSet ? "text-brand-green" : "text-gray-300"}`}>{participantsSet ? "✓" : "○"}</span>
+                      <span className={participantsSet ? "text-gray-700" : "text-gray-500"}>
+                        {participantsSet ? `מספר משתתפים משוער (${w.estimatedParticipants})` : "הוזן מספר משתתפים משוער"}
+                      </span>
+                    </div>
+
+                    {/* Condition 5: room approval — only meaningful when חדר אחר is selected */}
+                    <div className="flex items-center gap-2 text-xs">
+                      <span className={`font-bold ${roomApproved ? "text-brand-green" : "text-gray-300"}`}>{roomApproved ? "✓" : "○"}</span>
+                      <span className={roomApproved ? "text-gray-700" : "text-gray-500"}>
+                        {usesOtherRoom ? "חדר אחר אושר"
+                          : w.locationType === "CENTER" ? "חדר אינו טעון אישור"
+                          : "הסדנה אינה במרכז — אין חדר לאישור"}
+                      </span>
                     </div>
 
                     {allDone && (

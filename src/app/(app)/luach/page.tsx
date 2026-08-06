@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react"
 import { useRouter } from "next/navigation"
+import { ROOM_LOCATION_LABELS } from "@/lib/room-locations"
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -17,6 +18,7 @@ interface WorkshopBlock {
   groupName: string
   orgName: string
   facilitators: string[]
+  roomLocations: string[]
 }
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -110,6 +112,11 @@ function Block({ w, onClick }: { w: WorkshopBlock; onClick: () => void }) {
       </div>
       <div className="truncate text-gray-500">{w.orgName}</div>
       <div className="text-gray-400">{w.startTime}–{w.endTime} · {w.numRooms} חד׳</div>
+      {w.roomLocations.length > 0 && (
+        <div className="truncate text-gray-500">
+          {w.roomLocations.map((l) => ROOM_LOCATION_LABELS[l]).join(" · ")}
+        </div>
+      )}
       <div className="truncate text-gray-400">
         {w.facilitators.length > 0 ? w.facilitators.join(", ") : "לא שובצו מתחקרים"}
       </div>
