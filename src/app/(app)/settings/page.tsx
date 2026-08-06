@@ -7,7 +7,7 @@ import { useSearchParams } from "next/navigation"
 
 interface BackupStatus {
   lastSuccess: { date: string; fileSize: number | null; type: string } | null
-  lastStatus:  "SUCCESS" | "FAILED" | null
+  lastStatus:  "SUCCESS" | "FAILED" | "RUNNING" | null
   lastError:   string | null
   lastDate:    string | null
   totalCount:  number
@@ -39,6 +39,7 @@ function SettingsInner() {
   const [loading, setLoading] = useState(true)
   const [backing, setBacking] = useState(false)
   const [result, setResult]   = useState<"success" | "error" | null>(null)
+  const [resultError, setResultError] = useState<string | null>(null)
 
   async function fetchStatus() {
     setLoading(true)
@@ -52,10 +53,16 @@ function SettingsInner() {
   async function handleManualBackup() {
     setBacking(true)
     setResult(null)
+    setResultError(null)
     const res = await fetch("/api/settings/backup", { method: "POST" })
     setResult(res.ok ? "success" : "error")
+    if (!res.ok) {
+      // Surface the server's actual message — "try again" alone is undiagnosable
+      const body = await res.json().catch(() => ({}))
+      setResultError(body.error ?? `HTTP ${res.status}`)
+    }
     setBacking(false)
-    if (res.ok) await fetchStatus()
+    await fetchStatus()
   }
 
   const envOk       = status?.envWarning === null
@@ -161,9 +168,18 @@ function SettingsInner() {
                 <span className="text-sm text-gray-600">גיבוי אחרון</span>
                 <span className="text-sm font-medium">
                   {status?.lastDate ? (
-                    <span className={status.lastStatus === "FAILED" ? "text-red-600" : "text-gray-800"}>
-                      {status.lastStatus === "SUCCESS" ? "✓ " : "✗ "}
+                    <span className={
+                      status.lastStatus === "FAILED"  ? "text-red-600"
+                      : status.lastStatus === "RUNNING" ? "text-amber-600"
+                      : "text-gray-800"
+                    }>
+                      {status.lastStatus === "SUCCESS" ? "✓ "
+                        : status.lastStatus === "RUNNING" ? "⏳ "
+                        : "✗ "}
                       {formatDateTime(status.lastDate)}
+                      {status.lastStatus === "RUNNING" && (
+                        <span className="text-xs font-normal mr-2">(לא הסתיים)</span>
+                      )}
                     </span>
                   ) : (
                     <span className="text-gray-400">אין גיבויים</span>
@@ -187,7 +203,7 @@ function SettingsInner() {
                 </span>
               </div>
 
-              {status?.lastStatus === "FAILED" && status.lastError && (
+              {status?.lastError && (
                 <div className="px-5 py-3 flex items-start justify-between gap-4">
                   <span className="text-sm text-gray-600 shrink-0">שגיאה</span>
                   <span className="text-sm text-red-600 font-mono break-all text-left">{status.lastError}</span>
@@ -221,7 +237,12 @@ function SettingsInner() {
               <span className="text-sm text-green-700 font-medium">✓ גיבוי נוצר בהצלחה</span>
             )}
             {result === "error" && (
-              <span className="text-sm text-red-600 font-medium">✗ הגיבוי נכשל — נסה שוב</span>
+              <div className="flex flex-col gap-1 min-w-0">
+                <span className="text-sm text-red-600 font-medium">✗ הגיבוי נכשל</span>
+                {resultError && (
+                  <span className="text-xs text-red-600 font-mono break-all">{resultError}</span>
+                )}
+              </div>
             )}
           </div>
         </section>

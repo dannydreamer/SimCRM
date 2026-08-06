@@ -7,7 +7,7 @@ import { prisma } from "@/lib/prisma"
 
 const TABLE_ORDER = [
   "Person", "PersonRole", "Organization", "ParticipantGroup",
-  "Workshop", "Room", "Topic", "Scenario", "Actor", "Casting",
+  "Workshop", "Room", "Topic", "SimulationModel", "Scenario", "Actor", "Casting",
   "ActorWorkshopAvailability", "WorkshopConfirmedActor", "CastingChangeLog",
   "Feedback", "ActorDevelopmentLog", "AnnualGoal", "AppSettings", "BackupLog",
 ]
@@ -34,7 +34,23 @@ export async function dumpDatabase(): Promise<string> {
     let sql = `-- SimCRM Database Backup\n-- Generated: ${now}\n-- Restore: apply migrations first, then run this file\n\n`
     sql += `SET session_replication_role = replica; -- disable FK checks during restore\n\n`
 
+    // Only dump tables that actually exist. A table listed here but not yet created
+    // in this database — code deployed ahead of its migration — must not abort the
+    // whole backup, or one ordering mistake silently costs every subsequent backup.
+    const { rows: present } = await client.query(`
+      SELECT table_name FROM information_schema.tables WHERE table_schema = 'public'
+    `)
+    const existing = new Set(present.map((r) => r.table_name as string))
+
+    const missing = TABLE_ORDER.filter((t) => !existing.has(t))
+    if (missing.length > 0) {
+      sql += `-- WARNING: skipped ${missing.length} table(s) absent from this database: ${missing.join(", ")}\n`
+      sql += `-- This usually means a migration has not been applied here yet.\n\n`
+      console.warn(`[backup] tables missing, skipped: ${missing.join(", ")}`)
+    }
+
     for (const table of TABLE_ORDER) {
+      if (!existing.has(table)) continue
       const { rows } = await client.query(`SELECT * FROM "${table}"`)
       if (rows.length === 0) continue
 
@@ -194,17 +210,37 @@ export function buildFilename(): string {
 // ─── Auto-backup on manager activity ─────────────────────────────────────────
 
 const AUTO_BACKUP_INTERVAL_MS = 3 * 24 * 60 * 60 * 1000 // 3 days
+const STALE_RUNNING_MS = 10 * 60 * 1000                 // a RUNNING entry older than this died
+const RETRY_COOLDOWN_MS = 60 * 60 * 1000                // wait an hour before retrying a failure
 
 export async function maybeAutoBackup(): Promise<void> {
   if (getBackupWarning() !== null) return
 
   try {
-    const last = await prisma.backupLog.findFirst({
+    const lastSuccess = await prisma.backupLog.findFirst({
       where: { status: "SUCCESS" },
       orderBy: { createdAt: "desc" },
     })
 
-    if (last && Date.now() - last.createdAt.getTime() < AUTO_BACKUP_INTERVAL_MS) return
+    if (lastSuccess && Date.now() - lastSuccess.createdAt.getTime() < AUTO_BACKUP_INTERVAL_MS) return
+
+    // Resolve the previous attempt before starting another. Without this, a failing
+    // backup retried on every single page load and abandoned RUNNING rows piled up.
+    const lastAttempt = await prisma.backupLog.findFirst({ orderBy: { createdAt: "desc" } })
+
+    if (lastAttempt?.status === "RUNNING") {
+      const age = Date.now() - lastAttempt.createdAt.getTime()
+      if (age < STALE_RUNNING_MS) return // one is genuinely in flight
+      await prisma.backupLog.update({
+        where: { id: lastAttempt.id },
+        data: { status: "FAILED", errorMsg: "Backup did not complete — the server stopped before it finished" },
+      })
+    } else if (
+      lastAttempt?.status === "FAILED" &&
+      Date.now() - lastAttempt.createdAt.getTime() < RETRY_COOLDOWN_MS
+    ) {
+      return
+    }
 
     const filename = buildFilename()
     const logEntry = await prisma.backupLog.create({
