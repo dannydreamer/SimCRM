@@ -792,7 +792,7 @@ export default function LihukimPage() {
 // ─── Requirements panel (collapsible) ────────────────────────────────────────
 
 function RequirementsPanel({ data, scenarios }: { data: CastingData; scenarios: Scenario[] }) {
-  const [open, setOpen] = useState(false)
+  const [open, setOpen] = useState(true)
   return (
     <section className="bg-white border border-gray-200 rounded-xl overflow-hidden">
       <button
@@ -826,11 +826,7 @@ function RequirementsPanel({ data, scenarios }: { data: CastingData; scenarios: 
                 <div key={s.id} className="border border-gray-100 rounded-lg px-4 py-3">
                   <p className="text-sm font-semibold text-gray-800 mb-1">
                     תרחיש {i + 1}{s.name ? ` — ${s.name}` : ""} · {s.topicName}
-                    {s.modelName && (
-                      <span className="mr-2 px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-700 text-xs font-medium">
-                        {s.modelName}
-                      </span>
-                    )}
+                    {s.modelName ? ` · מודל: ${s.modelName}` : ""}
                     <span className="mr-2 font-normal text-gray-500 text-xs">♂ {s.maleActorsNeeded} · ♀ {s.femaleActorsNeeded} לחדר</span>
                   </p>
                   {s.actorRequirements && (

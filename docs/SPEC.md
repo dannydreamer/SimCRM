@@ -278,7 +278,7 @@ Bolded fields are **not in either prior spec** — they were added during implem
 |---|---|---|
 | id | uuid | PK |
 | workshopId | FK | |
-| name | String? | Optional — often unknown at specification time |
+| name | String? | **Retained in the schema but no longer settable or displayed in the UI.** The name is never known at specification time — it only exists once the scenario is written — so every field was left blank in practice. Kept for the planned Scenario Library (F-03), which will populate it from uploaded scenario documents. Existing values still render in the change-log labels. |
 | topicId | FK → Topic | **Required** |
 | **modelId** | FK? → SimulationModel | **Nullable** — מודל סימולציה. Not required to create or write a scenario; becomes a hard precondition at שלח לליהוק (§7.2) |
 | actorRequirements | String? | Free text brief for the Caster |
@@ -649,7 +649,9 @@ All preconditions are re-checked on **every** call — first send and re-send al
 
 The casting page renders in this sequence (`7ff3bfa` fixed the ordering):
 
-**1. 📋 דרישות הסדנה (עיון)** — read-only requirements panel. Per-scenario topic, **מודל סימולציה**, requirements text, and slot counts. Shows a `🎬 דרוש/ה במאי/ת` pill when a director is requested.
+**1. 📋 דרישות הסדנה (עיון)** — read-only requirements panel, **expanded by default** (it was collapsed until August 2026; the Caster needs it on every visit). Per-scenario line reads `תרחיש N · <נושא> · מודל: <מודל>` followed by slot counts, then the requirements text. Shows a `🎬 דרוש/ה במאי/ת` pill when a director is requested.
+
+> Topic and model render as plain text in one line, not as coloured pills — the model is the same class of information as the topic and should not be styled as though it were different.
 
 **2. זמינות — availability.** Full actor list with a per-workshop availability toggle. Marking an actor available makes them *selectable* in Step 1; it does not commit them.
 
@@ -730,7 +732,8 @@ Two-column layout: right (~65%) content sections, left (~35%) checklist sidebar.
 > **Resolved conflict:** the original spec explicitly said *"No sidebar panel for background details."* The design spec overrode this with a two-column layout. **The two-column layout is what was built.**
 
 **Right column:**
-- **תרחישים** — one card per scenario: topic pill, **מודל סימולציה** selector, name (or *"שם טרם נקבע"*), דרישות לשחקן, per-scenario male/female counts, "נכתב תרחיש" checkbox, soft-cancel link. Actor requirements are **required** when adding a scenario (`7b59553`). An author must be set before scenarios can be added (`b628323`).
+- **תרחישים** — columns: נושא · **מודל סימולציה** · דרישות שחקנים (with per-scenario male/female counts) · נכתב · actions. Actor requirements are **required** when adding a scenario (`7b59553`). An author must be set before scenarios can be added (`b628323`).
+  - **No scenario-name column or field**, on the table, the add form or the row edit form. See §3.7 — the name is unknown at specification time, so it was always empty.
   - The **מודל סימולציה** selector is editable by Manager and Tech under the existing "Scenarios — create/edit" permission, and saves on change independently of the row's edit form. Empty state is a neutral placeholder — *"מודל טרם נבחר"*, not an error. It is enforced only at שלח לליהוק (§7.2), never at the card level, and never locked.
 - **חדרים ושיבוץ מתחקרים** — one card per room: room number, facilitator (or red *"לא שובצ/ה"*), `?` badge if tentative, ✓ מצגת, ✓ מכתב, soft-cancel link. PPT checkbox disabled until facilitator assigned **and** all scenarios written (lifted in CLOSING).
 - **ליהוק** — casting progress and collapsible actor names.
@@ -1244,6 +1247,7 @@ Sessions 1–19 as built. Branch naming `session-N-*`, merged to `develop` then 
 | Aug 2026 | — | Backup system specified (service account — later superseded) |
 | Aug 2026 | — | **Backups fixed — they had never succeeded since the rollout reset.** Three causes: the Google OAuth app sat in `Testing`, expiring refresh tokens every 7 days (§9.1); the opportunistic trigger used a bare `void` call that Vercel killed mid-dump (§9.6); the Settings page hid the error text unless status was exactly `FAILED` (§9.8). Also added: retry guards on the opportunistic trigger, and the dump now skips tables absent from the database instead of aborting (§9.3). |
 | Aug 2026 | — | **Separate test environment + release procedure recorded** (§2.1.1, §2.1.2). Preview deployments previously shared the production database; Supabase project `sim_crm_testing` now backs all previews. Documents that migrations are never automatic, the migrate-then-deploy order for additive changes, and how to rebuild the test database. `DIRECT_URL` added to §2.2 — it was in use but undocumented. |
+| Aug 2026 | — | Post-review UI corrections to F-08: דרישות הסדנה expanded by default (§7.3); model rendered as plain text beside the topic rather than a coloured pill; workshop header casting line reads `שחקנים: N  שחקניות: N` instead of `ליהוק: N גברים`; scenario **name** removed from the table, add form and edit form, kept in the schema for F-03 (§3.7). |
 | Aug 2026 | — | **F-08 מודל סימולציה shipped** (branch `sim_model`). New `SimulationModel` managed list; nullable `Scenario.modelId`; hard precondition at שלח לליהוק; `MODEL_CHANGED` change alert; scenario-card selector; נושאים page becomes **רשימות מערכת** with a second section. No historical backfill; group-history surfacing deferred. |
 | **Aug 2026** | **2.0** | **Consolidation.** All sources merged and reconciled against source code. Documents as-built reality: PostgreSQL/Supabase + Vercel + Next.js 16; two-stage casting flow; three-condition READY with regressions; ZOOM location type; OAuth backup; revised permissions; RAG relabel to תקין/במעקב/חמור. Backup retention policy withdrawn — manual by design (§9.9). Unbuilt gaps catalogued in §13; V2 roadmap absorbed as §14. |
 

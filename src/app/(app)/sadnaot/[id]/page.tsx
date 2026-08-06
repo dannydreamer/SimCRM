@@ -171,7 +171,6 @@ function ScenarioRow({
 }) {
   const [editing, setEditing] = useState(false)
   const [topicId, setTopicId] = useState(s.topicId)
-  const [name, setName] = useState(s.name ?? "")
   const [req, setReq] = useState(s.actorRequirements ?? "")
   const [maleCount,   setMaleCount]   = useState(String(s.maleActorsNeeded))
   const [femaleCount, setFemaleCount] = useState(String(s.femaleActorsNeeded))
@@ -184,7 +183,7 @@ function ScenarioRow({
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        topicId, name, actorRequirements: req,
+        topicId, actorRequirements: req,
         maleActorsNeeded:   Math.max(0, Number(maleCount)   || 0),
         femaleActorsNeeded: Math.max(0, Number(femaleCount) || 0),
       }),
@@ -266,10 +265,6 @@ function ScenarioRow({
           </td>
           {modelCell}
           <td className="py-2 px-3">
-            <input value={name} onChange={(e) => setName(e.target.value)}
-              className="border border-gray-300 rounded px-2 py-1 text-sm w-full" placeholder="שם תרחיש (אופציונלי)" />
-          </td>
-          <td className="py-2 px-3">
             <textarea value={req} onChange={(e) => setReq(e.target.value)} rows={2}
               className="border border-gray-300 rounded px-2 py-1 text-sm w-full" placeholder="דרישות שחקנים" />
             <div className="flex items-center gap-3 mt-1.5">
@@ -301,7 +296,6 @@ function ScenarioRow({
         <>
           <td className="py-2 px-3 font-medium">{s.topicName}</td>
           {modelCell}
-          <td className="py-2 px-3 text-gray-600">{s.name ?? <span className="text-gray-300">—</span>}</td>
           <td className="py-2 px-3 text-gray-600 whitespace-pre-wrap">
             {s.actorRequirements ?? <span className="text-gray-300">—</span>}
             {(s.maleActorsNeeded > 0 || s.femaleActorsNeeded > 0) && (
@@ -481,7 +475,6 @@ export default function WorkshopDetailPage() {
   const [showAddScenario, setShowAddScenario] = useState(false)
   const [newTopicId, setNewTopicId] = useState("")
   const [newModelId, setNewModelId] = useState("")
-  const [newScenarioName, setNewScenarioName] = useState("")
   const [newScenarioReq, setNewScenarioReq] = useState("")
   const [newScenarioMale, setNewScenarioMale] = useState("0")
   const [newScenarioFemale, setNewScenarioFemale] = useState("0")
@@ -692,7 +685,7 @@ export default function WorkshopDetailPage() {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        topicId: newTopicId, modelId: newModelId, name: newScenarioName, actorRequirements: newScenarioReq,
+        topicId: newTopicId, modelId: newModelId, actorRequirements: newScenarioReq,
         maleActorsNeeded:   Math.max(0, Number(newScenarioMale)   || 0),
         femaleActorsNeeded: Math.max(0, Number(newScenarioFemale) || 0),
       }),
@@ -703,7 +696,6 @@ export default function WorkshopDetailPage() {
       setShowAddScenario(false)
       setNewTopicId("")
       setNewModelId("")
-      setNewScenarioName("")
       setNewScenarioReq("")
       setNewScenarioMale("0")
       setNewScenarioFemale("0")
@@ -1020,13 +1012,11 @@ export default function WorkshopDetailPage() {
                   <span className="text-gray-300 text-xs">אין דרישת במאי/ת</span>
                 )}
               </div>
-              {(w.castingMaleNeeded || w.castingFemaleNeeded) && (
-                <div className="col-span-2 text-gray-500">
-                  ליהוק:{" "}
-                  {w.castingMaleNeeded ? `${w.castingMaleNeeded} גברים` : ""}
-                  {w.castingMaleNeeded && w.castingFemaleNeeded ? ", " : ""}
-                  {w.castingFemaleNeeded ? `${w.castingFemaleNeeded} נשים` : ""}
-                  {w.castingNotes && <span className="mr-2">— {w.castingNotes}</span>}
+              {(w.castingMaleNeeded !== null || w.castingFemaleNeeded !== null) && (
+                <div className="col-span-2 text-gray-500 flex flex-wrap gap-x-4">
+                  <span>שחקנים: <span className="font-medium text-gray-700">{w.castingMaleNeeded ?? 0}</span></span>
+                  <span>שחקניות: <span className="font-medium text-gray-700">{w.castingFemaleNeeded ?? 0}</span></span>
+                  {w.castingNotes && <span>— {w.castingNotes}</span>}
                 </div>
               )}
             </div>
@@ -1268,11 +1258,6 @@ export default function WorkshopDetailPage() {
                     ))}
                   </select>
                 </div>
-                <div className="col-span-2">
-                  <label className="block text-xs text-gray-500 mb-1">שם תרחיש (אופציונלי)</label>
-                  <input value={newScenarioName} onChange={(e) => setNewScenarioName(e.target.value)}
-                    className="border border-gray-300 rounded px-2 py-1.5 text-sm w-full" />
-                </div>
               </div>
               <div>
                 <label className="block text-xs text-gray-500 mb-1">
@@ -1315,7 +1300,6 @@ export default function WorkshopDetailPage() {
                   <tr>
                     <th className="py-2 px-3 font-medium">נושא</th>
                     <th className="py-2 px-3 font-medium">מודל סימולציה</th>
-                    <th className="py-2 px-3 font-medium">שם</th>
                     <th className="py-2 px-3 font-medium">דרישות שחקנים</th>
                     <th className="py-2 px-3 font-medium text-center">נכתב</th>
                     <th className="py-2 px-3"></th>
@@ -1591,7 +1575,7 @@ export default function WorkshopDetailPage() {
                     {/* Scenario label */}
                     <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">
                       תרחיש {i + 1}{s.name ? ` — ${s.name}` : ""} · {s.topicName}
-                      {s.modelName && <span className="mr-1.5 normal-case text-indigo-600">· {s.modelName}</span>}
+                      {s.modelName ? ` · מודל: ${s.modelName}` : ""}
                     </p>
                     {/* Actor counts — prominent */}
                     <div className="flex gap-6 mb-2">
