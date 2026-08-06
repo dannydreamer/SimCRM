@@ -246,7 +246,7 @@ Multiple groups with the same name under one organization are permitted — no d
 | tentative | Boolean | Shows `?` badge |
 | postponedWarning | Boolean | Set when date changes after casting/slotting |
 | **roomCancelledWarning** | Boolean | Caster alert flag |
-| **roomAddedWarning** | Boolean | Caster alert flag |
+| **roomAddedWarning** | Boolean | Caster alert flag. Raised **only** when a room is added to a workshop whose `castingSentAt` is already set |
 | feedbackFormAdded | Boolean | משוב משתתפים — Tech confirms the Google Form string was added |
 | **castingMaleNeeded** | Int? | Total male actors required (set by Tech at send-to-casting) |
 | **castingFemaleNeeded** | Int? | Total female actors required |
@@ -998,6 +998,7 @@ Carried forward for V2 planning. Each needs a decision.
 | 5 | Cron timezone | `[gap]` | Runs 01:00 UTC; does not track Israel DST. Confirm acceptable. |
 | 6 | Supabase pooler blocks DDL | `[code]` | Enum migrations need manual SQL + manual `_prisma_migrations` entry. Document in README. |
 | 7 | Mobile spec | `[gap]` | Casting is mobile-responsive and the actor table hides columns on mobile, but no comprehensive mobile spec exists. |
+| 8 | **Is the Supabase Data API exposing the tables?** | `[?]` | **Unverified, security-relevant.** The app never uses Supabase's Data API (PostgREST) — it reaches Postgres directly through Prisma as the `postgres` role. But nobody has confirmed whether that API is enabled on the production project (`uremusqbcnnfwuafirhz`), or whether the 19 Prisma-created tables are readable with the public anon key. No table has RLS: permissions are enforced in route handlers (§5.2), which is deliberate and consistent, but leaves nothing between PostgREST and the data if the grants happen to exist. Prisma-created tables normally do *not* receive the anon/authenticated grants Supabase applies to tables made through its own UI, so the expectation is "not exposed" — confirm rather than assume. At risk: `Person` (staff emails, bcrypt hashes), `Actor` (~40 names, phones), `Feedback`, `Organization`. **Check:** `curl "https://<ref>.supabase.co/rest/v1/Person?select=id&limit=1" -H "apikey: <anon key>"` — 200 with rows means exposed. **Fix if so:** disable the Data API outright, since nothing uses it; revoking grants or adding RLS are second choices. The `sim_crm_testing` project had the Data API disabled at creation, so it is not affected. |
 
 Two items previously listed here are now **resolved**:
 
@@ -1250,6 +1251,7 @@ Sessions 1–19 as built. Branch naming `session-N-*`, merged to `develop` then 
 | Aug 2026 | — | Post-review UI corrections to F-08: דרישות הסדנה expanded by default (§7.3); model rendered as plain text beside the topic rather than a coloured pill; workshop header casting line reads `שחקנים: N  שחקניות: N` instead of `ליהוק: N גברים`; scenario **name** removed from the table, add form and edit form, kept in the schema for F-03 (§3.7). |
 | Aug 2026 | — | **F-08 מודל סימולציה shipped** (branch `sim_model`). New `SimulationModel` managed list; nullable `Scenario.modelId`; hard precondition at שלח לליהוק; `MODEL_CHANGED` change alert; scenario-card selector; נושאים page becomes **רשימות מערכת** with a second section. No historical backfill; group-history surfacing deferred. |
 | **Aug 2026** | **2.0** | **Consolidation.** All sources merged and reconciled against source code. Documents as-built reality: PostgreSQL/Supabase + Vercel + Next.js 16; two-stage casting flow; three-condition READY with regressions; ZOOM location type; OAuth backup; revised permissions; RAG relabel to תקין/במעקב/חמור. Backup retention policy withdrawn — manual by design (§9.9). Unbuilt gaps catalogued in §13; V2 roadmap absorbed as §14. |
+| Aug 2026 | — | Fix: `roomAddedWarning` was raised whenever a room was added, so the "חדר נוסף — יש לשלוח מחדש לליהוק" banner appeared on workshops that had never been sent to casting. Now gated on `castingSentAt`, matching the rule already applied to the `ROOM_ADDED` change log and to `MODEL_CHANGED` (§3.12). |
 
 ---
 

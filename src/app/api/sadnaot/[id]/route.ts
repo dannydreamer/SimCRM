@@ -243,6 +243,7 @@ export async function PATCH(
   let updatedRooms: ReturnType<typeof mapRoom>[] | undefined
   let roomsWereCancelled = false
   let roomsWereAdded = false
+  let raiseRoomAddedWarning = false
   if (isManager && numRooms !== undefined && !isFrozen) {
     const newNum = Number(numRooms)
     const allRooms = await prisma.room.findMany({
@@ -293,13 +294,16 @@ export async function PATCH(
       roomsWereCancelled = true
     }
 
-    // Set room-change warning flags on workshop
-    if (roomsWereCancelled || roomsWereAdded) {
+    // Set room-change warning flags on workshop.
+    // The room-added banner says "יש לשלוח מחדש לליהוק" — meaningless before the
+    // workshop was ever sent to casting, so only raise it once castingSentAt is set.
+    raiseRoomAddedWarning = roomsWereAdded && !!w.castingSentAt
+    if (roomsWereCancelled || raiseRoomAddedWarning) {
       await prisma.workshop.update({
         where: { id },
         data: {
-          ...(roomsWereCancelled && { roomCancelledWarning: true }),
-          ...(roomsWereAdded     && { roomAddedWarning:     true }),
+          ...(roomsWereCancelled     && { roomCancelledWarning: true }),
+          ...(raiseRoomAddedWarning  && { roomAddedWarning:     true }),
         },
       })
     }
@@ -359,7 +363,7 @@ export async function PATCH(
     numRooms: updated.numRooms,
     postponedWarning: updated.postponedWarning,
     roomCancelledWarning: roomsWereCancelled ? true : updated.roomCancelledWarning,
-    roomAddedWarning:     roomsWereAdded     ? true : updated.roomAddedWarning,
+    roomAddedWarning:     raiseRoomAddedWarning ? true : updated.roomAddedWarning,
     ...(updatedRooms !== undefined && { rooms: updatedRooms }),
   })
 }
