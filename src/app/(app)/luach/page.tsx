@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react"
 import { useRouter } from "next/navigation"
-import { ROOM_LOCATION_LABELS } from "@/lib/room-locations"
+import { ROOM_LOCATION_LABELS, ROOM_LOCATION_VALUES } from "@/lib/room-locations"
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -43,6 +43,11 @@ const STATUS_COLORS: Record<string, string> = {
 
 const DAY_NAMES = ["ראשון", "שני", "שלישי", "רביעי", "חמישי", "שישי", "שבת"]
 
+/** Numbered rooms only — חדר אחר is free text, so two of those are not a clash. */
+const NUMBERED_ROOMS = ROOM_LOCATION_VALUES.filter((v) => v !== "OTHER")
+
+const CLASH_TITLE = 'חדר בהתנגשות לו"ז'
+
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function startOfDay(d: Date) {
@@ -55,6 +60,47 @@ function addDays(d: Date, n: number) {
 
 function startOfWeek(d: Date) {
   const out = startOfDay(d); out.setDate(out.getDate() - out.getDay()); return out
+}
+
+/** Half-open overlap. "HH:MM" is zero-padded, so string compare is time compare. */
+function timesOverlap(a: WorkshopBlock, b: WorkshopBlock) {
+  return a.startTime < b.endTime && b.startTime < a.endTime
+}
+
+/**
+ * workshopId → set of numbered rooms double-booked at an overlapping time on the
+ * same day. Computed over every workshop, not just the filtered ones — a clash
+ * with a workshop hidden by the facilitator filter is still a clash.
+ */
+function findRoomClashes(workshops: WorkshopBlock[]): Map<string, Set<string>> {
+  const byDay = new Map<string, WorkshopBlock[]>()
+  workshops.filter((w) => !w.cancelled).forEach((w) => {
+    const key = localDateKey(new Date(w.date))
+    if (!byDay.has(key)) byDay.set(key, [])
+    byDay.get(key)!.push(w)
+  })
+
+  const clashes = new Map<string, Set<string>>()
+  const mark = (id: string, room: string) => {
+    if (!clashes.has(id)) clashes.set(id, new Set())
+    clashes.get(id)!.add(room)
+  }
+
+  byDay.forEach((list) => {
+    for (let i = 0; i < list.length; i++) {
+      for (let j = i + 1; j < list.length; j++) {
+        const a = list[i], b = list[j]
+        if (!timesOverlap(a, b)) continue
+        NUMBERED_ROOMS.forEach((room) => {
+          if (a.roomLocations.includes(room) && b.roomLocations.includes(room)) {
+            mark(a.id, room)
+            mark(b.id, room)
+          }
+        })
+      }
+    }
+  })
+  return clashes
 }
 
 function isSameDay(a: Date, b: Date) {
@@ -97,12 +143,23 @@ function navigateAnchor(anchor: Date, range: RangeType, dir: -1 | 1): Date {
 
 // ─── Block component ──────────────────────────────────────────────────────────
 
-function Block({ w, onClick }: { w: WorkshopBlock; onClick: () => void }) {
+function Block({ w, onClick, clashingRooms }: {
+  w: WorkshopBlock
+  onClick: () => void
+  clashingRooms?: Set<string>
+}) {
   const color = w.cancelled ? STATUS_COLORS.CANCELLED : (STATUS_COLORS[w.status] ?? STATUS_COLORS.NEW)
+  const hasClash = !!clashingRooms?.size
   return (
     <button onClick={onClick}
-      className={`w-full text-right border rounded px-2 py-1 mb-1 last:mb-0 text-xs leading-snug hover:brightness-95 transition-all ${color}`}>
+      className={`w-full text-right border rounded px-2 py-1 mb-1 last:mb-0 text-xs leading-snug hover:brightness-95 transition-all ${color} ${
+        hasClash ? "ring-1 ring-red-500" : ""
+      }`}>
       <div className="flex items-center gap-1 font-semibold truncate">
+        {hasClash && (
+          <span title={CLASH_TITLE}
+            className="shrink-0 px-1 rounded bg-red-100 text-red-700 font-bold text-xs">!</span>
+        )}
         {w.tentative && (
           <span className="shrink-0 px-1 rounded bg-amber-100 text-amber-700 font-bold text-xs">?</span>
         )}
@@ -113,15 +170,28 @@ function Block({ w, onClick }: { w: WorkshopBlock; onClick: () => void }) {
       </div>
       <div className="truncate text-gray-500">{w.orgName}</div>
       <div className="text-gray-400">{w.startTime}–{w.endTime} · {w.numRooms} חד׳</div>
-      {w.roomLocations.length > 0 && (() => {
+      {w.roomLocations.length > 0 && (
         // חדר אחר shows its free text when there is any — that detail is the
         // point of the room on the calendar. Falls back to the plain label.
-        const parts = w.roomLocations.map((l) =>
-          l === "OTHER" ? (w.otherRoomNotes?.trim() || ROOM_LOCATION_LABELS[l]) : ROOM_LOCATION_LABELS[l]
-        )
-        const text = parts.join(" · ")
-        return <div className="truncate text-gray-500" title={text}>{text}</div>
-      })()}
+        // A double-booked numbered room is called out in red on that room alone.
+        <div className="truncate">
+          {w.roomLocations.map((l, i) => {
+            const text = l === "OTHER"
+              ? (w.otherRoomNotes?.trim() || ROOM_LOCATION_LABELS[l])
+              : ROOM_LOCATION_LABELS[l]
+            const clashing = clashingRooms?.has(l)
+            return (
+              <span key={l}>
+                {i > 0 && <span className="text-gray-400"> · </span>}
+                <span title={clashing ? CLASH_TITLE : text}
+                  className={clashing ? "text-red-600 font-bold" : "text-gray-500"}>
+                  {clashing ? `⚠ ${text}` : text}
+                </span>
+              </span>
+            )
+          })}
+        </div>
+      )}
       <div className="truncate text-gray-400">
         {w.facilitators.length > 0 ? w.facilitators.join(", ") : "לא שובצו מתחקרים"}
       </div>
@@ -172,6 +242,8 @@ export default function LuachPage() {
   }, [workshops])
 
   const days = useMemo(() => getRangeDays(anchor, range), [anchor, range])
+
+  const roomClashes = useMemo(() => findRoomClashes(workshops), [workshops])
 
   const workshopsByDay = useMemo(() => {
     const filtered = facilitatorFilter === "all"
@@ -307,7 +379,8 @@ export default function LuachPage() {
                         </div>
                       )}
                       {blocks.map((w) => (
-                        <Block key={w.id} w={w} onClick={() => router.push(`/sadnaot/${w.id}`)} />
+                        <Block key={w.id} w={w} clashingRooms={roomClashes.get(w.id)}
+                          onClick={() => router.push(`/sadnaot/${w.id}`)} />
                       ))}
                     </div>
                   )

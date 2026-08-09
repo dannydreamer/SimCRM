@@ -790,6 +790,14 @@ Each block shows org — group, room count, the selected **physical room(s)**, a
 
 Within a day cell, blocks are stacked in **start-time order**. This is ordering only — the calendar has no hour grid and blocks are not positioned or sized by time. `[code]`
 
+**Room clash marking.** When two workshops on the same day book the **same numbered room** (חדר 1/2/3) at overlapping times, both blocks get a red `!` badge, a red ring, and the offending room label turns red with a `⚠` — tooltip *"חדר בהתנגשות לו״ז"*. Only the colliding room is marked, so a workshop booking חדר 1 + חדר 2 that clashes on חדר 1 alone shows חדר 2 normally.
+
+- **חדר אחר never clashes** — it is free text, so two of them are not necessarily the same place.
+- Overlap is half-open: a workshop ending 18:30 and one starting 18:30 do **not** clash.
+- Cancelled workshops are excluded. Non-מרכז workshops carry no rooms at all, so they cannot clash.
+- Clashes are computed over **all** workshops, not just those passing the facilitator filter — a clash with a hidden workshop is still a clash.
+- This is **advisory only.** It does not block saving and is not a READY condition; a double-booking is a real scheduling fact to surface, not something to refuse to record. `[code]`
+
 **The physical-room line** is omitted when nothing is selected or the workshop is not at מרכז. Rooms 1–3 render as their labels; **חדר אחר renders its `otherRoomNotes` free text** when there is any, falling back to the plain label when the text is empty — on the calendar the actual location is the useful detail. The line truncates to one line, with the full text on hover.
 
 > A timezone date-offset bug was fixed in `96568d9`; arrow directions were corrected for RTL in `56d0597`. `[code]`
