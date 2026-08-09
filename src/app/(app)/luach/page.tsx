@@ -184,6 +184,9 @@ export default function LuachPage() {
       if (!map.has(key)) map.set(key, [])
       map.get(key)!.push(w)
     })
+    // Stack each day's blocks by start time, so the column reads chronologically.
+    // "HH:MM" is zero-padded, so a string compare is a time compare.
+    map.forEach((list) => list.sort((a, b) => a.startTime.localeCompare(b.startTime)))
     return map
   }, [workshops, facilitatorFilter])
 

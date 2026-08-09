@@ -788,6 +788,8 @@ Open to **all roles**. Views: שבוע / שבועיים / חודש (default חו
 
 Each block shows org — group, room count, the selected **physical room(s)**, and facilitator first names (*"לא שובץ"* in red if unassigned), with a left border in the status colour. Cancelled blocks have distinct styling. Clicking a block opens Workshop Detail. Clicking an empty day cell opens the new-workshop form with the date pre-filled. `[spec]`
 
+Within a day cell, blocks are stacked in **start-time order**. This is ordering only — the calendar has no hour grid and blocks are not positioned or sized by time. `[code]`
+
 **The physical-room line** is omitted when nothing is selected or the workshop is not at מרכז. Rooms 1–3 render as their labels; **חדר אחר renders its `otherRoomNotes` free text** when there is any, falling back to the plain label when the text is empty — on the calendar the actual location is the useful detail. The line truncates to one line, with the full text on hover.
 
 > A timezone date-offset bug was fixed in `96568d9`; arrow directions were corrected for RTL in `56d0597`. `[code]`

@@ -18,7 +18,9 @@ export async function GET() {
     where: isFacilitator
       ? { rooms: { some: { facilitatorId: userId, cancelled: false } } }
       : undefined,
-    orderBy: { date: "asc" },
+    // Within a day, blocks stack in start-time order. startTime is "HH:MM",
+    // zero-padded, so a plain string sort is chronological.
+    orderBy: [{ date: "asc" }, { startTime: "asc" }],
     include: {
       participantGroup: {
         include: { organization: { select: { name: true } } },
