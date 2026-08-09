@@ -1057,7 +1057,7 @@ export default function WorkshopDetailPage() {
               <div><span className="text-gray-400">חדרים:</span> <span className="font-medium">{w.numRooms}</span></div>
               {/* Manager AND Tech — saves inline, outside the Manager-only edit form */}
               <div className="flex items-center gap-2">
-                <span className="text-gray-400">משתתפים משוער:</span>
+                <span className="text-gray-400">מספר משתתפים משוער:</span>
                 {(isManager || isTech) && !w.frozen && !w.cancelled ? (
                   <input type="number" min={1}
                     value={participantsDraft ?? w.estimatedParticipants?.toString() ?? ""}
@@ -1284,7 +1284,7 @@ export default function WorkshopDetailPage() {
                     <div className="flex items-center gap-2 text-xs">
                       <span className={`font-bold ${roomApproved ? "text-brand-green" : "text-gray-300"}`}>{roomApproved ? "✓" : "○"}</span>
                       <span className={roomApproved ? "text-gray-700" : "text-gray-500"}>
-                        {usesOtherRoom ? "חדר אחר אושר"
+                        {usesOtherRoom ? "חדרים חיצוניים אושרו"
                           : w.locationType === "CENTER" ? "חדר אינו טעון אישור"
                           : "הסדנה אינה במרכז — אין חדר לאישור"}
                       </span>
