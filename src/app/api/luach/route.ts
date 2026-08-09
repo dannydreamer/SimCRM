@@ -2,6 +2,7 @@ import { NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
+import { sortRoomLocations } from "@/lib/room-locations"
 
 export async function GET() {
   const session = await getServerSession(authOptions)
@@ -17,7 +18,9 @@ export async function GET() {
     where: isFacilitator
       ? { rooms: { some: { facilitatorId: userId, cancelled: false } } }
       : undefined,
-    orderBy: { date: "asc" },
+    // Within a day, blocks stack in start-time order. startTime is "HH:MM",
+    // zero-padded, so a plain string sort is chronological.
+    orderBy: [{ date: "asc" }, { startTime: "asc" }],
     include: {
       participantGroup: {
         include: { organization: { select: { name: true } } },
@@ -26,6 +29,7 @@ export async function GET() {
         where: { cancelled: false },
         include: { facilitator: { select: { name: true } } },
       },
+      roomLocations: { select: { location: true } },
     },
   })
 
@@ -41,6 +45,11 @@ export async function GET() {
       cancelled:  w.cancelled,
       groupName:  w.participantGroup.name,
       orgName:    w.participantGroup.organization.name,
+      // Physical rooms only apply at the centre — never label a חיצוני/זום block
+      roomLocations: w.locationType === "CENTER"
+        ? sortRoomLocations(w.roomLocations.map((l) => l.location))
+        : [],
+      otherRoomNotes: w.locationType === "CENTER" ? w.otherRoomNotes : null,
       facilitators: w.rooms
         .filter((r) => r.facilitator)
         .map((r) => r.facilitator!.name),

@@ -3,6 +3,8 @@ import { prisma } from "@/lib/prisma"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
 import { checkAndAdvanceStatus } from "@/lib/workshop-status"
+import { ROOM_LOCATION_VALUES, sortRoomLocations } from "@/lib/room-locations"
+import type { RoomLocation } from "@prisma/client"
 
 const FROZEN_STATUSES = ["CLOSING", "CLOSED", "CANCELLED"]
 
@@ -57,6 +59,7 @@ export async function GET(
           aspect3ReflectionText: true, aspect4ProfessionalText: true,
         },
       },
+      roomLocations: { select: { location: true } },
     },
   })
 
@@ -101,6 +104,10 @@ export async function GET(
     feedbackFormAdded: w.feedbackFormAdded,
     castingSentAt: w.castingSentAt?.toISOString() ?? null,
     notes: w.notes,
+    estimatedParticipants: w.estimatedParticipants,
+    roomLocations: sortRoomLocations(w.roomLocations.map((l) => l.location)),
+    otherRoomNotes: w.otherRoomNotes,
+    otherRoomApproved: w.otherRoomApproved,
     frozen: FROZEN_STATUSES.includes(w.status),
     feedbackEntered:  enteredActorRooms.size,
     feedbackExpected: expectedActorRooms.size,
@@ -168,10 +175,21 @@ export async function PATCH(
     numRooms, authorId, directorRequested, directorNotes,
     castingMaleNeeded, castingFemaleNeeded, castingNotes,
     tentative, notes, status, cancelled, postponedWarning,
-    feedbackFormAdded,
+    feedbackFormAdded, estimatedParticipants,
+    roomLocations, otherRoomNotes, otherRoomApproved,
     roomCancelledWarning: roomCancelledWarningDismiss,
     roomAddedWarning: roomAddedWarningDismiss,
   } = body
+
+  if (roomLocations !== undefined) {
+    if (!Array.isArray(roomLocations) || roomLocations.some((l) => !ROOM_LOCATION_VALUES.includes(l)))
+      return NextResponse.json({ error: "חדר לא חוקי" }, { status: 400 })
+  }
+  if (estimatedParticipants !== undefined && estimatedParticipants !== null && estimatedParticipants !== "") {
+    const n = Number(estimatedParticipants)
+    if (!Number.isInteger(n) || n < 1)
+      return NextResponse.json({ error: "מספר משתתפים משוער חייב להיות מספר חיובי" }, { status: 400 })
+  }
 
   // Status advance: validate progression
   if (status !== undefined) {
@@ -195,6 +213,15 @@ export async function PATCH(
   // Room-warning dismissal is allowed for both Manager and Tech
   if (roomCancelledWarningDismiss === false) data.roomCancelledWarning = false
   if (roomAddedWarningDismiss === false)     data.roomAddedWarning     = false
+
+  // Physical room + estimated participants: Manager and Tech both maintain these
+  if (!isFrozen) {
+    if (otherRoomNotes !== undefined)    data.otherRoomNotes    = otherRoomNotes?.trim() || null
+    if (otherRoomApproved !== undefined) data.otherRoomApproved = !!otherRoomApproved
+    if (estimatedParticipants !== undefined)
+      data.estimatedParticipants =
+        estimatedParticipants === "" || estimatedParticipants === null ? null : Number(estimatedParticipants)
+  }
 
   // All other fields: Manager only
   if (isManager) {
@@ -354,6 +381,19 @@ export async function PATCH(
     }
   }
 
+  // Physical room selection — replace the row set wholesale (Manager and Tech)
+  let updatedRoomLocations: string[] | undefined
+  if (roomLocations !== undefined && !isFrozen) {
+    const wanted = sortRoomLocations(roomLocations)
+    await prisma.$transaction([
+      prisma.workshopRoomLocation.deleteMany({ where: { workshopId: id } }),
+      prisma.workshopRoomLocation.createMany({
+        data: wanted.map((location) => ({ workshopId: id, location: location as RoomLocation })),
+      }),
+    ])
+    updatedRoomLocations = wanted
+  }
+
   // Auto-advance after patch (e.g. castingSentAt just set)
   const advancedStatus = await checkAndAdvanceStatus(id)
 
@@ -364,6 +404,10 @@ export async function PATCH(
     postponedWarning: updated.postponedWarning,
     roomCancelledWarning: roomsWereCancelled ? true : updated.roomCancelledWarning,
     roomAddedWarning:     raiseRoomAddedWarning ? true : updated.roomAddedWarning,
+    estimatedParticipants: updated.estimatedParticipants,
+    otherRoomNotes:        updated.otherRoomNotes,
+    otherRoomApproved:     updated.otherRoomApproved,
     ...(updatedRooms !== undefined && { rooms: updatedRooms }),
+    ...(updatedRoomLocations !== undefined && { roomLocations: updatedRoomLocations }),
   })
 }

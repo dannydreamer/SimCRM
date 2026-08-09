@@ -50,6 +50,15 @@ enum LocationType {
   ZOOM
 }
 
+// Physical room the simulation is held in — distinct from the Room model,
+// which is a simulation track / facilitator slot. User-facing label is "חדר" for both.
+enum RoomLocation {
+  ROOM_1
+  ROOM_2
+  ROOM_3
+  OTHER
+}
+
 enum RagColor {
   GREEN
   YELLOW
@@ -155,6 +164,11 @@ model Workshop {
   castingNotes        String?
   castingSentAt       DateTime?
   notes               String?
+  // Nullable in the database so existing rows need no backfill, but required
+  // by the business rules — it is a precondition for READY. See spec §4.3.
+  estimatedParticipants Int?
+  otherRoomNotes        String?
+  otherRoomApproved     Boolean      @default(false)
   createdAt           DateTime       @default(now())
   createdById         String?
 
@@ -168,6 +182,21 @@ model Workshop {
   confirmedActors     WorkshopConfirmedActor[]
   feedbacks           Feedback[]
   castingChangeLogs   CastingChangeLog[]
+  roomLocations       WorkshopRoomLocation[]
+}
+
+// ─── Workshop Room Location (physical room) ──────────────────────────────────
+// One row per selected physical room. Stored as rows rather than a flag set so
+// a future room-column/timeline view is a rendering change, not a data migration.
+
+model WorkshopRoomLocation {
+  id         String       @id @default(uuid())
+  workshopId String
+  location   RoomLocation
+
+  workshop Workshop @relation(fields: [workshopId], references: [id], onDelete: Cascade)
+
+  @@unique([workshopId, location])
 }
 
 // ─── Room ─────────────────────────────────────────────────────────────────────

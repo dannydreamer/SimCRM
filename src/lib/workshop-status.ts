@@ -8,7 +8,8 @@ import { WorkshopStatus } from "@prisma/client"
  *
  * Transitions / regressions:
  *  SPECIFIED → READY    : all PPT received + casting fully complete + feedback form added
- *  READY     → SPECIFIED: any of the three READY conditions becomes unmet (before date)
+ *                         + estimated participants set + physical room approved
+ *  READY     → SPECIFIED: any of the five READY conditions becomes unmet (before date)
  *  READY     → CLOSING  : workshop date has passed
  *  CLOSING   → CLOSED   : all rooms have letterReceived AND feedback complete
  *  CLOSED    → CLOSING  : any room loses letterReceived OR feedback becomes incomplete
@@ -26,6 +27,10 @@ export async function checkAndAdvanceStatus(workshopId: string): Promise<string 
       castingSentAt: true,
       directorRequested: true,
       feedbackFormAdded: true,
+      estimatedParticipants: true,
+      locationType: true,
+      otherRoomApproved: true,
+      roomLocations: { select: { location: true } },
       rooms: {
         where: { cancelled: false },
         select: { id: true, pptReceived: true, letterReceived: true },
@@ -61,7 +66,7 @@ export async function checkAndAdvanceStatus(workshopId: string): Promise<string 
   const [endHour, endMin] = (w.endTime ?? "23:59").split(":").map(Number)
   wEndDateTime.setHours(endHour, endMin, 0, 0)
 
-  // ── Helper: evaluate all three READY conditions ──────────────────────────
+  // ── Helper: evaluate all five READY conditions ───────────────────────────
   function readyConditionsMet(): boolean {
     // 1. All active rooms have pptReceived
     if (w!.rooms.length === 0) return false
@@ -79,7 +84,18 @@ export async function checkAndAdvanceStatus(workshopId: string): Promise<string 
     // 3. Feedback form added
     const feedbackDone = w!.feedbackFormAdded
 
-    return allPpt && castingComplete && feedbackDone
+    // 4. Estimated participants set. Nullable in the DB for existing rows,
+    //    but required by the business rules before a workshop can be READY.
+    const participantsSet = w!.estimatedParticipants !== null
+
+    // 5. If a non-standard physical room is in use, it must be approved.
+    //    Physical rooms only exist at the centre — a חיצוני or זום workshop has
+    //    nothing to approve. Rooms 1–3 never need approval either.
+    const usesOtherRoom = w!.locationType === "CENTER" &&
+                          w!.roomLocations.some((l) => l.location === "OTHER")
+    const roomApproved  = !usesOtherRoom || w!.otherRoomApproved
+
+    return allPpt && castingComplete && feedbackDone && participantsSet && roomApproved
   }
 
   // ── Helper: all expected feedback records have been entered with text ────
