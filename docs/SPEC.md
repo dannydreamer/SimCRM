@@ -548,7 +548,7 @@ Un-writing a scenario auto-unchecks `pptReceived` on all active rooms in that wo
 | Workshops — **create** | ✓ | — | — | — | — |
 | Workshops — edit | ✓ | ✓ | — | — | — |
 | Workshops — cancel | ✓ | — | — | — | — |
-| Rooms — assign facilitator | ✓ | — | — | — | — |
+| Rooms — assign facilitator | ✓ | ✓ | — | — | — |
 | Rooms — mark PPT / letter | ✓ | ✓ | — | — | — |
 | Scenarios — create/edit | ✓ | ✓ | — | — | — |
 | Scenarios — mark written | ✓ | ✓ | — | — | — |
@@ -567,16 +567,19 @@ Un-writing a scenario auto-unchecks `pptReceived` on all active rooms in that wo
 | Simulation models — view | ✓ | ✓ | — | — | — |
 | Simulation models — edit | ✓ | — | — | — | — |
 | Scenario simulation model — set/change | ✓ | ✓ | — | — | — |
-| Soft-cancel room/scenario | ✓ | — | — | — | — |
+| Soft-cancel room/scenario | ✓ | ✓ | — | — | — |
 | Facilitator Load, Goals, Users, Settings | ✓ | — | — | — | — |
+
+> **Rooms are cancelled only by lowering מספר חדרים** — there is no per-room cancel control on the Workshop Detail page. Lowering the count cancels the highest-numbered active rooms, deletes their Step 2 casting assignments, and logs `ROOM_CANCELLED` for the Caster if casting was already sent. Workshop **cancellation** remains Manager-only and is a separate action from anything in the edit form. `[code]`
 
 ### 5.3 Post-rollout permission changes `[code]`
 
-Three changes were made after go-live, in this order:
+Four changes were made after go-live, in this order:
 
 1. **Manager granted full casting access** (`c7eb4f3`) — previously Manager could view casting but not assign. The original spec made assignment Caster-exclusive. **That restriction was removed** — Manager now has full availability, Step 1, and Step 2 access.
 2. **Tech granted "add actor"** (`427fb3d`).
 3. **Tech granted "edit actor"** (`b223f7f`) — basic profile fields only.
+4. **Tech's workshop-edit rights made real** (branch `tech_editing_workshop`). The table above had always granted Tech "Workshops — edit", but the code locked her out of the header form entirely. Tech now edits the same basic-info form as Manager, assigns facilitators, sets the author, edits הערות, and soft-cancels rooms and scenarios. Workshop **creation** and workshop **cancellation** stay Manager-only.
 
 > ⚠ **Confirmed boundary:** Tech has **no access to feedback or development logs anywhere** — not viewing, not entering. The actor-edit permission covers profile fields (name, gender, phone, specialties, canDirect) only. `[code]`
 
@@ -767,11 +770,11 @@ Two-column layout: right (~65%) content sections, left (~35%) checklist sidebar.
 - **משוב משתתפים** — the auto-generated Google Form string with a copy button and the confirmation checkbox.
 - **חדר** — the physical-room multi-select (חדר 1 · חדר 2 · חדר 3 · חדר אחר), in the header card below the workshop fields, **shown only when the location is מרכז**. Any combination allowed, **Manager and Tech**, saving on each change rather than behind a שמור button. Selecting **חדר אחר** reveals the free-text `otherRoomNotes` area and the **חדר אושר** checkbox beside the picker. See §3.6.1.
 
-**מספר משתתפים משוער** sits beside חדרים in the header's read grid as an inline input that saves on blur. It is **Manager and Tech** — deliberately *not* inside the Manager-only header edit form, since Tech drives workshop prep and this field gates READY. Empty renders as `—` for read-only viewers, not an error; it is enforced only at the READY check (§4.3).
+**מספר משתתפים משוער** sits beside חדרים in the header's read grid as an inline input that saves on blur rather than behind the header form's שמור button. It is **Manager and Tech**. Empty renders as `—` for read-only viewers, not an error; it is enforced only at the READY check (§4.3).
 
 **Left sidebar:** רשימת תיוג split into **ידני** (real checkboxes) and **אוטומטי** (status lines, no checkboxes) · הערות · פרטי רקע · a full-width **"הזנת פידבק לסדנה זו"** button.
 
-**Editability:** all top-level fields editable by Manager before CLOSING; frozen after. Cancellation remains available at every status.
+**Editability:** all top-level fields editable by **Manager and Tech** before CLOSING; frozen after. The header form (עריכה on the header card) covers date · מספר חדרים · start/end time · location type and its conditional address / meeting-link field · טנטטיב · במאי/ת נדרש/ת and its conditional הערות לבמאי/ת — one form, one שמור, identical for both roles. Workshop **cancellation** is a separate Manager-only action and remains available at every status.
 
 **Auto-generated Google Form string:**
 `[date] - [group name] - [org שיוך פדגוגי] - [topic1, topic2, ...]`
@@ -1001,6 +1004,8 @@ Phase 1 notifications are **in-system visual flags only** — badges, banners, h
 | Workshop sent to casting | Caster | Pending count + change banner on ליהוק |
 | Scenario/room/counts changed after send | Caster | Change-log banner (amber / red) |
 | Workshop postponed after casting | Manager, Tech, Caster | Amber banner + `DATE_CHANGED` log |
+| Room cancelled | Manager, Tech | Amber banner on Workshop Detail. Always asks that the מתחקר/ת be told; adds *"ולשלוח מחדש לליהוק"* only once `castingSentAt` is set |
+| Room added | Manager, Tech | Blue banner — *"יש לשלוח מחדש לליהוק"*, raised only once `castingSentAt` is set |
 | Date passed, still סדנה חדשה | Manager, Tech | Red badge in workshop table |
 | Date passed, casting incomplete | Manager, Tech | `⏳ ממתין לליהוק` |
 | Date passed, feedback missing | Feedback Doc, Manager | `⏳ פידבק חסר` |
@@ -1295,6 +1300,8 @@ Sessions 1–19 as built. Branch naming `session-N-*`, merged to `develop` then 
 | **Aug 2026** | **2.0** | **Consolidation.** All sources merged and reconciled against source code. Documents as-built reality: PostgreSQL/Supabase + Vercel + Next.js 16; two-stage casting flow; three-condition READY with regressions; ZOOM location type; OAuth backup; revised permissions; RAG relabel to תקין/במעקב/חמור. Backup retention policy withdrawn — manual by design (§9.9). Unbuilt gaps catalogued in §13; V2 roadmap absorbed as §14. |
 | Aug 2026 | — | Fix: `roomAddedWarning` was raised whenever a room was added, so the "חדר נוסף — יש לשלוח מחדש לליהוק" banner appeared on workshops that had never been sent to casting. Now gated on `castingSentAt`, matching the rule already applied to the `ROOM_ADDED` change log and to `MODEL_CHANGED` (§3.12). |
 | Aug 2026 | — | **מספר משתתפים משוער + חדר פיזי added** (branch `sim_location_room_numbers`). New nullable `Workshop.estimatedParticipants`; new `WorkshopRoomLocation` model and `RoomLocation` enum (§3.6.1) with `otherRoomNotes` / `otherRoomApproved`. **§4.3 grows from three READY conditions to five** — participants must be set, and חדר אחר must be approved when selected; both regress READY → SPECIFIED like the others. Selecting a room is never itself required, and the whole room feature applies only to מרכז workshops. Room labels now appear on calendar blocks (§8.6). No backfill: existing workshops have no participant count, so **anything currently in מוכן regresses to בוצע איתור צרכים until the count is entered.** Both fields are Manager **and** Tech. |
+
+| Aug 2026 | — | **Tech workshop-editing gap closed** (branch `tech_editing_workshop`). §5.2 had always granted Tech "Workshops — edit"; the code allowed her nothing on the Workshop Detail header. Tech now gets the identical basic-info form Manager has, plus facilitator assignment, the author dropdown, the הערות card, and soft-cancel of rooms and scenarios (§5.3 item 4). Creation and cancellation of a workshop stay Manager-only. Two bugs fixed alongside: the משוב משתתפים checkbox was offered to Tech but silently ignored by the API, and the room-cancelled banner never mentioned re-sending to casting (§11). |
 
 ---
 
