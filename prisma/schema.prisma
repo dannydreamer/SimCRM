@@ -164,6 +164,10 @@ model Workshop {
   castingNotes        String?
   castingSentAt       DateTime?
   notes               String?
+  // Scenarios run in orderIndex order unless this is set. Default false = fixed
+  // order, which is how a workshop is born; ticking it is the deliberate act that
+  // permits varying the order. Tech-facing bookkeeping only — nothing reads it.
+  scenarioOrderFlexible Boolean      @default(false)
   // Nullable in the database so existing rows need no backfill, but required
   // by the business rules — it is a precondition for READY. See spec §4.3.
   estimatedParticipants Int?
