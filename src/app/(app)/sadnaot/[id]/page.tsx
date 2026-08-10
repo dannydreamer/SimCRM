@@ -59,6 +59,7 @@ interface Workshop {
   castingSentAt: string | null
   notes: string | null
   estimatedParticipants: number | null
+  scenarioOrderFlexible: boolean
   roomLocations: string[]
   otherRoomNotes: string | null
   otherRoomApproved: boolean
@@ -560,6 +561,19 @@ export default function WorkshopDetailPage() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ roomCancelledWarning: false }),
     })
+  }
+
+  // Optimistic — the checkbox should not lag behind the click. Rolls back if the
+  // PATCH is rejected, so the UI never claims a state the database refused.
+  async function saveScenarioOrderFlexible(value: boolean) {
+    if (!w) return
+    setW((prev) => prev ? { ...prev, scenarioOrderFlexible: value } : prev)
+    const res = await fetch(`/api/sadnaot/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ scenarioOrderFlexible: value }),
+    })
+    if (!res.ok) setW((prev) => prev ? { ...prev, scenarioOrderFlexible: !value } : prev)
   }
 
   async function dismissRoomAddedWarning() {
@@ -1461,6 +1475,28 @@ export default function WorkshopDetailPage() {
               </div>
             </div>
           )}
+
+          {/* Order-flexibility flag. Hidden below two active scenarios — with one
+              scenario the question has no meaning, so it is absent rather than
+              disabled. A stale true left behind when scenarios are cancelled is
+              harmless: nothing outside this card reads the field. */}
+          {(() => {
+            const activeScenarios = w.scenarios.filter((s) => !s.cancelled)
+            if (activeScenarios.length < 2) return null
+            const canEditOrderFlag = canEditScenarios && !w.frozen && !w.cancelled
+            return (
+              <label className={`flex items-center gap-2 text-sm mb-3 ${
+                canEditOrderFlag ? "cursor-pointer" : "cursor-default"
+              }`}>
+                <input type="checkbox"
+                  checked={w.scenarioOrderFlexible}
+                  disabled={!canEditOrderFlag}
+                  onChange={(e) => saveScenarioOrderFlexible(e.target.checked)}
+                  className="w-4 h-4 accent-navy disabled:opacity-50" />
+                אפשר לשנות את סדר התרחישים
+              </label>
+            )
+          })()}
 
           {w.scenarios.length === 0 ? (
             <p className="text-sm text-gray-400">אין תרחישים</p>

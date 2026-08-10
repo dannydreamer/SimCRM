@@ -105,6 +105,7 @@ export async function GET(
     castingSentAt: w.castingSentAt?.toISOString() ?? null,
     notes: w.notes,
     estimatedParticipants: w.estimatedParticipants,
+    scenarioOrderFlexible: w.scenarioOrderFlexible,
     roomLocations: sortRoomLocations(w.roomLocations.map((l) => l.location)),
     otherRoomNotes: w.otherRoomNotes,
     otherRoomApproved: w.otherRoomApproved,
@@ -176,7 +177,7 @@ export async function PATCH(
     castingMaleNeeded, castingFemaleNeeded, castingNotes,
     tentative, notes, status, cancelled, postponedWarning,
     feedbackFormAdded, estimatedParticipants,
-    roomLocations, otherRoomNotes, otherRoomApproved,
+    roomLocations, otherRoomNotes, otherRoomApproved, scenarioOrderFlexible,
     roomCancelledWarning: roomCancelledWarningDismiss,
     roomAddedWarning: roomAddedWarningDismiss,
   } = body
@@ -227,6 +228,9 @@ export async function PATCH(
   if (!isFrozen) {
     if (otherRoomNotes !== undefined)    data.otherRoomNotes    = otherRoomNotes?.trim() || null
     if (otherRoomApproved !== undefined) data.otherRoomApproved = !!otherRoomApproved
+    // Same gate as scenario editing: Manager and Tech, workshop not frozen/cancelled.
+    if (scenarioOrderFlexible !== undefined && !w.cancelled)
+      data.scenarioOrderFlexible = !!scenarioOrderFlexible
     if (estimatedParticipants !== undefined)
       data.estimatedParticipants =
         estimatedParticipants === "" || estimatedParticipants === null ? null : Number(estimatedParticipants)
@@ -408,6 +412,7 @@ export async function PATCH(
     estimatedParticipants: updated.estimatedParticipants,
     otherRoomNotes:        updated.otherRoomNotes,
     otherRoomApproved:     updated.otherRoomApproved,
+    scenarioOrderFlexible: updated.scenarioOrderFlexible,
     ...(updatedRooms !== undefined && { rooms: updatedRooms }),
     ...(updatedRoomLocations !== undefined && { roomLocations: updatedRoomLocations }),
   })
