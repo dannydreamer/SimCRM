@@ -214,48 +214,48 @@ export async function PATCH(
   if (roomCancelledWarningDismiss === false) data.roomCancelledWarning = false
   if (roomAddedWarningDismiss === false)     data.roomAddedWarning     = false
 
-  // Physical room + estimated participants: Manager and Tech both maintain these
+  // Workshop cancellation stays Manager-only (§5.2). postponedWarning rides along:
+  // it is raised automatically by a date change, never cleared by Tech.
+  if (isManager) {
+    if (cancelled !== undefined) data.cancelled = cancelled
+    if (postponedWarning !== undefined) data.postponedWarning = postponedWarning
+  }
+
+  // Everything below is Manager AND Tech — the §5.2 "Workshops — edit" row.
+  if (feedbackFormAdded !== undefined) data.feedbackFormAdded = feedbackFormAdded
+
   if (!isFrozen) {
     if (otherRoomNotes !== undefined)    data.otherRoomNotes    = otherRoomNotes?.trim() || null
     if (otherRoomApproved !== undefined) data.otherRoomApproved = !!otherRoomApproved
     if (estimatedParticipants !== undefined)
       data.estimatedParticipants =
         estimatedParticipants === "" || estimatedParticipants === null ? null : Number(estimatedParticipants)
-  }
 
-  // All other fields: Manager only
-  if (isManager) {
-    if (feedbackFormAdded !== undefined) data.feedbackFormAdded = feedbackFormAdded
-    if (cancelled !== undefined) data.cancelled = cancelled
-    if (postponedWarning !== undefined) data.postponedWarning = postponedWarning
-
-    if (!isFrozen) {
-      if (date !== undefined) {
-        const newDate = new Date(date)
-        data.date = newDate
-        // Only trigger postponement warning when the date ACTUALLY changes
-        const oldDateStr = w.date.toISOString().slice(0, 10)
-        const newDateStr = newDate.toISOString().slice(0, 10)
-        if (oldDateStr !== newDateStr) {
-          data.postponedWarning = true
-          dateActuallyChanged = true
-          newDateStr_forLog    = newDateStr
-        }
+    if (date !== undefined) {
+      const newDate = new Date(date)
+      data.date = newDate
+      // Only trigger postponement warning when the date ACTUALLY changes
+      const oldDateStr = w.date.toISOString().slice(0, 10)
+      const newDateStr = newDate.toISOString().slice(0, 10)
+      if (oldDateStr !== newDateStr) {
+        data.postponedWarning = true
+        dateActuallyChanged = true
+        newDateStr_forLog    = newDateStr
       }
-      if (startTime !== undefined) data.startTime = startTime
-      if (endTime !== undefined) data.endTime = endTime
-      if (locationType !== undefined) data.locationType = locationType
-      if (locationName !== undefined) data.locationName = locationName?.trim() || null
-      if (numRooms !== undefined) data.numRooms = Number(numRooms)
-      if (authorId !== undefined) data.authorId = authorId || null
-      if (directorRequested !== undefined) data.directorRequested = directorRequested
-      if (directorNotes !== undefined) data.directorNotes = directorNotes?.trim() || null
-      if (castingMaleNeeded !== undefined) data.castingMaleNeeded = castingMaleNeeded === "" ? null : Number(castingMaleNeeded)
-      if (castingFemaleNeeded !== undefined) data.castingFemaleNeeded = castingFemaleNeeded === "" ? null : Number(castingFemaleNeeded)
-      if (castingNotes !== undefined) data.castingNotes = castingNotes?.trim() || null
-      if (tentative !== undefined) data.tentative = tentative
-      if (notes !== undefined) data.notes = notes?.trim() || null
     }
+    if (startTime !== undefined) data.startTime = startTime
+    if (endTime !== undefined) data.endTime = endTime
+    if (locationType !== undefined) data.locationType = locationType
+    if (locationName !== undefined) data.locationName = locationName?.trim() || null
+    if (numRooms !== undefined) data.numRooms = Number(numRooms)
+    if (authorId !== undefined) data.authorId = authorId || null
+    if (directorRequested !== undefined) data.directorRequested = directorRequested
+    if (directorNotes !== undefined) data.directorNotes = directorNotes?.trim() || null
+    if (castingMaleNeeded !== undefined) data.castingMaleNeeded = castingMaleNeeded === "" ? null : Number(castingMaleNeeded)
+    if (castingFemaleNeeded !== undefined) data.castingFemaleNeeded = castingFemaleNeeded === "" ? null : Number(castingFemaleNeeded)
+    if (castingNotes !== undefined) data.castingNotes = castingNotes?.trim() || null
+    if (tentative !== undefined) data.tentative = tentative
+    if (notes !== undefined) data.notes = notes?.trim() || null
   }
 
   let updated: Awaited<ReturnType<typeof prisma.workshop.update>>
@@ -266,12 +266,13 @@ export async function PATCH(
     return NextResponse.json({ error: String(e) }, { status: 500 })
   }
 
-  // Sync rooms when numRooms changed (Manager only)
+  // Sync rooms when numRooms changed. Must stay in step with the numRooms write
+  // above — updating the count without the rooms leaves the two disagreeing.
   let updatedRooms: ReturnType<typeof mapRoom>[] | undefined
   let roomsWereCancelled = false
   let roomsWereAdded = false
   let raiseRoomAddedWarning = false
-  if (isManager && numRooms !== undefined && !isFrozen) {
+  if (numRooms !== undefined && !isFrozen) {
     const newNum = Number(numRooms)
     const allRooms = await prisma.room.findMany({
       where: { workshopId: id },

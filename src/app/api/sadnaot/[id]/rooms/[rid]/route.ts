@@ -45,9 +45,8 @@ export async function PATCH(
 
   const data: Record<string, unknown> = {}
 
-  // Manager only: assign/unassign facilitator
+  // Manager and Tech: assign/unassign facilitator
   if (facilitatorId !== undefined) {
-    if (!isManager) return NextResponse.json({ error: "Forbidden" }, { status: 403 })
     if (!frozen) {
       // Prevent assigning a facilitator already slotted to another active room
       if (facilitatorId) {
@@ -65,7 +64,7 @@ export async function PATCH(
       }
     }
   }
-  if (facilitatorTentative !== undefined && isManager && !frozen) {
+  if (facilitatorTentative !== undefined && !frozen) {
     data.facilitatorTentative = facilitatorTentative
   }
 
