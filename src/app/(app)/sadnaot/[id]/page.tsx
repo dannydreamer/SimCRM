@@ -572,9 +572,12 @@ export default function WorkshopDetailPage() {
     })
   }
 
-  const canEdit = isManager && w !== null && !w.frozen && !w.cancelled
+  // Manager and Tech both edit the workshop (§5.2). This one flag gates the header
+  // form, facilitator assignment, the author dropdown and the הערות card.
+  // Workshop cancellation is deliberately NOT part of it — see the ביטול סדנה button.
+  const canEdit = (isManager || isTech) && w !== null && !w.frozen && !w.cancelled
   const canAddScenario = canEditScenarios && w !== null && !w.frozen && !w.cancelled && w.status !== "NEW" && !!w.authorId
-  const canCancelScenario = isManager && w !== null && !w.frozen && !w.cancelled
+  const canCancelScenario = (isManager || isTech) && w !== null && !w.frozen && !w.cancelled
 
   // ── Header edit ────────────────────────────────────────────────────────────
 
@@ -896,7 +899,13 @@ export default function WorkshopDetailPage() {
         )}
         {w.roomCancelledWarning && (
           <div className="bg-amber-100 border border-amber-400 rounded-lg px-4 py-3 text-sm text-amber-800 font-semibold flex items-center justify-between gap-3">
-            <span>⚠️ חדר בוטל — יש להודיע למתחקר/ת ולמלהקת</span>
+            {/* Re-sending is only meaningful once the workshop has been to casting;
+                before that there is nothing to re-send, but the facilitator still needs telling. */}
+            <span>
+              {w.castingSentAt
+                ? "⚠️ חדר בוטל — יש להודיע למתחקר/ת ולשלוח מחדש לליהוק"
+                : "⚠️ חדר בוטל — יש להודיע למתחקר/ת"}
+            </span>
             <button onClick={dismissRoomCancelledWarning}
               className="text-amber-600 hover:text-amber-800 text-lg leading-none shrink-0" title="סגור">×</button>
           </div>
