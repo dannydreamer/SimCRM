@@ -52,6 +52,7 @@ export async function GET(
       castings: {
         include: { actor: { select: { id: true, name: true } } },
       },
+      confirmedActors: { select: { id: true } },
       feedbacks: {
         select: {
           actorId: true, roomId: true,
@@ -95,6 +96,8 @@ export async function GET(
     castingMaleNeeded: w.castingMaleNeeded,
     castingFemaleNeeded: w.castingFemaleNeeded,
     castingNotes: w.castingNotes,
+    // Step 1 confirmations, for the ליהוק section's progress line. Spec §8.4.
+    confirmedActorCount: w.confirmedActors.length,
     status: w.status,
     cancelled: w.cancelled,
     tentative: w.tentative,

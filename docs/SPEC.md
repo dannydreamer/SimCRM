@@ -467,6 +467,7 @@ A workshop advances SPECIFIED → READY only when **all five** hold:
 1. **All active (non-cancelled) rooms have `pptReceived = true`** — and there is at least one room.
 2. **Casting is fully complete** — `castingSentAt` is set, and filled slots equal total slots, where
    `total = (Σ per-scenario male+female needed across active scenarios) × (number of active rooms) + (1 if directorRequested)`
+   This is the **Step 2** measure and it is the only place it gates anything. The ליהוק badge on the workshop table and the Workshop Detail casting section report **Step 1** instead (§8.2) — so a workshop can display `2/2` there while failing this condition. Do not "reconcile" the two.
 3. **`feedbackFormAdded = true`** — the משוב משתתפים checkbox.
 4. **`estimatedParticipants` is set (non-null)** — מספר משתתפים משוער. Note this gates READY, **not** send-to-casting.
 5. **The physical room is approved** — if the workshop is at the centre (`locationType = CENTER`) **and** `OTHER` is among the selected room locations, `otherRoomApproved` must be true. Otherwise the condition is automatically satisfied: rooms 1–3 never need approval, and a חיצוני or זום workshop has no centre room to approve at all.
@@ -732,7 +733,7 @@ Primary landing page for Manager, Tech, Feedback Documenter, and Facilitator.
 | 2 | ארגון — קבוצה | Sortable. Org name is a clickable link. Tentative `?` badge inline |
 | 3 | חד׳ | Room count |
 | 4 | סטטוס | Colored pill, sortable |
-| 5 | ליהוק | X/Y |
+| 5 | ליהוק | X/Y — **Step 1 numbers** (see below), plus a 🎬 marker when a director is requested |
 | 6 | שובצו מתחקרים | X/Y |
 | 7 | תרחישים | Written state |
 | 8 | משוב משתתפים | ✓ / ✗ |
@@ -742,7 +743,15 @@ Primary landing page for Manager, Tech, Feedback Documenter, and Facilitator.
 
 > **Resolved conflict — important.** The original spec and the design spec each specified a *different* column list, and **the built table matches neither**. Notably there is **no כותבת (author) column** and **no separate איתור צרכים column** — needs-assessment state is conveyed by the status pill itself. The list above is what exists and is authoritative.
 
-**Badges:** `⏳ ממתין לליהוק` · `⏳ פידבק חסר` · `⚠ תאריך עבר ולא בוצע איתור צרכים` (red, under the status pill).
+**The ליהוק column reports Step 1, not Step 2.** `filled = COUNT(WorkshopConfirmedActor)`, `total = castingMaleNeeded + castingFemaleNeeded`. It answers "are our actors secured", which is the only casting question anyone outside the Casting page can act on. The Step 2 formula (per-scenario needed × active rooms, §7) would render the same workshop as `0/6` where `0/2` is the truth the coordinator needs. The granular Step 2 breakdown stays on `/lihukim`, where room-by-room assignment is the actual work. `[code]`
+
+**The director is reported separately, never inside the fraction.** A director is only ever assigned in Step 2 (`Casting.isDirector`) — `WorkshopConfirmedActor` has no director row — so folding a `+1` into the Step 1 total would create a slot that can never fill. When `directorRequested` is set, a 🎬 chip sits beside the fraction instead: green `🎬✓` once a director is cast, amber `🎬⚠` until then.
+
+> **A workshop can show `2/2` here and still not be READY.** The two numbers answer different questions; READY condition 2 (§4.3) remains a Step 2 test. This is expected, not a defect.
+
+**Badges:** `⏳ ממתין לליהוק לחדרים` · `⏳ פידבק חסר` · `⚠ תאריך עבר ולא בוצע איתור צרכים` (red, under the status pill).
+
+The first badge filters on **Step 2** completeness (`castingFilled < castingTotal`) — deliberately a different measure from the column beside it, hence the explicit לחדרים in the label. Without it the filter would appear to contradict the badge: a row can be returned as "pending" while its ליהוק column reads `2/2`.
 
 Cancelled workshops: strikethrough, dimmed, collapsed at the bottom, visible only under `הכל`. Sort and filter controls added in session 18. `[code]`
 
@@ -768,7 +777,7 @@ Two-column layout: right (~65%) content sections, left (~35%) checklist sidebar.
   - The **מודל סימולציה** selector is editable by Manager and Tech under the existing "Scenarios — create/edit" permission, and saves on change independently of the row's edit form. Empty state is a neutral placeholder — *"מודל טרם נבחר"*, not an error. It is enforced only at שלח לליהוק (§7.2), never at the card level, and never locked.
   - **אפשר לשנות את סדר התרחישים** — a checkbox above the table, `scenarioOrderFlexible` (§3.5). Unticked (the default) means the scenarios run in the order listed; ticking it is the deliberate act that permits varying that order. Editable by Manager and Tech under the same "Scenarios — create/edit" permission, saving on change. **Rendered only when the workshop has two or more non-cancelled scenarios** — with one scenario the question is meaningless, so the checkbox is absent rather than disabled. Cancelling scenarios back down to one hides it without clearing the stored value, which is harmless because nothing else reads the field. **Purely internal bookkeeping: it does not propagate to the casting panel, the calendar, Facilitator-facing views, or any generated document, and it does not affect the READY conditions.**
 - **חדרים ושיבוץ מתחקרים** — one card per room: room number, facilitator (or red *"לא שובצ/ה"*), `?` badge if tentative, ✓ מצגת, ✓ מכתב, soft-cancel link. PPT checkbox disabled until facilitator assigned **and** all scenarios written (lifted in CLOSING).
-- **ליהוק** — casting progress and collapsible actor names.
+- **ליהוק** — casting progress and collapsible actor names. The progress line reports **Step 1** on the same terms as the workshop table (§8.2): `COUNT(WorkshopConfirmedActor)` over `castingMaleNeeded + castingFemaleNeeded`, reading **✓ כל השחקנים אושרו** when full. When a director is requested, a line beneath it reports the Step 2 director assignment — **🎬 במאי/ת לוהק/ה ✓** or **🎬 במאי/ת טרם לוהק/ה**. Both appear only once casting has been sent. The Step 2 fraction is still shown in the readiness checklist in the left sidebar, where it explains why the workshop is not yet READY.
 - **משוב משתתפים** — the auto-generated Google Form string with a copy button and the confirmation checkbox.
 - **חדר** — the physical-room multi-select (חדר 1 · חדר 2 · חדר 3 · חדר אחר), in the header card below the workshop fields, **shown only when the location is מרכז**. Any combination allowed, **Manager and Tech**, saving on each change rather than behind a שמור button. Selecting **חדר אחר** reveals the free-text `otherRoomNotes` area and the **חדר אושר** checkbox beside the picker. See §3.6.1.
 
@@ -1306,6 +1315,8 @@ Sessions 1–19 as built. Branch naming `session-N-*`, merged to `develop` then 
 | Aug 2026 | — | **סדר תרחישים flag added** (branch `scenario_order_flexible`). New `Workshop.scenarioOrderFlexible`, default false, surfaced as the **אפשר לשנות את סדר התרחישים** checkbox above the scenario table (§8.4). Unticked is the real-world default — a workshop is born with its scenarios in a fixed order — so permitting a change is the deliberate act. Shown only with 2+ non-cancelled scenarios. Deliberately inert: no propagation to casting, calendar, Facilitator views, generated documents, or the READY conditions. Same permission as scenario edit (Manager and Tech). |
 
 | Aug 2026 | — | **Tech workshop-editing gap closed** (branch `tech_editing_workshop`). §5.2 had always granted Tech "Workshops — edit"; the code allowed her nothing on the Workshop Detail header. Tech now gets the identical basic-info form Manager has, plus facilitator assignment, the author dropdown, the הערות card, and soft-cancel of rooms and scenarios (§5.3 item 4). Creation and cancellation of a workshop stay Manager-only. Two bugs fixed alongside: the משוב משתתפים checkbox was offered to Tech but silently ignored by the API, and the room-cancelled banner never mentioned re-sending to casting (§11). |
+
+| Aug 2026 | — | **Casting badge split into Step 1 / Step 2** (branch `casting_step1_badge`). The ליהוק badge on the workshop table (§8.2) and the ליהוק section on Workshop Detail (§8.4) now report **Step 1** — confirmed actors over needed actors — instead of the Step 2 per-room formula, which rendered a workshop needing 2 actors across 3 rooms as `0/6`. Step 2 remains on the Casting page, in the readiness checklist, and as READY condition 2 (§4.3), which is unchanged: a workshop can now legitimately show `2/2` while not being READY. The director is excluded from the Step 1 total — it has no `WorkshopConfirmedActor` row and so could never fill — and is reported as a separate 🎬 marker fed by the Step 2 assignment. The `ממתין לליהוק` filter still measures Step 2 and was renamed **ממתין לליהוק לחדרים** so it does not read as contradicting the column beside it. |
 
 ---
 

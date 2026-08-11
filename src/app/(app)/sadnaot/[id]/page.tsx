@@ -47,6 +47,7 @@ interface Workshop {
   castingMaleNeeded: number | null
   castingFemaleNeeded: number | null
   castingNotes: string | null
+  confirmedActorCount: number
   status: string
   cancelled: boolean
   tentative: boolean
@@ -1539,15 +1540,15 @@ export default function WorkshopDetailPage() {
           const canSend = scenariosWithReq.length > 0 && scenariosWithoutModel.length === 0
           const wasSent = !!w.castingSentAt
 
-          // Casting progress — same logic as the workshops table column
-          const activeScenariosCast = w.scenarios.filter((s) => !s.cancelled)
-          const activeRoomsCast     = w.rooms.filter((r) => !r.cancelled)
-          const slotsPerRoom   = activeScenariosCast.reduce((sum, s) => sum + s.maleActorsNeeded + s.femaleActorsNeeded, 0)
-          const castingTotal   = slotsPerRoom * activeRoomsCast.length + (w.directorRequested ? 1 : 0)
-          const nonDirCastings = w.castings.filter((c) => !c.isDirector)
-          const hasDir         = w.castings.some((c) => c.isDirector)
-          const castingFilled  = nonDirCastings.length + (w.directorRequested && hasDir ? 1 : 0)
+          // Casting progress — Step 1 numbers, same as the workshops table column.
+          // "Are our actors secured", not the Caster's per-room breakdown; that stays
+          // on the Casting page and in the readiness checklist above. Spec §8.4.
+          const castingTotal    = (w.castingMaleNeeded ?? 0) + (w.castingFemaleNeeded ?? 0)
+          const castingFilled   = w.confirmedActorCount
           const castingComplete = castingTotal > 0 && castingFilled === castingTotal
+          // The director is only ever assigned in Step 2, so it is reported alongside
+          // the fraction rather than folded into it.
+          const hasDir = w.castings.some((c) => c.isDirector)
 
           return (
             <section id="casting" className="border border-gray-200 rounded-xl p-5 bg-white shadow-sm">
@@ -1561,7 +1562,12 @@ export default function WorkshopDetailPage() {
                   )}
                   {wasSent && castingTotal > 0 && (
                     <p className={`text-base font-bold mt-1 ${castingComplete ? "text-brand-green" : "text-amber-600"}`}>
-                      {castingComplete ? "✓ ליהוק הושלם" : `ליהוק ${castingFilled}/${castingTotal}`}
+                      {castingComplete ? "✓ כל השחקנים אושרו" : `ליהוק ${castingFilled}/${castingTotal}`}
+                    </p>
+                  )}
+                  {wasSent && w.directorRequested && (
+                    <p className={`text-xs font-semibold mt-0.5 ${hasDir ? "text-brand-green" : "text-amber-600"}`}>
+                      {hasDir ? "🎬 במאי/ת לוהק/ה ✓" : "🎬 במאי/ת טרם לוהק/ה"}
                     </p>
                   )}
                   {scenariosWithReq.length === 0 && (

@@ -15,6 +15,8 @@ interface WorkshopRow {
   roomFacilitators: Facilitator[]
   slottingFilled: number; slottingTotal: number; slottingTentative: boolean
   castingFilled: number; castingTotal: number
+  castingStep1Filled: number; castingStep1Total: number
+  directorRequested: boolean; directorCast: boolean
   scenarioWritten: boolean
   feedbackFormAdded: boolean
   pptFilled: number; pptTotal: number
@@ -347,7 +349,7 @@ export default function SadnaotPage() {
           className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${
             castingPending ? "bg-amber-500 text-white" : "bg-gray-100 text-gray-600 hover:bg-gray-200"
           }`}>
-          ⏳ ממתין לליהוק
+          ⏳ ממתין לליהוק לחדרים
         </button>
         <button
           onClick={() => setFeedbackPending((v) => !v)}
@@ -420,12 +422,25 @@ export default function SadnaotPage() {
                       )}
                     </td>
 
+                    {/* Step 1 numbers — "are our actors secured". The Step 2 breakdown
+                        lives on the Casting page, where it is actionable. Spec §8.2. */}
                     <td className="px-3 py-2.5 text-center">
-                      <FractionBadge
-                        filled={w.castingFilled}
-                        total={w.castingTotal}
-                        href={(isCaster || isManager) && w.castingSentAt ? `/lihukim/${w.id}` : `/sadnaot/${w.id}#casting`}
-                      />
+                      <div className="flex items-center justify-center gap-1">
+                        <FractionBadge
+                          filled={w.castingStep1Filled}
+                          total={w.castingStep1Total}
+                          href={(isCaster || isManager) && w.castingSentAt ? `/lihukim/${w.id}` : `/sadnaot/${w.id}#casting`}
+                        />
+                        {w.directorRequested && (
+                          <span
+                            title={w.directorCast ? "במאי/ת לוהק/ה" : "במאי/ת טרם לוהק/ה"}
+                            className={`px-1 py-0.5 rounded text-xs font-semibold leading-none ${
+                              w.directorCast ? "bg-green-50 text-brand-green" : "bg-amber-100 text-amber-700"
+                            }`}>
+                            {w.directorCast ? "🎬✓" : "🎬⚠"}
+                          </span>
+                        )}
+                      </div>
                     </td>
 
                     <td className="px-3 py-2.5 text-center">
