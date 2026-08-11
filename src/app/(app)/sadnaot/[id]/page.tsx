@@ -47,6 +47,11 @@ interface Workshop {
   castingMaleNeeded: number | null
   castingFemaleNeeded: number | null
   castingNotes: string | null
+  casting: {
+    filled: number; total: number
+    complete: boolean; allConfirmed: boolean
+    directorRequested: boolean; directorCast: boolean
+  }
   status: string
   cancelled: boolean
   tentative: boolean
@@ -1231,14 +1236,14 @@ export default function WorkshopDetailPage() {
                 const allFacilitators = activeRooms.every((r) => r.facilitatorId)
                 const allWritten      = activeScenarios.length > 0 && activeScenarios.every((s) => s.written)
 
-                // Condition 2: Casting
-                const castingSent    = !!w.castingSentAt
-                const slotsPerRoom   = activeScenarios.reduce((sum, s) => sum + s.maleActorsNeeded + s.femaleActorsNeeded, 0)
-                const castingTotal   = slotsPerRoom * activeRooms.length + (w.directorRequested ? 1 : 0)
-                const nonDirFilled   = w.castings.filter((c) => !c.isDirector).length
-                const hasDir         = w.castings.some((c) => c.isDirector)
-                const castingFilled  = nonDirFilled + (w.directorRequested && hasDir ? 1 : 0)
-                const castingComplete = castingSent && castingTotal > 0 && castingFilled === castingTotal
+                // Condition 2: Casting. The gate is still full Step 2 completion —
+                // w.casting.complete mirrors it exactly — but the number shown is the
+                // people-scale one from the ליהוק section, so the page reads the same
+                // both places. Spec §7.7.
+                const castingSent     = !!w.castingSentAt
+                const castingTotal    = w.casting.total
+                const castingFilled   = w.casting.filled
+                const castingComplete = castingSent && w.casting.complete
 
                 // Condition 3: Feedback form
                 const feedbackDone = w.feedbackFormAdded
@@ -1539,15 +1544,9 @@ export default function WorkshopDetailPage() {
           const canSend = scenariosWithReq.length > 0 && scenariosWithoutModel.length === 0
           const wasSent = !!w.castingSentAt
 
-          // Casting progress — same logic as the workshops table column
-          const activeScenariosCast = w.scenarios.filter((s) => !s.cancelled)
-          const activeRoomsCast     = w.rooms.filter((r) => !r.cancelled)
-          const slotsPerRoom   = activeScenariosCast.reduce((sum, s) => sum + s.maleActorsNeeded + s.femaleActorsNeeded, 0)
-          const castingTotal   = slotsPerRoom * activeRoomsCast.length + (w.directorRequested ? 1 : 0)
-          const nonDirCastings = w.castings.filter((c) => !c.isDirector)
-          const hasDir         = w.castings.some((c) => c.isDirector)
-          const castingFilled  = nonDirCastings.length + (w.directorRequested && hasDir ? 1 : 0)
-          const castingComplete = castingTotal > 0 && castingFilled === castingTotal
+          // People cast / people needed, computed server-side so this section and the
+          // readiness checklist above can never disagree. Spec §7.7.
+          const c = w.casting
 
           return (
             <section id="casting" className="border border-gray-200 rounded-xl p-5 bg-white shadow-sm">
@@ -1559,9 +1558,23 @@ export default function WorkshopDetailPage() {
                       נשלח לליהוק ✓ {new Date(w.castingSentAt!).toLocaleDateString("he-IL")}
                     </p>
                   )}
-                  {wasSent && castingTotal > 0 && (
-                    <p className={`text-base font-bold mt-1 ${castingComplete ? "text-brand-green" : "text-amber-600"}`}>
-                      {castingComplete ? "✓ ליהוק הושלם" : `ליהוק ${castingFilled}/${castingTotal}`}
+                  {wasSent && c.total > 0 && (
+                    <>
+                      <p className={`text-base font-bold mt-1 ${c.complete ? "text-brand-green" : "text-amber-600"}`}>
+                        {c.complete ? "✓ ליהוק הושלם" : `ליהוק ${c.filled}/${c.total}`}
+                      </p>
+                      {!c.complete && (
+                        <p className="text-xs text-amber-600 mt-0.5">
+                          {c.allConfirmed
+                            ? "⏳ שחקנים אושרו, טרם לוהקו לחדרים"
+                            : "⏳ ממתין לאישור שחקנים"}
+                        </p>
+                      )}
+                    </>
+                  )}
+                  {wasSent && c.directorRequested && (
+                    <p className={`text-xs font-semibold mt-0.5 ${c.directorCast ? "text-brand-green" : "text-amber-600"}`}>
+                      {c.directorCast ? "🎬 במאי/ת לוהק/ה ✓" : "🎬 במאי/ת טרם לוהק/ה"}
                     </p>
                   )}
                   {scenariosWithReq.length === 0 && (
