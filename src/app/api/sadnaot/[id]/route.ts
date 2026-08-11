@@ -4,6 +4,7 @@ import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
 import { checkAndAdvanceStatus } from "@/lib/workshop-status"
 import { ROOM_LOCATION_VALUES, sortRoomLocations } from "@/lib/room-locations"
+import { castingProgress } from "@/lib/casting-progress"
 import type { RoomLocation } from "@prisma/client"
 
 const FROZEN_STATUSES = ["CLOSING", "CLOSED", "CANCELLED"]
@@ -96,8 +97,17 @@ export async function GET(
     castingMaleNeeded: w.castingMaleNeeded,
     castingFemaleNeeded: w.castingFemaleNeeded,
     castingNotes: w.castingNotes,
-    // Step 1 confirmations, for the ליהוק section's progress line. Spec §8.4.
-    confirmedActorCount: w.confirmedActors.length,
+    // People-scale casting progress for the ליהוק section and the readiness
+    // checklist, both of which must agree. Spec §7.7.
+    casting: castingProgress({
+      directorRequested:   w.directorRequested,
+      castingMaleNeeded:   w.castingMaleNeeded,
+      castingFemaleNeeded: w.castingFemaleNeeded,
+      confirmedActorCount: w.confirmedActors.length,
+      rooms:     w.rooms,
+      scenarios: w.scenarios,
+      castings:  w.castings,
+    }),
     status: w.status,
     cancelled: w.cancelled,
     tentative: w.tentative,

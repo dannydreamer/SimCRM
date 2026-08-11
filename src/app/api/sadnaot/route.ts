@@ -2,6 +2,7 @@
 import { prisma } from "@/lib/prisma"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
+import { castingProgress } from "@/lib/casting-progress"
 
 export async function GET() {
   const session = await getServerSession(authOptions)
@@ -22,7 +23,7 @@ export async function GET() {
         },
       },
       scenarios: { select: { id: true, cancelled: true, written: true, maleActorsNeeded: true, femaleActorsNeeded: true, topic: { select: { id: true, name: true } } } },
-      castings:  { select: { actorId: true, isDirector: true, roomId: true } },
+      castings:  { select: { actorId: true, isDirector: true, roomId: true, slotGender: true, slotIndex: true } },
       confirmedActors: { select: { id: true } },
       feedbacks: {
         select: {
@@ -45,20 +46,22 @@ export async function GET() {
       const slottingFilled   = activeRooms.filter((r) => r.facilitatorId).length
       const slottingTentative = activeRooms.some((r) => r.facilitatorTentative)
 
-      // Step 2 (per-room assignment). Still drives READY, the "ממתין לליהוק לחדרים"
-      // filter, and the feedback columns' "has this workshop got casting at all"
-      // test — but no longer the ליהוק badge. See spec §8.2.
+      // Raw Step 2 slot counts. No longer feed the ליהוק badge — they still drive the
+      // "ממתין לליהוק לחדרים" filter and the feedback columns' "has this workshop got
+      // casting at all" test (castingTotal > 0). See spec §8.2.
       const slotsPerRoom  = activeScenarios.reduce((sum, s) => sum + s.maleActorsNeeded + s.femaleActorsNeeded, 0)
       const castingTotal  = slotsPerRoom * activeRooms.length + (w.directorRequested ? 1 : 0)
       const castingFilled = nonDirCastings.filter((c) => c.actorId).length + (w.directorRequested && directorCasting ? 1 : 0)
 
-      // Step 1 (attendance confirmation) — "are our actors secured", which is what
-      // the ליהוק badge answers. No director term: the director is only ever assigned
-      // in Step 2, so folding it in here would leave a slot that can never fill.
-      // directorCast carries that fact separately.
-      const castingStep1Total  = (w.castingMaleNeeded ?? 0) + (w.castingFemaleNeeded ?? 0)
-      const castingStep1Filled = w.confirmedActors.length
-      const directorCast       = !!directorCasting
+      const casting = castingProgress({
+        directorRequested:   w.directorRequested,
+        castingMaleNeeded:   w.castingMaleNeeded,
+        castingFemaleNeeded: w.castingFemaleNeeded,
+        confirmedActorCount: w.confirmedActors.length,
+        rooms:     w.rooms,
+        scenarios: w.scenarios,
+        castings:  w.castings,
+      })
 
       const scenarioWritten = activeScenarios.length > 0 && activeScenarios.every((s) => s.written)
 
@@ -107,7 +110,7 @@ export async function GET() {
         roomFacilitators,
         slottingFilled, slottingTotal, slottingTentative,
         castingFilled,  castingTotal,
-        castingStep1Filled, castingStep1Total, directorCast,
+        casting,
         scenarioWritten,
         feedbackFormAdded: w.feedbackFormAdded,
         pptFilled, pptTotal,
