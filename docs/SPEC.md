@@ -711,6 +711,10 @@ No draft state, no confirmation step. Changes save immediately. Removing an acto
 
 Banners on the ליהוק landing and detail pages, driven by `CastingChangeLog` (see §3.12). Amber for informational, red for cancellations. Dismissal is per-user via localStorage plus the DB flag.
 
+**The banner is the message; the table shows only a locator.** The ליהוק column on the landing page carries a single coloured dot — **red** when actors are already confirmed or cast (`castingStarted`, so there are people to re-contact), **amber** otherwise. It cannot appear without a matching undismissed banner above it, since both read the same dismissal set, so it says nothing more than *"this is the row that banner is about"*. `[code]`
+
+> **Do not encode the change type in the marker.** The column previously carried three marks — an amber `⚠` for room added/cancelled, and an amber or red `!` for everything else — so glyph shape meant *kind of change* and colour meant *urgency*, with no labels and no tooltips. Nobody could read it, and all of it duplicated a banner already on screen. One dot replaced the lot.
+
 ### 7.7 Casting progress outside the Casting page
 
 > Source: `src/lib/casting-progress.ts` — one computation, used by both the workshop table (§8.2) and Workshop Detail (§8.4). `[code]`
@@ -1340,6 +1344,8 @@ Sessions 1–19 as built. Branch naming `session-N-*`, merged to `develop` then 
 | Aug 2026 | — | **Tech workshop-editing gap closed** (branch `tech_editing_workshop`). §5.2 had always granted Tech "Workshops — edit"; the code allowed her nothing on the Workshop Detail header. Tech now gets the identical basic-info form Manager has, plus facilitator assignment, the author dropdown, the הערות card, and soft-cancel of rooms and scenarios (§5.3 item 4). Creation and cancellation of a workshop stay Manager-only. Two bugs fixed alongside: the משוב משתתפים checkbox was offered to Tech but silently ignored by the API, and the room-cancelled banner never mentioned re-sending to casting (§11). |
 
 | Aug 2026 | — | **Casting progress reported in people, not slots** (branch `casting_step1_badge`, new §7.7). The ליהוק badge on the workshop table (§8.2) and the ליהוק section on Workshop Detail (§8.4) previously used the Step 2 slot formula, rendering a workshop needing 2 actors across 3 rooms as `0/6` — a number only the Caster can act on. Both now read `people cast / people needed`, with the director inside the fraction. A person counts only when **fully deployed** in Step 2; Step 1 confirmation alone counts zero, and a new intermediate state (*⏳ שחקנים אושרו, טרם לוהקו לחדרים*) makes that visible. **The ✓ is gated on full Step 2 completion, never on the fraction** — mirroring READY condition 2 (§4.3), which is unchanged — so the casting section and the readiness checklist on the same page can no longer contradict each other. The readiness checklist adopts the same fraction. One shared computation in `src/lib/casting-progress.ts` replaces the formula that had been duplicated across four files. The `ממתין לליהוק` filter still measures raw Step 2 slots and was renamed **ממתין לליהוק לחדרים**. |
+
+| Aug 2026 | — | **Caster change markers collapsed to one dot** (§7.6). The ליהוק column on `/lihukim` carried three unlabelled marks — amber `⚠` for a room added or cancelled, amber or red `!` for every other change — encoding change-type in the glyph and urgency in the colour, with no tooltips on either. Each fired only when its own banner was already on screen, so none of them carried information the banner did not. Replaced by a single dot whose only job is pointing at the row, red when actors are already cast. Fixed alongside: the other-change banner listed `ROOM_ADDED` details as well as its own, reporting a room addition twice. |
 
 ---
 

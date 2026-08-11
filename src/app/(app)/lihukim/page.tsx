@@ -168,7 +168,11 @@ export default function LihukimLandingPage() {
       {/* Other-change banners (RESENT / COUNTS_CHANGED / SCENARIO_REQ / SCENARIO_CANCELLED) */}
       {/* Color matches detail page: red if casting started, amber if not yet */}
       {!loading && otherChangeWarnings.map((ow) => {
-        const logs = ow.changeLogs.filter((l) => l.changeType !== "ROOM_CANCELLED" && !dismissedLogIds.has(l.id))
+        // Must exclude ROOM_ADDED as well as ROOM_CANCELLED, matching the workshop
+        // filter above — both have their own banners, and listing them here too
+        // reported the same room change twice.
+        const logs = ow.changeLogs.filter((l) =>
+          l.changeType !== "ROOM_CANCELLED" && l.changeType !== "ROOM_ADDED" && !dismissedLogIds.has(l.id))
         const isRed = ow.castingStarted
         return (
           <div key={ow.id} className={`mx-8 mt-4 rounded-lg px-4 py-3 flex items-start justify-between gap-3 text-sm shrink-0 border ${
@@ -336,13 +340,22 @@ export default function LihukimLandingPage() {
                             }`}>
                               {complete ? "✓ הושלם" : w.castingTotal === 0 ? "אין תרחישים פעילים" : `${w.castingFilled}/${w.castingTotal}`}
                             </span>
-                            {hasRoomWarning && (
-                              <span className="px-1.5 py-0.5 rounded bg-amber-100 text-amber-700 text-xs font-bold leading-none">⚠</span>
-                            )}
-                            {hasOtherWarning && (
-                              <span className={`px-1.5 py-0.5 rounded text-xs font-bold leading-none ${
-                                w.castingStarted ? "bg-red-100 text-red-700" : "bg-amber-100 text-amber-700"
-                              }`}>!</span>
+                            {/* A locator, not a classifier. This dot cannot appear without
+                                its banner at the top of the page — same dismissal set — so
+                                it says only "this is the row that banner is about". Which
+                                kind of change it was is the banner's job; encoding that
+                                here in glyph shapes taught nobody anything. The one
+                                distinction kept is the one that changes what the Caster
+                                does: red means actors are already cast, so there are
+                                people to re-contact. Spec §7.6. */}
+                            {(hasRoomWarning || hasOtherWarning) && (
+                              <span
+                                title={w.castingStarted
+                                  ? "יש עדכון בסדנה שכבר לוהקה — ראו/י את ההתראה בראש העמוד"
+                                  : "יש עדכון בסדנה — ראו/י את ההתראה בראש העמוד"}
+                                className={`text-sm leading-none ${
+                                  w.castingStarted ? "text-red-600" : "text-amber-500"
+                                }`}>●</span>
                             )}
                           </span>
                         )}
