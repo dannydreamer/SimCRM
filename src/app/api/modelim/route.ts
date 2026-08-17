@@ -7,8 +7,10 @@ export async function GET() {
   const session = await getServerSession(authOptions)
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
 
+  // Manual order first — managers push the models they use most to the top.
+  // Name is only the tie-break for rows that share an index.
   const models = await prisma.simulationModel.findMany({
-    orderBy: { name: "asc" },
+    orderBy: [{ orderIndex: "asc" }, { name: "asc" }],
     include: { _count: { select: { scenarios: true } } },
   })
 
@@ -36,6 +38,11 @@ export async function POST(req: NextRequest) {
   const existing = await prisma.simulationModel.findFirst({ where: { name: { equals: name.trim(), mode: "insensitive" } } })
   if (existing) return NextResponse.json({ error: "מודל בשם זה כבר קיים" }, { status: 409 })
 
-  const model = await prisma.simulationModel.create({ data: { name: name.trim() } })
+  // A new model lands at the bottom of the manual order, not in the middle of it
+  const last = await prisma.simulationModel.aggregate({ _max: { orderIndex: true } })
+
+  const model = await prisma.simulationModel.create({
+    data: { name: name.trim(), orderIndex: (last._max.orderIndex ?? 0) + 1 },
+  })
   return NextResponse.json({ id: model.id, name: model.name, active: model.active, scenarioCount: 0, createdAt: model.createdAt.toISOString() }, { status: 201 })
 }
