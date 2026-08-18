@@ -2,6 +2,7 @@
 import { prisma } from "@/lib/prisma"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
+import { castingProgress } from "@/lib/casting-progress"
 
 export async function GET() {
   const session = await getServerSession(authOptions)
@@ -22,7 +23,8 @@ export async function GET() {
         },
       },
       scenarios: { select: { id: true, cancelled: true, written: true, maleActorsNeeded: true, femaleActorsNeeded: true, topic: { select: { id: true, name: true } } } },
-      castings:  { select: { actorId: true, isDirector: true, roomId: true } },
+      castings:  { select: { actorId: true, isDirector: true, roomId: true, slotGender: true, slotIndex: true } },
+      confirmedActors: { select: { id: true } },
       feedbacks: {
         select: {
           actorId: true, roomId: true,
@@ -44,9 +46,22 @@ export async function GET() {
       const slottingFilled   = activeRooms.filter((r) => r.facilitatorId).length
       const slottingTentative = activeRooms.some((r) => r.facilitatorTentative)
 
+      // Raw Step 2 slot counts. No longer feed the ליהוק badge — they still drive the
+      // "ממתין לליהוק לחדרים" filter and the feedback columns' "has this workshop got
+      // casting at all" test (castingTotal > 0). See spec §8.2.
       const slotsPerRoom  = activeScenarios.reduce((sum, s) => sum + s.maleActorsNeeded + s.femaleActorsNeeded, 0)
       const castingTotal  = slotsPerRoom * activeRooms.length + (w.directorRequested ? 1 : 0)
       const castingFilled = nonDirCastings.filter((c) => c.actorId).length + (w.directorRequested && directorCasting ? 1 : 0)
+
+      const casting = castingProgress({
+        directorRequested:   w.directorRequested,
+        castingMaleNeeded:   w.castingMaleNeeded,
+        castingFemaleNeeded: w.castingFemaleNeeded,
+        confirmedActorCount: w.confirmedActors.length,
+        rooms:     w.rooms,
+        scenarios: w.scenarios,
+        castings:  w.castings,
+      })
 
       const scenarioWritten = activeScenarios.length > 0 && activeScenarios.every((s) => s.written)
 
@@ -95,6 +110,7 @@ export async function GET() {
         roomFacilitators,
         slottingFilled, slottingTotal, slottingTentative,
         castingFilled,  castingTotal,
+        casting,
         scenarioWritten,
         feedbackFormAdded: w.feedbackFormAdded,
         pptFilled, pptTotal,

@@ -15,6 +15,11 @@ interface WorkshopRow {
   roomFacilitators: Facilitator[]
   slottingFilled: number; slottingTotal: number; slottingTentative: boolean
   castingFilled: number; castingTotal: number
+  casting: {
+    filled: number; total: number
+    complete: boolean; allConfirmed: boolean
+    directorRequested: boolean; directorCast: boolean
+  }
   scenarioWritten: boolean
   feedbackFormAdded: boolean
   pptFilled: number; pptTotal: number
@@ -63,12 +68,16 @@ function CheckBadge({ ok, warn, href }: { ok: boolean; warn?: boolean; href?: st
   return <span className="text-gray-300 text-xs">—</span>
 }
 
-function FractionBadge({ filled, total, href, alwaysFraction }: { filled: number; total: number; href?: string; alwaysFraction?: boolean }) {
+function FractionBadge({ filled, total, href, alwaysFraction, complete: completeOverride, title }: {
+  filled: number; total: number; href?: string; alwaysFraction?: boolean
+  // Casting passes this explicitly: a full fraction is not proof the work is done.
+  complete?: boolean; title?: string
+}) {
   if (total === 0) return <span className="text-gray-300 text-xs">—</span>
-  const complete = filled === total
+  const complete = completeOverride ?? filled === total
   const showCheck = complete && !alwaysFraction
   const inner = (
-    <span className={`text-xs font-medium ${complete ? "text-brand-green" : "text-amber-700"}`}>
+    <span title={title} className={`text-xs font-medium ${complete ? "text-brand-green" : "text-amber-700"}`}>
       {showCheck ? "✓" : `${filled}/${total}`}
     </span>
   )
@@ -347,7 +356,7 @@ export default function SadnaotPage() {
           className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${
             castingPending ? "bg-amber-500 text-white" : "bg-gray-100 text-gray-600 hover:bg-gray-200"
           }`}>
-          ⏳ ממתין לליהוק
+          ⏳ ממתין לליהוק לחדרים
         </button>
         <button
           onClick={() => setFeedbackPending((v) => !v)}
@@ -420,12 +429,34 @@ export default function SadnaotPage() {
                       )}
                     </td>
 
+                    {/* People cast / people needed — never the Step 2 slot count, and
+                        never a ✓ until casting is genuinely complete. Spec §7.7. */}
                     <td className="px-3 py-2.5 text-center">
-                      <FractionBadge
-                        filled={w.castingFilled}
-                        total={w.castingTotal}
-                        href={(isCaster || isManager) && w.castingSentAt ? `/lihukim/${w.id}` : `/sadnaot/${w.id}#casting`}
-                      />
+                      <div className="flex items-center justify-center gap-1">
+                        <FractionBadge
+                          filled={w.casting.filled}
+                          total={w.casting.total}
+                          complete={w.casting.complete}
+                          title={
+                            w.casting.complete   ? "ליהוק הושלם"
+                            : w.casting.allConfirmed ? "שחקנים אושרו, טרם לוהקו לחדרים"
+                            : "ממתין לאישור שחקנים"
+                          }
+                          href={(isCaster || isManager) && w.castingSentAt ? `/lihukim/${w.id}` : `/sadnaot/${w.id}#casting`}
+                        />
+                        {!w.casting.complete && w.casting.allConfirmed && (
+                          <span title="שחקנים אושרו, טרם לוהקו לחדרים" className="text-xs leading-none">⏳</span>
+                        )}
+                        {w.casting.directorRequested && (
+                          <span
+                            title={w.casting.directorCast ? "במאי/ת לוהק/ה" : "במאי/ת טרם לוהק/ה"}
+                            className={`px-1 py-0.5 rounded text-xs font-semibold leading-none ${
+                              w.casting.directorCast ? "bg-green-50 text-brand-green" : "bg-amber-100 text-amber-700"
+                            }`}>
+                            {w.casting.directorCast ? "🎬✓" : "🎬⚠"}
+                          </span>
+                        )}
+                      </div>
                     </td>
 
                     <td className="px-3 py-2.5 text-center">

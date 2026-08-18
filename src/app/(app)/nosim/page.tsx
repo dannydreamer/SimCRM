@@ -17,6 +17,7 @@ interface SectionLabels {
   emptyActive:    string
   inactiveHeader: (n: number) => string
   addPlaceholder: string
+  reorderHint?:   string   // shown to managers when the section is reorderable
 }
 
 const TOPIC_LABELS: SectionLabels = {
@@ -35,6 +36,7 @@ const MODEL_LABELS: SectionLabels = {
   emptyActive:    "אין מודלים פעילים",
   inactiveHeader: (n) => `מודלים לא פעילים (${n})`,
   addPlaceholder: "+ מודל חדש",
+  reorderHint:    "הסדר כאן הוא הסדר שבו המודלים מופיעים בבחירת מודל בתרחיש — העלה למעלה את המודלים הנפוצים.",
 }
 
 export default function SystemListsPage() {
@@ -46,7 +48,7 @@ export default function SystemListsPage() {
       <h1 className="text-2xl font-bold text-gray-900 mb-8">רשימות מערכת</h1>
 
       <ManagedListSection endpoint="/api/nosim"   labels={TOPIC_LABELS} isManager={isManager} />
-      <ManagedListSection endpoint="/api/modelim" labels={MODEL_LABELS} isManager={isManager} />
+      <ManagedListSection endpoint="/api/modelim" labels={MODEL_LABELS} isManager={isManager} reorderable />
     </div>
   )
 }
@@ -54,11 +56,13 @@ export default function SystemListsPage() {
 // ─── Managed list section ──────────────────────────────────────────────────────
 
 function ManagedListSection({
-  endpoint, labels, isManager,
+  endpoint, labels, isManager, reorderable = false,
 }: {
   endpoint: string
   labels: SectionLabels
   isManager: boolean
+  /** Manual ordering with up/down arrows, persisted to `${endpoint}/reorder` */
+  reorderable?: boolean
 }) {
   const [rows, setRows]       = useState<ListRow[]>([])
   const [loading, setLoading] = useState(true)
@@ -77,6 +81,9 @@ function ManagedListSection({
 
   // Deactivate-confirm state
   const [confirmId, setConfirmId] = useState<string | null>(null)
+
+  // Manual-order state
+  const [reorderError, setReorderError] = useState("")
 
   const fetchRows = useCallback(async () => {
     const res  = await fetch(endpoint)
@@ -140,9 +147,40 @@ function ManagedListSection({
   const active   = rows.filter((r) => r.active)
   const inactive = rows.filter((r) => !r.active)
 
-  const rowProps = (row: ListRow) => ({
+  // Swap a row with its neighbour among the active rows. Applied locally first
+  // so the arrows feel instant, then persisted as one whole-list write.
+  async function moveRow(id: string, direction: -1 | 1) {
+    setReorderError("")
+    const from = active.findIndex((r) => r.id === id)
+    const to   = from + direction
+    if (from === -1 || to < 0 || to >= active.length) return
+
+    const reordered = [...active]
+    ;[reordered[from], reordered[to]] = [reordered[to], reordered[from]]
+    const merged = [...reordered, ...inactive]
+    setRows(merged)
+
+    const res = await fetch(`${endpoint}/reorder`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ids: merged.map((r) => r.id) }),
+    })
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}))
+      setReorderError(data.error ?? "שמירת הסדר נכשלה")
+      await fetchRows()   // roll back to whatever the server actually has
+    }
+  }
+
+  // `position` is passed only for active rows — inactive rows are not reorderable
+  const rowProps = (row: ListRow, position?: { index: number; total: number }) => ({
     row,
     isManager,
+    showReorder:  reorderable && isManager && position !== undefined,
+    canMoveUp:    position ? position.index > 0                     : false,
+    canMoveDown:  position ? position.index < position.total - 1    : false,
+    onMoveUp:     () => moveRow(row.id, -1),
+    onMoveDown:   () => moveRow(row.id,  1),
     isRenaming: renamingId === row.id,
     renameDraft,
     renameError,
@@ -165,6 +203,10 @@ function ManagedListSection({
         <p className="text-sm text-gray-400 mt-0.5">
           {loading ? "טוען..." : labels.activeCount(active.length)}
         </p>
+        {reorderable && isManager && labels.reorderHint && !loading && (
+          <p className="text-xs text-gray-400 mt-1">{labels.reorderHint}</p>
+        )}
+        {reorderError && <p className="text-xs text-red-500 mt-1">{reorderError}</p>}
       </div>
 
       {loading ? (
@@ -189,8 +231,8 @@ function ManagedListSection({
                     </td>
                   </tr>
                 )}
-                {active.map((row) => (
-                  <ListRowView key={row.id} {...rowProps(row)} />
+                {active.map((row, i) => (
+                  <ListRowView key={row.id} {...rowProps(row, { index: i, total: active.length })} />
                 ))}
 
                 {/* Add row — Manager only */}
@@ -253,6 +295,11 @@ function ManagedListSection({
 function ListRowView({
   row,
   isManager,
+  showReorder,
+  canMoveUp,
+  canMoveDown,
+  onMoveUp,
+  onMoveDown,
   isRenaming,
   renameDraft,
   renameError,
@@ -268,6 +315,11 @@ function ListRowView({
 }: {
   row: ListRow
   isManager: boolean
+  showReorder: boolean
+  canMoveUp: boolean
+  canMoveDown: boolean
+  onMoveUp: () => void
+  onMoveDown: () => void
   isRenaming: boolean
   renameDraft: string
   renameError: string
@@ -321,32 +373,59 @@ function ListRowView({
       {/* Actions — Manager only */}
       {isManager && (
         <td className="px-4 py-2.5 text-left">
-          {confirmId === row.id ? (
-            <span className="flex items-center gap-2 justify-end">
-              <span className="text-xs text-gray-600">
-                {row.active ? "להשבית?" : "להפעיל?"}
+          {/* justify-end is the left edge under RTL — where the actions sat before */}
+          <span className="flex items-center gap-3 justify-end">
+            {/* Manual order — arrows, not drag: reordering happens rarely */}
+            {showReorder && confirmId !== row.id && (
+              <span className="flex items-center gap-0.5">
+                <button
+                  onClick={onMoveUp}
+                  disabled={!canMoveUp}
+                  title="הזזה למעלה"
+                  aria-label="הזזה למעלה"
+                  className="w-6 h-6 leading-none text-gray-400 rounded hover:bg-gray-100 hover:text-gray-700 disabled:opacity-25 disabled:hover:bg-transparent disabled:hover:text-gray-400 disabled:cursor-default transition-colors"
+                >
+                  ↑
+                </button>
+                <button
+                  onClick={onMoveDown}
+                  disabled={!canMoveDown}
+                  title="הזזה למטה"
+                  aria-label="הזזה למטה"
+                  className="w-6 h-6 leading-none text-gray-400 rounded hover:bg-gray-100 hover:text-gray-700 disabled:opacity-25 disabled:hover:bg-transparent disabled:hover:text-gray-400 disabled:cursor-default transition-colors"
+                >
+                  ↓
+                </button>
               </span>
+            )}
+
+            {confirmId === row.id ? (
+              <span className="flex items-center gap-2 justify-end">
+                <span className="text-xs text-gray-600">
+                  {row.active ? "להשבית?" : "להפעיל?"}
+                </span>
+                <button
+                  onClick={onToggleActive}
+                  className="text-xs text-red-600 hover:underline font-medium"
+                >
+                  כן
+                </button>
+                <button
+                  onClick={onCancelConfirm}
+                  className="text-xs text-gray-400 hover:underline"
+                >
+                  לא
+                </button>
+              </span>
+            ) : (
               <button
-                onClick={onToggleActive}
-                className="text-xs text-red-600 hover:underline font-medium"
+                onClick={onRequestConfirm}
+                className="text-xs text-gray-400 hover:text-gray-700 hover:underline"
               >
-                כן
+                {row.active ? "השבתה" : "הפעלה"}
               </button>
-              <button
-                onClick={onCancelConfirm}
-                className="text-xs text-gray-400 hover:underline"
-              >
-                לא
-              </button>
-            </span>
-          ) : (
-            <button
-              onClick={onRequestConfirm}
-              className="text-xs text-gray-400 hover:text-gray-700 hover:underline"
-            >
-              {row.active ? "השבתה" : "הפעלה"}
-            </button>
-          )}
+            )}
+          </span>
         </td>
       )}
     </tr>
