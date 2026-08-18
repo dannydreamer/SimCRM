@@ -23,8 +23,7 @@ export async function GET() {
         },
       },
       scenarios: { select: { id: true, cancelled: true, written: true, maleActorsNeeded: true, femaleActorsNeeded: true, topic: { select: { id: true, name: true } } } },
-      castings:  { select: { actorId: true, isDirector: true, roomId: true, slotGender: true, slotIndex: true } },
-      confirmedActors: { select: { id: true } },
+      castings:  { select: { actorId: true, isDirector: true, roomId: true } },
       feedbacks: {
         select: {
           actorId: true, roomId: true,
@@ -54,10 +53,8 @@ export async function GET() {
       const castingFilled = nonDirCastings.filter((c) => c.actorId).length + (w.directorRequested && directorCasting ? 1 : 0)
 
       const casting = castingProgress({
-        directorRequested:   w.directorRequested,
-        castingMaleNeeded:   w.castingMaleNeeded,
-        castingFemaleNeeded: w.castingFemaleNeeded,
-        confirmedActorCount: w.confirmedActors.length,
+        directorRequested: w.directorRequested,
+        castingSentAt:     w.castingSentAt,
         rooms:     w.rooms,
         scenarios: w.scenarios,
         castings:  w.castings,

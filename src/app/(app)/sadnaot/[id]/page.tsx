@@ -47,11 +47,7 @@ interface Workshop {
   castingMaleNeeded: number | null
   castingFemaleNeeded: number | null
   castingNotes: string | null
-  casting: {
-    filled: number; total: number
-    complete: boolean; allConfirmed: boolean
-    directorRequested: boolean; directorCast: boolean
-  }
+  casting: { started: boolean; complete: boolean }
   status: string
   cancelled: boolean
   tentative: boolean
@@ -1236,13 +1232,10 @@ export default function WorkshopDetailPage() {
                 const allFacilitators = activeRooms.every((r) => r.facilitatorId)
                 const allWritten      = activeScenarios.length > 0 && activeScenarios.every((s) => s.written)
 
-                // Condition 2: Casting. The gate is still full Step 2 completion —
-                // w.casting.complete mirrors it exactly — but the number shown is the
-                // people-scale one from the ליהוק section, so the page reads the same
-                // both places. Spec §7.7.
+                // Condition 2: Casting. The gate is full Step 2 completion, which
+                // w.casting.complete mirrors exactly — the same value the ליהוק section
+                // reads, so the two halves of this page cannot disagree. Spec §7.7.
                 const castingSent     = !!w.castingSentAt
-                const castingTotal    = w.casting.total
-                const castingFilled   = w.casting.filled
                 const castingComplete = castingSent && w.casting.complete
 
                 // Condition 3: Feedback form
@@ -1282,11 +1275,7 @@ export default function WorkshopDetailPage() {
                       <span className={`mt-px font-bold ${castingComplete ? "text-brand-green" : "text-gray-300"}`}>{castingComplete ? "✓" : "○"}</span>
                       <div>
                         <span className={castingComplete ? "text-gray-700" : "text-gray-500"}>
-                          {castingComplete
-                            ? "ליהוק הושלם"
-                            : castingTotal > 0
-                              ? `ליהוק ${castingFilled}/${castingTotal}`
-                              : "ליהוק הושלם"}
+                          {castingComplete ? "ליהוק הושלם" : castingSent ? "הליהוק בתהליך" : "ליהוק"}
                         </span>
                         {!castingComplete && !castingSent && (
                           <p className="text-gray-400 mt-0.5">← ממתין לשליחה לליהוק</p>
@@ -1544,8 +1533,8 @@ export default function WorkshopDetailPage() {
           const canSend = scenariosWithReq.length > 0 && scenariosWithoutModel.length === 0
           const wasSent = !!w.castingSentAt
 
-          // People cast / people needed, computed server-side so this section and the
-          // readiness checklist above can never disagree. Spec §7.7.
+          // Casting state, computed server-side so this section and the readiness
+          // checklist above can never disagree. Spec §7.7.
           const c = w.casting
 
           return (
@@ -1558,23 +1547,11 @@ export default function WorkshopDetailPage() {
                       נשלח לליהוק ✓ {new Date(w.castingSentAt!).toLocaleDateString("he-IL")}
                     </p>
                   )}
-                  {wasSent && c.total > 0 && (
-                    <>
-                      <p className={`text-base font-bold mt-1 ${c.complete ? "text-brand-green" : "text-amber-600"}`}>
-                        {c.complete ? "✓ ליהוק הושלם" : `ליהוק ${c.filled}/${c.total}`}
-                      </p>
-                      {!c.complete && (
-                        <p className="text-xs text-amber-600 mt-0.5">
-                          {c.allConfirmed
-                            ? "⏳ שחקנים אושרו, טרם לוהקו לחדרים"
-                            : "⏳ ממתין לאישור שחקנים"}
-                        </p>
-                      )}
-                    </>
-                  )}
-                  {wasSent && c.directorRequested && (
-                    <p className={`text-xs font-semibold mt-0.5 ${c.directorCast ? "text-brand-green" : "text-amber-600"}`}>
-                      {c.directorCast ? "🎬 במאי/ת לוהק/ה ✓" : "🎬 במאי/ת טרם לוהק/ה"}
+                  {/* No number. Expand הצג שחקנים below for the room-by-room detail,
+                      which is the only casting view the Tech can act on. Spec §7.7. */}
+                  {wasSent && (
+                    <p className={`text-base font-bold mt-1 ${c.complete ? "text-brand-green" : "text-amber-600"}`}>
+                      {c.complete ? "✓ הליהוק הושלם" : "⏳ הליהוק בתהליך"}
                     </p>
                   )}
                   {scenariosWithReq.length === 0 && (

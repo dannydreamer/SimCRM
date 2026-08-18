@@ -15,11 +15,7 @@ interface WorkshopRow {
   roomFacilitators: Facilitator[]
   slottingFilled: number; slottingTotal: number; slottingTentative: boolean
   castingFilled: number; castingTotal: number
-  casting: {
-    filled: number; total: number
-    complete: boolean; allConfirmed: boolean
-    directorRequested: boolean; directorCast: boolean
-  }
+  casting: { started: boolean; complete: boolean }
   scenarioWritten: boolean
   feedbackFormAdded: boolean
   pptFilled: number; pptTotal: number
@@ -68,21 +64,29 @@ function CheckBadge({ ok, warn, href }: { ok: boolean; warn?: boolean; href?: st
   return <span className="text-gray-300 text-xs">—</span>
 }
 
-function FractionBadge({ filled, total, href, alwaysFraction, complete: completeOverride, title }: {
-  filled: number; total: number; href?: string; alwaysFraction?: boolean
-  // Casting passes this explicitly: a full fraction is not proof the work is done.
-  complete?: boolean; title?: string
-}) {
+function FractionBadge({ filled, total, href, alwaysFraction }: { filled: number; total: number; href?: string; alwaysFraction?: boolean }) {
   if (total === 0) return <span className="text-gray-300 text-xs">—</span>
-  const complete = completeOverride ?? filled === total
+  const complete = filled === total
   const showCheck = complete && !alwaysFraction
   const inner = (
-    <span title={title} className={`text-xs font-medium ${complete ? "text-brand-green" : "text-amber-700"}`}>
+    <span className={`text-xs font-medium ${complete ? "text-brand-green" : "text-amber-700"}`}>
       {showCheck ? "✓" : `${filled}/${total}`}
     </span>
   )
   if (!complete && href) return <Link href={href} className="hover:underline" onClick={(e) => e.stopPropagation()}>{inner}</Link>
   return inner
+}
+
+// Casting is three states and no number. The Tech's stake in casting is handing it
+// over and knowing when it is finished; the slot counting belongs to the Caster,
+// on /lihukim. Spec §7.7.
+function CastingBadge({ started, complete, href }: { started: boolean; complete: boolean; href?: string }) {
+  if (!started) return <span title="טרם נשלח לליהוק" className="text-gray-300 text-xs">—</span>
+  if (complete) return <span title="הליהוק הושלם" className="text-brand-green font-bold text-base">✓</span>
+  const inner = <span title="הליהוק בתהליך" className="text-sm leading-none">⏳</span>
+  return href
+    ? <Link href={href} className="hover:underline" onClick={(e) => e.stopPropagation()}>{inner}</Link>
+    : inner
 }
 
 function FeedbackBadge({ missing, castingTotal, href }: { missing: number; castingTotal: number; href?: string }) {
@@ -429,34 +433,12 @@ export default function SadnaotPage() {
                       )}
                     </td>
 
-                    {/* People cast / people needed — never the Step 2 slot count, and
-                        never a ✓ until casting is genuinely complete. Spec §7.7. */}
                     <td className="px-3 py-2.5 text-center">
-                      <div className="flex items-center justify-center gap-1">
-                        <FractionBadge
-                          filled={w.casting.filled}
-                          total={w.casting.total}
-                          complete={w.casting.complete}
-                          title={
-                            w.casting.complete   ? "ליהוק הושלם"
-                            : w.casting.allConfirmed ? "שחקנים אושרו, טרם לוהקו לחדרים"
-                            : "ממתין לאישור שחקנים"
-                          }
-                          href={(isCaster || isManager) && w.castingSentAt ? `/lihukim/${w.id}` : `/sadnaot/${w.id}#casting`}
-                        />
-                        {!w.casting.complete && w.casting.allConfirmed && (
-                          <span title="שחקנים אושרו, טרם לוהקו לחדרים" className="text-xs leading-none">⏳</span>
-                        )}
-                        {w.casting.directorRequested && (
-                          <span
-                            title={w.casting.directorCast ? "במאי/ת לוהק/ה" : "במאי/ת טרם לוהק/ה"}
-                            className={`px-1 py-0.5 rounded text-xs font-semibold leading-none ${
-                              w.casting.directorCast ? "bg-green-50 text-brand-green" : "bg-amber-100 text-amber-700"
-                            }`}>
-                            {w.casting.directorCast ? "🎬✓" : "🎬⚠"}
-                          </span>
-                        )}
-                      </div>
+                      <CastingBadge
+                        started={w.casting.started}
+                        complete={w.casting.complete}
+                        href={(isCaster || isManager) && w.castingSentAt ? `/lihukim/${w.id}` : `/sadnaot/${w.id}#casting`}
+                      />
                     </td>
 
                     <td className="px-3 py-2.5 text-center">
