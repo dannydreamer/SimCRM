@@ -53,7 +53,6 @@ export async function GET(
       castings: {
         include: { actor: { select: { id: true, name: true } } },
       },
-      confirmedActors: { select: { id: true } },
       feedbacks: {
         select: {
           actorId: true, roomId: true,
@@ -97,13 +96,11 @@ export async function GET(
     castingMaleNeeded: w.castingMaleNeeded,
     castingFemaleNeeded: w.castingFemaleNeeded,
     castingNotes: w.castingNotes,
-    // People-scale casting progress for the ליהוק section and the readiness
-    // checklist, both of which must agree. Spec §7.7.
+    // Casting state for the ליהוק section and the readiness checklist, which must
+    // agree. Spec §7.7.
     casting: castingProgress({
-      directorRequested:   w.directorRequested,
-      castingMaleNeeded:   w.castingMaleNeeded,
-      castingFemaleNeeded: w.castingFemaleNeeded,
-      confirmedActorCount: w.confirmedActors.length,
+      directorRequested: w.directorRequested,
+      castingSentAt:     w.castingSentAt,
       rooms:     w.rooms,
       scenarios: w.scenarios,
       castings:  w.castings,
