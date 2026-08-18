@@ -412,7 +412,7 @@ Feedback is scoped to **Actor × Workshop × Room**, so two facilitators who wor
 ### 3.14 Remaining models
 
 - **Topic** — `id, name, active, createdAt`. Soft-delete via `active`.
-- **SimulationModel** — `id, name, active, createdAt`. Mirrors Topic exactly, including soft-delete via `active`. Backs `Scenario.modelId`; managed from רשימות מערכת (§8.10). Seeded with six values: קלאסי · 2*7 · כיסא חם · סימולציה בראש אחר · אייכה · סימולציה בתנועה. Historical scenarios were **not** backfilled — their `modelId` stays null.
+- **SimulationModel** — `id, name, active, orderIndex, createdAt`. Mirrors Topic apart from `orderIndex`, including soft-delete via `active`. Backs `Scenario.modelId`; managed from רשימות מערכת (§8.10). `orderIndex` is the manual display order — see §8.10. Seeded with six values: קלאסי · 2*7 · כיסא חם · סימולציה בראש אחר · אייכה · סימולציה בתנועה. Historical scenarios were **not** backfilled — their `modelId` stays null.
 - **ActorDevelopmentLog** — `actorId, date, note, enteredById, createdAt`.
 - **AnnualGoal** — `year, shiyuchTakzivi, allocation`. Unique on `(year, shiyuchTakzivi)`.
 - **AppSettings** — singleton (`id = 1`): `driveFolderId`, `googleAccessToken`, `googleRefreshToken`, `googleTokenExpiry`.
@@ -890,6 +890,10 @@ Manager edits; Tech views — Tech needs read access because both lists feed the
 
 > The route stays `/nosim` — it predates the second section. `[code]`
 
+**מודלי סימולציה is manually ordered.** Each active model has ↑/↓ arrows (Manager only) that move it one place; the resulting order is `SimulationModel.orderIndex` and is the order the model dropdowns on Workshop Detail use, so heavily-used models can be kept at the top and rare ones pushed down. A new model is appended at the bottom. Inactive models are not reorderable. Arrows rather than drag-and-drop, deliberately — the list is reordered rarely, and arrows cost nothing to maintain. `[code]`
+
+> **נושאים is still alphabetical.** The ordering is opt-in per section (`reorderable` on `ManagedListSection`); only models asked for it. `[code]`
+
 ### 8.11 Facilitator Load — `/omas`
 
 Manager only. Four time-window pills: שבוע / 2 שבועות / 3 שבועות / 4 שבועות.
@@ -1344,6 +1348,8 @@ Sessions 1–19 as built. Branch naming `session-N-*`, merged to `develop` then 
 | Aug 2026 | — | **Tech workshop-editing gap closed** (branch `tech_editing_workshop`). §5.2 had always granted Tech "Workshops — edit"; the code allowed her nothing on the Workshop Detail header. Tech now gets the identical basic-info form Manager has, plus facilitator assignment, the author dropdown, the הערות card, and soft-cancel of rooms and scenarios (§5.3 item 4). Creation and cancellation of a workshop stay Manager-only. Two bugs fixed alongside: the משוב משתתפים checkbox was offered to Tech but silently ignored by the API, and the room-cancelled banner never mentioned re-sending to casting (§11). |
 
 | Aug 2026 | — | **Casting progress reported in people, not slots** (branch `casting_step1_badge`, new §7.7). The ליהוק badge on the workshop table (§8.2) and the ליהוק section on Workshop Detail (§8.4) previously used the Step 2 slot formula, rendering a workshop needing 2 actors across 3 rooms as `0/6` — a number only the Caster can act on. Both now read `people cast / people needed`, with the director inside the fraction. A person counts only when **fully deployed** in Step 2; Step 1 confirmation alone counts zero, and a new intermediate state (*⏳ שחקנים אושרו, טרם לוהקו לחדרים*) makes that visible. **The ✓ is gated on full Step 2 completion, never on the fraction** — mirroring READY condition 2 (§4.3), which is unchanged — so the casting section and the readiness checklist on the same page can no longer contradict each other. The readiness checklist adopts the same fraction. One shared computation in `src/lib/casting-progress.ts` replaces the formula that had been duplicated across four files. The `ממתין לליהוק` filter still measures raw Step 2 slots and was renamed **ממתין לליהוק לחדרים**. |
+
+| Aug 2026 | — | **מודלי סימולציה manually ordered** (branch `model_order`, §8.10). New `SimulationModel.orderIndex`, backfilled to the alphabetical order the list already showed, so nothing moved on release. Manager-only ↑/↓ arrows on the active rows write the whole list back through `PATCH /api/modelim/reorder`; `GET /api/modelim` orders by `orderIndex` then name, which carries the order into the scenario model dropdowns on Workshop Detail — the actual point of the feature, since a handful of models are used constantly and the rest almost never. נושאים deliberately left alphabetical. |
 
 | Aug 2026 | — | **Caster change markers collapsed to one dot** (§7.6). The ליהוק column on `/lihukim` carried three unlabelled marks — amber `⚠` for a room added or cancelled, amber or red `!` for every other change — encoding change-type in the glyph and urgency in the colour, with no tooltips on either. Each fired only when its own banner was already on screen, so none of them carried information the banner did not. Replaced by a single dot whose only job is pointing at the row, red when actors are already cast. Fixed alongside: the other-change banner listed `ROOM_ADDED` details as well as its own, reporting a room addition twice. |
 

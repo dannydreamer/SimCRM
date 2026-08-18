@@ -237,10 +237,11 @@ model Topic {
 // ─── Simulation Model ─────────────────────────────────────────────────────────
 
 model SimulationModel {
-  id        String   @id @default(uuid())
-  name      String
-  active    Boolean  @default(true)
-  createdAt DateTime @default(now())
+  id         String   @id @default(uuid())
+  name       String
+  active     Boolean  @default(true)
+  orderIndex Int      @default(0)
+  createdAt  DateTime @default(now())
 
   scenarios Scenario[]
 }
