@@ -91,13 +91,16 @@ export async function POST(
     }
   }
 
-  // Auto-advance: sending casting may complete the READY conditions
-  await checkAndAdvanceStatus(id)
+  // Auto-advance: sending casting may complete the READY conditions, and a
+  // re-send drops the Step 2 assignments of actors who never confirmed — which
+  // can regress READY → SPECIFIED. Either way the client needs the new status.
+  const workshopStatus = await checkAndAdvanceStatus(id)
 
   return NextResponse.json({
     castingSentAt: now.toISOString(),
     castingMaleNeeded: Number(castingMaleNeeded),
     castingFemaleNeeded: Number(castingFemaleNeeded),
     castingNotes: castingNotes?.trim() || null,
+    ...(workshopStatus !== null && { workshopStatus }),
   })
 }

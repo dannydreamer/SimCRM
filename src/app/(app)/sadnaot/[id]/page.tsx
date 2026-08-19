@@ -165,7 +165,7 @@ function Check({ on }: { on: boolean }) {
 // ─── ScenarioRow ──────────────────────────────────────────────────────────────
 
 function ScenarioRow({
-  s, workshopId, canEdit, canCancel, topics, models, onUpdate, onCancel,
+  s, workshopId, canEdit, canCancel, topics, models, onUpdate, onCancel, onReload,
 }: {
   s: Scenario
   workshopId: string
@@ -175,6 +175,7 @@ function ScenarioRow({
   models: SimulationModel[]
   onUpdate: (sid: string, data: Partial<Scenario>) => void
   onCancel: (sid: string) => void
+  onReload: () => void
 }) {
   const [editing, setEditing] = useState(false)
   const [topicId, setTopicId] = useState(s.topicId)
@@ -204,12 +205,19 @@ function ScenarioRow({
   }
 
   async function toggleWritten() {
+    const next = !s.written
     const res = await fetch(`/api/sadnaot/${workshopId}/scenarios/${s.id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ written: !s.written }),
+      body: JSON.stringify({ written: next }),
     })
-    if (res.ok) onUpdate(s.id, { written: !s.written })
+    if (!res.ok) return
+    const updated = await res.json()
+    // Un-marking נכתב clears pptReceived on every room server-side, and either
+    // direction can move the workshop between SPECIFIED and READY. Both change
+    // state this row does not own, so reload rather than patch locally.
+    if (!next || updated.workshopStatus) { onReload(); return }
+    onUpdate(s.id, { written: next })
   }
 
   // The model saves on its own, independently of the edit form — it is set later in
@@ -823,12 +831,13 @@ export default function WorkshopDetailPage() {
 
   async function toggleFeedbackForm() {
     if (!w) return
-    const res = await fetch(`/api/sadnaot/${id}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ feedbackFormAdded: !w.feedbackFormAdded }),
-    })
-    if (res.ok) setW((prev) => prev ? { ...prev, feedbackFormAdded: !prev.feedbackFormAdded } : prev)
+    const next = !w.feedbackFormAdded
+    // Goes through patchWorkshop so a resulting SPECIFIED↔READY transition is
+    // picked up — this is READY condition 3, and a bare fetch here discarded the
+    // auto-advanced status the PATCH response carries. feedbackFormAdded itself
+    // is not in that response, so it is applied locally.
+    const res = await patchWorkshop({ feedbackFormAdded: next })
+    if (res.ok) setW((prev) => prev ? { ...prev, feedbackFormAdded: next } : prev)
   }
 
   function buildFormString() {
@@ -879,6 +888,9 @@ export default function WorkshopDetailPage() {
         castingNotes: data.castingNotes,
       } : prev)
       setShowCastingOverlay(false)
+      // A re-send prunes unconfirmed actors' Step 2 assignments, so both the
+      // status and the casting progress this page renders can now be stale.
+      await load()
     } else {
       const body = await res.json().catch(() => ({}))
       setCastingError(body.error ?? `שגיאה (${res.status})`)
@@ -1518,6 +1530,7 @@ export default function WorkshopDetailPage() {
                       models={models}
                       onUpdate={updateScenario}
                       onCancel={cancelScenario}
+                      onReload={load}
                     />
                   ))}
                 </tbody>
