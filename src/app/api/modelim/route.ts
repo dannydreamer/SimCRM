@@ -11,7 +11,13 @@ export async function GET() {
   // Name is only the tie-break for rows that share an index.
   const models = await prisma.simulationModel.findMany({
     orderBy: [{ orderIndex: "asc" }, { name: "asc" }],
-    include: { _count: { select: { scenarios: true } } },
+    include: {
+      // Same rule as the topic count: cancelled scenarios and scenarios of cancelled
+      // workshops never ran, so they do not count.
+      _count: {
+        select: { scenarios: { where: { cancelled: false, workshop: { cancelled: false } } } },
+      },
+    },
   })
 
   return NextResponse.json(
