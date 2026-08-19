@@ -88,9 +88,6 @@ export async function PATCH(
     })
   }
 
-  // Auto-advance workshop status (all written → READY)
-  if (written !== undefined) await checkAndAdvanceStatus(id)
-
   // Bug 1: if a scenario is un-written, auto-uncheck PPT on all active rooms
   if (written === false) {
     await prisma.room.updateMany({
@@ -98,6 +95,12 @@ export async function PATCH(
       data: { pptReceived: false },
     })
   }
+
+  // Auto-advance workshop status (all written → READY).
+  // MUST run after the PPT reset above: it evaluates READY condition 1 against
+  // pptReceived, so running it first judged the regression on stale values and
+  // left the workshop READY with every מצגת unchecked.
+  const workshopStatus = written !== undefined ? await checkAndAdvanceStatus(id) : null
 
   return NextResponse.json({
     id: updated.id,
@@ -112,6 +115,7 @@ export async function PATCH(
     written: updated.written,
     cancelled: updated.cancelled,
     orderIndex: updated.orderIndex,
+    ...(workshopStatus !== null && { workshopStatus }),
   })
 }
 
