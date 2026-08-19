@@ -496,7 +496,7 @@ A workshop dated in the past transitions immediately. A workshop dated *today* w
 
 **READY can regress to SPECIFIED** if any of the five conditions becomes unmet before the date passes — e.g. an actor is removed from Step 1 casting, a scenario is un-written (which auto-unchecks PPT on all active rooms), מספר משתתפים משוער is cleared, or חדר אחר is selected on a workshop where it has not been approved.
 
-**CLOSED can regress to CLOSING** if a letter is unchecked or feedback becomes incomplete.
+**CLOSED can regress to CLOSING** if a letter is unchecked or feedback becomes incomplete — including when a Manager **deletes** a feedback record (§8.7). The delete action calls `checkAndAdvanceStatus()` explicitly; the regression is not a side effect of the delete itself. `[code]`
 
 ### 4.5 Feedback completeness
 
@@ -562,6 +562,7 @@ Un-writing a scenario auto-unchecks `pptReceived` on all active rooms in that wo
 | Actors — **edit** | ✓ | ✓ | ✓ | — | — |
 | Actor feedback history & dev log — view | ✓ | — | — | ✓ | — |
 | Feedback — enter/edit | ✓ | — | — | ✓ | — |
+| Feedback — **delete** | ✓ | — | — | — | — |
 | Feedback — export | ✓ | — | — | ✓ | — |
 | Dev log — write | ✓ | — | — | ✓ | — |
 | Topics — view | ✓ | ✓ | — | — | — |
@@ -847,6 +848,8 @@ Within a day cell, blocks are stacked in **start-time order**. This is ordering 
 **Profile:** two-initial avatar, name, contact details, languages, specialties, canDirect, last-active date. Feedback history table with a **תפקיד** column (distinguishing room feedback from director feedback) and per-aspect RAG dots, expandable to reveal free text. Development log below. CSV export button.
 
 Feedback history and the development log render **only for Manager and Feedback Documenter** — Tech and Caster do not see these sections at all.
+
+**Feedback delete is Manager-only** (§5.2). A 🗑 control sits at the end of each feedback row and renders for Manager alone — the Feedback Documenter sees the same table without that column. It is a **hard delete**: `DELETE /api/feedback/[id]` removes the row, there is no soft-delete flag and no undo, so a confirmation dialog naming the date and organisation is shown first. The route then calls `checkAndAdvanceStatus()` on the record's workshop, which can regress it CLOSED → CLOSING (§4.4). Permission is enforced in the route, not only by hiding the control. `[code]`
 
 > **Deliberately excluded:** the design spec's left-column "סיכום היבטים" aggregate RAG bars. The per-feedback dots above are the intended level of detail — **no statistical aggregation over an actor's feedback is to be built.** See §12.
 
@@ -1351,6 +1354,8 @@ Sessions 1–19 as built. Branch naming `session-N-*`, merged to `develop` then 
 | Aug 2026 | — | **Caster change markers collapsed to one dot** (§7.6). The ליהוק column on `/lihukim` carried three unlabelled marks — amber `⚠` for a room added or cancelled, amber or red `!` for every other change — encoding change-type in the glyph and urgency in the colour, with no tooltips on either. Each fired only when its own banner was already on screen, so none of them carried information the banner did not. Replaced by a single dot whose only job is pointing at the row, red when actors are already cast. Fixed alongside: the other-change banner listed `ROOM_ADDED` details as well as its own, reporting a room addition twice. |
 
 | Aug 2026 | — | **Casting reduced to three states on the Tech's screens** (§7.7, branch `casting_three_state`). The ליהוק column (§8.2) and the ליהוק section on Workshop Detail (§8.4) now show `—` / ⏳ / ✓ and no number at all; the readiness checklist carries the same three states in words. Three successive attempts at a fraction each failed structurally — the Caster's slot count reads `0/6` for two actors across three rooms; Step 1 confirmations showed a green "all actors confirmed" on a workshop nobody had been assigned to; and the hand-typed request as a denominator created uncastable people, displaying `1/3` the moment casting was sent. Slots, confirmations and requested bodies are three different cardinalities and no fraction reconciles them. The Tech reads detail by expanding הצג שחקנים, which already lists every room with `חסר` where an actor is missing. `castingProgress()` collapses to two booleans; `filled` / `total` / `allConfirmed`, the person-line model and the 🎬 chip are all deleted. READY condition 2 and the Caster's own `X/Y` are untouched. |
+
+| Aug 2026 | — | **Feedback delete added, Manager only** (branch `feedback_delete`, §8.7). A 🗑 control per row in the actor profile's היסטוריית פידבק table, behind a confirmation dialog; the Feedback Documenter keeps enter/edit/export and does not see the column (§5.2). Hard delete — no soft-delete flag, no undo — via a new `DELETE /api/feedback/[id]` guarded on MANAGER in the route itself. The route calls `checkAndAdvanceStatus()` on the workshop explicitly, the same way removing a Step 1 confirmed actor triggers the READY → SPECIFIED check, so a workshop that loses its last complete record regresses CLOSED → CLOSING (§4.4). No schema change, no migration. |
 
 ---
 
