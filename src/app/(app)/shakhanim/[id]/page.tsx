@@ -1,7 +1,7 @@
 "use client"
 
 import { Fragment, useEffect, useState } from "react"
-import { useParams } from "next/navigation"
+import { useParams, useRouter } from "next/navigation"
 import Link from "next/link"
 import { useUser } from "@/app/(app)/user-context"
 import { RagDot } from "@/components/RagDot"
@@ -61,6 +61,7 @@ function fmtDate(iso: string) {
 
 export default function ActorProfilePage() {
   const { id }       = useParams<{ id: string }>()
+  const router       = useRouter()
   const user         = useUser()
   const isManager    = user.roles.includes("MANAGER")
   const isTech       = user.roles.includes("TECH")
@@ -78,6 +79,10 @@ export default function ActorProfilePage() {
 
   // Expand feedback rows
   const [expanded, setExpanded] = useState<Set<string>>(new Set())
+
+  // Feedback delete — Manager only
+  const [deletingId, setDeletingId]   = useState<string | null>(null)
+  const [deleteError, setDeleteError] = useState("")
 
   // Dev log add
   const [newNote, setNewNote]     = useState("")
@@ -133,6 +138,19 @@ export default function ActorProfilePage() {
     if (!res.ok) { setLogError(data.error ?? "שגיאה"); setAddingLog(false); return }
     setNewNote(""); setAddingLog(false)
     await fetchActor()
+  }
+
+  async function deleteFeedback(f: FeedbackRow) {
+    if (!confirm(`למחוק את הפידבק מ־${fmtDate(f.date)} (${f.orgName})? פעולה זו בלתי הפיכה.`)) return
+    setDeleteError(""); setDeletingId(f.id)
+    const res  = await fetch(`/api/feedback/${f.id}`, { method: "DELETE" })
+    const data = await res.json().catch(() => ({}))
+    setDeletingId(null)
+    if (!res.ok) { setDeleteError(data.error ?? "שגיאה במחיקה"); return }
+    setExpanded((prev) => { const next = new Set(prev); next.delete(f.id); return next })
+    await fetchActor()
+    // Deleting feedback can regress the workshop CLOSED → CLOSING
+    router.refresh()
   }
 
   function toggleExpand(fid: string) {
@@ -288,6 +306,7 @@ export default function ActorProfilePage() {
                           <th className="px-3 py-2 text-center">שיקוף</th>
                           <th className="px-3 py-2 text-center">מקצועיות</th>
                           <th className="px-3 py-2"></th>
+                          {isManager && <th className="px-3 py-2"></th>}
                         </tr>
                       </thead>
                       <tbody>
@@ -318,10 +337,23 @@ export default function ActorProfilePage() {
                               <td className="px-3 py-2.5 text-center"><RagDot color={f.aspect3Color} /></td>
                               <td className="px-3 py-2.5 text-center"><RagDot color={f.aspect4Color} /></td>
                               <td className="px-3 py-2.5 text-gray-400 text-xs">{expanded.has(f.id) ? "▲" : "▾"}</td>
+                              {isManager && (
+                                <td className="px-3 py-2.5">
+                                  <button
+                                    onClick={(e) => { e.stopPropagation(); deleteFeedback(f) }}
+                                    disabled={deletingId === f.id}
+                                    title="מחיקת פידבק"
+                                    aria-label="מחיקת פידבק"
+                                    className="text-gray-300 hover:text-red-600 disabled:opacity-50 transition-colors text-sm"
+                                  >
+                                    🗑
+                                  </button>
+                                </td>
+                              )}
                             </tr>
                             {expanded.has(f.id) && (
                               <tr key={`${f.id}-exp`} className="border-b border-gray-100 bg-gray-50/60">
-                                <td colSpan={9} className="px-4 py-3">
+                                <td colSpan={isManager ? 10 : 9} className="px-4 py-3">
                                   <div className="grid grid-cols-2 gap-3">
                                     {[
                                       { label: "התכוננות לסדנה",   color: f.aspect1Color, text: f.aspect1Text },
@@ -348,6 +380,7 @@ export default function ActorProfilePage() {
                     </table>
                   </div>
                 )}
+                {deleteError && <p className="text-sm text-red-600 mt-2">{deleteError}</p>}
               </div>
             )}
 
