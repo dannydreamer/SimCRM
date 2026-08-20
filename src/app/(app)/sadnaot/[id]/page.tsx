@@ -1298,7 +1298,7 @@ export default function WorkshopDetailPage() {
                     {/* Condition 3: Feedback form */}
                     <div className="flex items-center gap-2 text-xs">
                       <span className={`font-bold ${feedbackDone ? "text-brand-green" : "text-gray-300"}`}>{feedbackDone ? "✓" : "○"}</span>
-                      <span className={feedbackDone ? "text-gray-700" : "text-gray-500"}>טופס פידבק הועבר</span>
+                      <span className={feedbackDone ? "text-gray-700" : "text-gray-500"}>הועתק לגוגל פורם של המשוב</span>
                     </div>
 
                     {/* Condition 4: Estimated participants — mirrors the field above */}

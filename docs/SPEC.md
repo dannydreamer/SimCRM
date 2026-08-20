@@ -778,6 +778,8 @@ Primary landing page for Manager, Tech, Feedback Documenter, and Facilitator.
 
 The first badge filters on **Step 2** completeness (`castingFilled < castingTotal`) — deliberately a different measure from the column beside it, hence the explicit לחדרים in the label. Without it the filter would appear to contradict the badge: a row can be returned as "pending" while its ליהוק column reads `2/2`.
 
+A third toggle, **`הסתר סדנאות שממתינות רק לפידבק`**, removes rows that are in `בתהליך סגירה` with **all מכתבים received** and `feedbackMissing > 0` — the exact set whose only outstanding item is feedback entry, which is the Feedback Documenter's job and not the Tech's. Letters still outstanding keeps the row visible. Off by default, set per user, and remembered in `localStorage` under `simcrm:hide-feedback-only:<userId>`. `[code]`
+
 Cancelled workshops: strikethrough, dimmed, collapsed at the bottom, visible only under `הכל`. Sort and filter controls added in session 18. `[code]`
 
 ### 8.3 New Workshop — `/sadnaot/new`
@@ -887,6 +889,8 @@ A feedback card counts as complete only when at least one aspect has text.
 Titled **רשימות מערכת**. Two managed-list sections on one page, both following the same pattern: **נושאים** and **מודלי סימולציה**.
 
 Manager edits; Tech views — Tech needs read access because both lists feed the scenario dropdowns. Add, rename inline, deactivate. **No hard delete.** Deactivated values stay on historical records but disappear from new dropdowns. Each value shows its scenario count. `[code]`
+
+**The scenario count excludes what never ran** — cancelled scenarios, and scenarios belonging to a cancelled workshop, are not counted in either section. Scenarios in future workshops *are* counted: the number answers "is this value in use", not "how many times has it run". `[code]`
 
 > The route stays `/nosim` — it predates the second section. `[code]`
 
@@ -1356,6 +1360,8 @@ Sessions 1–19 as built. Branch naming `session-N-*`, merged to `develop` then 
 | Aug 2026 | — | **Casting reduced to three states on the Tech's screens** (§7.7, branch `casting_three_state`). The ליהוק column (§8.2) and the ליהוק section on Workshop Detail (§8.4) now show `—` / ⏳ / ✓ and no number at all; the readiness checklist carries the same three states in words. Three successive attempts at a fraction each failed structurally — the Caster's slot count reads `0/6` for two actors across three rooms; Step 1 confirmations showed a green "all actors confirmed" on a workshop nobody had been assigned to; and the hand-typed request as a denominator created uncastable people, displaying `1/3` the moment casting was sent. Slots, confirmations and requested bodies are three different cardinalities and no fraction reconciles them. The Tech reads detail by expanding הצג שחקנים, which already lists every room with `חסר` where an actor is missing. `castingProgress()` collapses to two booleans; `filled` / `total` / `allConfirmed`, the person-line model and the 🎬 chip are all deleted. READY condition 2 and the Caster's own `X/Y` are untouched. |
 
 | Aug 2026 | — | **Feedback delete added, Manager only** (branch `feedback_delete`, §8.7). A 🗑 control per row in the actor profile's היסטוריית פידבק table, behind a confirmation dialog; the Feedback Documenter keeps enter/edit/export and does not see the column (§5.2). Hard delete — no soft-delete flag, no undo — via a new `DELETE /api/feedback/[id]` guarded on MANAGER in the route itself. The route calls `checkAndAdvanceStatus()` on the workshop explicitly, the same way removing a Step 1 confirmed actor triggers the READY → SPECIFIED check, so a workshop that loses its last complete record regresses CLOSED → CLOSING (§4.4). No schema change, no migration. |
+
+| Aug 2026 | — | **Three small Tech-facing fixes** (branch `tech_view_fixes`, §8.2, §8.10). (1) READY condition 3 on Workshop Detail now reads *הועתק לגוגל פורם של המשוב* instead of the misleading *טופס פידבק הועבר* — nothing was ever "passed on"; the Tech copies a generated string into the Google Form. (2) New `הסתר סדנאות שממתינות רק לפידבק` toggle on the workshop table, persisted per user in `localStorage`. (3) The scenario counts on רשימות מערכת counted cancelled scenarios and scenarios of cancelled workshops; both `GET /api/nosim` and `GET /api/modelim` now filter them out. No schema change, no migration. |
 
 ---
 
