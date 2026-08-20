@@ -9,7 +9,13 @@ export async function GET() {
 
   const topics = await prisma.topic.findMany({
     orderBy: { name: "asc" },
-    include: { _count: { select: { scenarios: true } } },
+    include: {
+      // A cancelled scenario, or one belonging to a cancelled workshop, never ran —
+      // it must not inflate the topic's usage count. Future workshops do count.
+      _count: {
+        select: { scenarios: { where: { cancelled: false, workshop: { cancelled: false } } } },
+      },
+    },
   })
 
   return NextResponse.json(
