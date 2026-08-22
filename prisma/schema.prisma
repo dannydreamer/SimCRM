@@ -173,6 +173,14 @@ model Workshop {
   estimatedParticipants Int?
   otherRoomNotes        String?
   otherRoomApproved     Boolean      @default(false)
+  // ─── טבלאות פיבוט (spec §8.12) ───
+  // Free text on the pivot row. Deliberately separate from `notes`, which is the
+  // workshop's own operational note — these two are read by different people for
+  // different reasons and merging them loses that.
+  pivotNotes            String?
+  // null = use the computed default (see src/lib/counted-rooms.ts). A set value
+  // wins everywhere capacity is measured against the annual allocation.
+  countedRoomsOverride  Int?
   createdAt           DateTime       @default(now())
   createdById         String?
 

@@ -2,80 +2,42 @@ import { NextRequest, NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
-import { ShiyuchTakzivi } from "@prisma/client"
+import {
+  TAKZIVI_ORDER, buildAnnualGrid, getAllocations, getPivotRows,
+} from "@/lib/pivot-data"
 
-const TAKZIVI_ORDER: ShiyuchTakzivi[] = [
-  "OVDEI_HORAA",
-  "MANCHI",
-  "IRIYAT_YERUSHALAIM_TASHLUM",
-  "CHUTZNIIOT_TASHLUM",
-]
-
+/** The annual סיכום grid: 12 month rows × 4 שיוך תקציבי columns. Spec §8.12. */
 export async function GET(req: NextRequest) {
   const session = await getServerSession(authOptions)
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-  if (!session.user.roles.includes("MANAGER"))
+  const roles = session.user.roles
+  if (!roles.includes("MANAGER") && !roles.includes("TECH"))
     return NextResponse.json({ error: "Forbidden" }, { status: 403 })
 
-  const year = Number(req.nextUrl.searchParams.get("year")) || new Date().getFullYear()
+  const year  = Number(req.nextUrl.searchParams.get("year")) || new Date().getFullYear()
+  const today = new Date()
 
-  const yearStart = new Date(`${year}-01-01T00:00:00.000Z`)
-  const yearEnd   = new Date(`${year}-12-31T23:59:59.999Z`)
-  const today     = new Date()
-
-  // Fetch all allocations for this year
-  const goals = await prisma.annualGoal.findMany({ where: { year } })
-  const goalMap = new Map(goals.map((g) => [g.shiyuchTakzivi, g.allocation]))
-
-  // Fetch all non-cancelled workshops in the year with their active rooms and org shiyuchTakzivi
-  const workshops = await prisma.workshop.findMany({
-    where: {
-      cancelled: false,
-      date: { gte: yearStart, lte: yearEnd },
-    },
-    select: {
-      date: true,
-      participantGroup: {
-        select: {
-          organization: { select: { shiyuchTakzivi: true } },
-        },
-      },
-      rooms: {
-        where: { cancelled: false },
-        select: { id: true },
-      },
-    },
-  })
-
-  // Tally room counts by shiyuchTakzivi × past/future
-  const utilized = new Map<string, number>()
-  const planned  = new Map<string, number>()
-
-  for (const tv of TAKZIVI_ORDER) {
-    utilized.set(tv, 0)
-    planned.set(tv, 0)
-  }
-
-  for (const w of workshops) {
-    const tv = w.participantGroup.organization.shiyuchTakzivi
-    const roomCount = w.rooms.length
-    if (new Date(w.date) < today) {
-      utilized.set(tv, (utilized.get(tv) ?? 0) + roomCount)
-    } else {
-      planned.set(tv, (planned.get(tv) ?? 0) + roomCount)
-    }
-  }
+  const [rows, allocations] = await Promise.all([
+    getPivotRows(year),
+    getAllocations(year),
+  ])
+  const grid = buildAnnualGrid(rows, today)
 
   return NextResponse.json(
-    TAKZIVI_ORDER.map((tv) => ({
-      shiyuchTakzivi: tv,
-      allocation:     goalMap.get(tv) ?? 0,
-      utilized:       utilized.get(tv) ?? 0,
-      planned:        planned.get(tv)  ?? 0,
-    }))
+    {
+      year,
+      today:      today.toISOString(),
+      categories: TAKZIVI_ORDER,
+      allocations,
+      months:     grid.months,
+      totals:     grid.totals,
+      elapsed:    grid.elapsed,
+    },
+    { headers: { "Cache-Control": "no-store" } }
   )
 }
 
+/** Annual allocation (יעד שנתי). Manager only — Tech may read the page but not retarget it. */
 export async function PATCH(req: NextRequest) {
   const session = await getServerSession(authOptions)
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })

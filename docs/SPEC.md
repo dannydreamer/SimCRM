@@ -282,6 +282,8 @@ Multiple groups with the same name under one organization are permitted — no d
 | **otherRoomNotes** | String? | Free text, only meaningful while `OTHER` is among the selected room locations |
 | **otherRoomApproved** | Boolean | Default false. Only consulted when `OTHER` is selected |
 | **scenarioOrderFlexible** | Boolean | Default false. Ticked = the scenarios may be run in any order; unticked = they run in `orderIndex` order. Tech-facing bookkeeping only — see §8.4 |
+| **pivotNotes** | String? | Free text on the טבלאות פיבוט row (§8.12). Manager + Tech. Deliberately separate from `notes` — the two are read by different people for different reasons |
+| **countedRoomsOverride** | Int? | חדרים לספירה override (§8.12). Null = use the computed default. A set value wins **everywhere** capacity is measured against the annual allocation |
 | notes | String? | |
 | createdAt / createdById | | |
 
@@ -560,7 +562,7 @@ Un-writing a scenario auto-unchecks `pptReceived` on all active rooms in that wo
 | שחקנים | `/shakhanim` | Manager, Tech, Caster, Feedback Doc |
 | עומס מתחקרים | `/omas` | Manager |
 | רשימות מערכת | `/nosim` | Manager, Tech |
-| יעדי סדנאות | `/yaadot` | Manager |
+| טבלאות פיבוט | `/yaadot` | Manager, Tech |
 | ניהול משתמשים | `/users` | Manager |
 | הגדרות | `/settings` | Manager |
 
@@ -597,6 +599,10 @@ Un-writing a scenario auto-unchecks `pptReceived` on all active rooms in that wo
 | Simulation models — edit | ✓ | — | — | — | — |
 | Scenario simulation model — set/change | ✓ | ✓ | — | — | — |
 | Soft-cancel room/scenario | ✓ | ✓ | — | — | — |
+| טבלאות פיבוט — view | ✓ | ✓ | — | — | — |
+| Pivot — edit חדרים לספירה / הערות | ✓ | ✓ | — | — | — |
+| Pivot — edit **יעד שנתי** | ✓ | — | — | — | — |
+| Pivot — export | ✓ | ✓ | — | — | — |
 | Facilitator Load, Goals, Users, Settings | ✓ | — | — | — | — |
 
 > **Rooms are cancelled only by lowering מספר חדרים** — there is no per-room cancel control on the Workshop Detail page. Lowering the count cancels the highest-numbered active rooms, deletes their Step 2 casting assignments, and logs `ROOM_CANCELLED` for the Caster if casting was already sent. Workshop **cancellation** remains Manager-only and is a separate action from anything in the edit form. `[code]`
@@ -932,19 +938,115 @@ Columns: מתחקר/ת | **תחקור** | **כתיבת תרחישים** | סה"�
 
 **No colour coding** — plain black numbers only. The original spec's Green/Yellow/Red thresholds were explicitly removed. Sorted by total descending; only active facilitators shown. Expanding a row lists that facilitator's workshops in the period, each clickable.
 
-### 8.12 Goals — `/yaadot`
+### 8.12 טבלאות פיבוט — `/yaadot`
 
-Manager only. Tracks annual **room** allocation against actual usage, by שיוך תקציבי.
+Manager and Tech. Two views over one row set, switched by a month strip: a **סיכום**
+grid for the year, and a **monthly** table with one row per workshop. `[code]`
+
+The route is still `/yaadot` — only the label changed. It was *יעדי סדנאות* until
+August 2026, and the four-row allocation table it showed is superseded by the
+grid below.
 
 Year selector starts at **2026–2028**, with a `+` button that adds the next year behind a confirmation (`87d2724`). `[code]`
 
-Four fixed rows (one per שיוך תקציבי) plus a totals row. Columns: שיוך תקציבי | פירוט | הקצאה שנתית | נוצלו | עתידי | סה"כ | נותרו.
+#### חדרים לספירה — the capacity figure
 
-- **נוצלו** — rooms from workshops with past dates, for orgs in this category, in the selected year.
-- **עתידי** — rooms dated today or later.
-- **נותרו** — הקצאה שנתית − סה"כ. Red when negative, rendered `-9` not `9-`.
-- Counts are of **rooms**, not workshops.
-- Editing הקצאה שנתית requires an explicit confirmation flow; a pen icon on the column header is always visible (`79d8677`, `c2580d3`). All years default to 0.
+The number that answers *how much capacity did this workshop use*. **Every
+measurement of room usage against the annual allocation uses it — never a raw
+room count.** `countedRoomsOverride ?? default`, where the default is:
+
+| Workshop state | Default | Why |
+|---|---|---|
+| Not cancelled | count of active (non-soft-cancelled) `Room` records | — |
+| Cancelled, `status == NEW` | **0** | cancelled before איתור צרכים; no work had been done |
+| Cancelled, `status != NEW` | **1** | cancelled after איתור צרכים; scenarios were written and casting had begun, so a slot was consumed regardless of how many rooms were booked |
+
+The rule lives in `src/lib/counted-rooms.ts` and is read from there by the grid,
+the monthly table and the export, so the three cannot drift. `[code]`
+
+> **Why there is no `preCancellationStatus` column.** Cancelling writes
+> `cancelled = true` and never touches `status`; `checkAndAdvanceStatus()` returns
+> early for a cancelled workshop (§4.3); and there is no un-cancel path — the only
+> control declares *"פעולה זו בלתי הפיכה"*. `status` is therefore frozen at the
+> instant of cancellation, permanently, **including on rows that predate this
+> feature** — which is why the migration needed no backfill.
+
+#### The ביטול column
+
+Computed live from `cancelled` + `status`. Never stored as text, never editable,
+and not something a Tech can blur by rewriting — which is why it is a column of
+its own rather than a convention inside הערות.
+
+| Condition | Label |
+|---|---|
+| `cancelled && status == NEW` | **מבוטל** |
+| `cancelled && status != NEW` | **בוטל לאחר איתור צרכים** |
+| not cancelled | *(empty)* |
+
+`pivotNotes` renders alongside it, never merged into it. The §4.7 strikethrough
+applies to the whole row.
+
+> Cancelling from **CLOSING** stays permitted and is routine, not an anomaly: a
+> workshop auto-advances to CLOSING the moment its date passes, so a group that
+> cancels on the morning of the event produces one every time. §4.7 records that
+> this capability was added for exactly that case. Such a row counts 1 and reads
+> *בוטל לאחר איתור צרכים*, which is correct. CLOSED is the genuinely odd case; it
+> is left permitted, and the override handles it if it ever appears.
+
+#### Annual view — סיכום
+
+**12 month rows × 4 שיוך תקציבי columns**, then סה"כ, יעד שנתי and נותרו.
+Modelled on the centre's own Excel workbook, which staff already read.
+
+- Each cell sums **חדרים לספירה** for that month and category.
+- Column headers use short forms (עו"ה / מנח"י / עירייה / חיצוני) — `TAKZIVI_SHORT`
+  in `src/lib/shiyuch.ts`. The full label is the cell's `title`.
+- Months still ahead render dimmed. Beneath the table: **סה"כ נכון ל‑DD.MM**, counting
+  only workshops that have already happened.
+- **נותרו** = יעד שנתי − סה"כ. Red when negative, rendered `-9` not `9-`.
+- Editing **יעד שנתי** requires the explicit confirmation flow; the pen sits on the
+  row label. **Manager only** — enforced in the route handler, not just hidden in
+  the UI. All years default to 0.
+- Clicking a month row opens that month.
+
+#### Monthly view
+
+Columns: תאריך | שם הקבוצה | מודל | חדרים בפועל | חדרים לספירה | שיוך תקציבי | ביטול | הערות
+
+- **שם הקבוצה** — `Organization.name - ParticipantGroup.name`.
+- **מודל** — distinct `SimulationModel` names across active scenarios, in
+  `orderIndex` order, comma-separated. A scenario with no model set contributes
+  nothing.
+- **חדרים בפועל** — active room count. Informational and read-only; a workshop
+  cancelled after איתור צרכים shows בפועל 3 / לספירה 1, and the ביטול column says why.
+- **חדרים לספירה** and **הערות** (`pivotNotes`) — Manager and Tech, edited inline,
+  saved on blur, no confirmation. Clearing חדרים לספירה drops the override and
+  returns the row to its computed default; an overridden cell is styled distinctly.
+- **שיוך תקציבי** — from the organization, read-only.
+- Every workshop dated in the month appears, any status, cancelled included, sorted
+  by date then group name.
+- Totals: a row summing חדרים לספירה, with the four per-category subtotals beneath.
+- **No שחקנים, no השתלמות.**
+
+A postponed workshop moves with its date and leaves no trace in the original
+month — deliberate, and a difference from the Excel workbook, which kept the row
+in place at 0.
+
+#### Export
+
+Annual only, a real **`.xlsx`** with RTL sheets — not CSV, which opens badly in
+Excel in Hebrew and carries no column widths or totals formatting. Scope is chosen
+at export time:
+
+| Scope | Contents |
+|---|---|
+| **סיכום בלבד** | one sheet — the annual grid |
+| **מלא** | סיכום + 12 monthly sheets |
+
+Monthly sheets carry תאריך · שם הקבוצה · חדרים לספירה · שיוך תקציבי · ביטול · הערות —
+no חדרים בפועל, no מודל. Cancelled rows are struck through there too. Manager and
+Tech. Built with `exceljs`. A monthly-only export was considered and deliberately
+left out.
 
 > **Resolved conflict:** the original spec said to display `—` when allocation is 0. The design spec said display `0` and show the real negative number. **The design spec's version is correct.**
 
@@ -1390,6 +1492,8 @@ Sessions 1–19 as built. Branch naming `session-N-*`, merged to `develop` then 
 | Aug 2026 | — | **Three small Tech-facing fixes** (branch `tech_view_fixes`, §8.2, §8.10). (1) READY condition 3 on Workshop Detail now reads *הועתק לגוגל פורם של המשוב* instead of the misleading *טופס פידבק הועבר* — nothing was ever "passed on"; the Tech copies a generated string into the Google Form. (2) New `הסתר סדנאות שממתינות רק לפידבק` toggle on the workshop table, persisted per user in `localStorage`. (3) The scenario counts on רשימות מערכת counted cancelled scenarios and scenarios of cancelled workshops; both `GET /api/nosim` and `GET /api/modelim` now filter them out. No schema change, no migration. |
 
 | **20 Aug 2026** | — | **Supabase Data API disabled on production — security fix, no code change** (new §2.3.1). §13 item 8 asked whether the Data API exposed the tables and assumed it did not. It did. The API was enabled with `public` exposed, and **all 21 Prisma-created tables carried full `anon` privileges — `SELECT, INSERT, UPDATE, DELETE, TRUNCATE`, not read-only — with RLS on none of them.** Cause: Supabase's default privileges on `public` grant everything to `anon`/`authenticated` for tables created by the `postgres` role, which is the role Prisma connects as; tables inherit those grants silently at creation. Anyone holding the project's anon key therefore had full read/write on `Person` (staff emails, bcrypt hashes), `Actor`, `Feedback` and `Organization`, bypassing every route-handler permission check (§5.2). Mitigating factor: the anon key is not published anywhere — the app ships no Supabase client and holds no anon key in any environment variable. **Fixed by disabling the Data API in the dashboard**, verified safe three ways (no `@supabase/supabase-js` in the lockfile; no `createClient`/`rest/v1` in `src/`; no anon or service-role key in any Vercel env var; the nightly backup uses `pg` + Google Drive). Grants and RLS deliberately left as they are — **the disabled API is the only control, so it must stay disabled; every future table will inherit the same grants.** Revoke SQL and the re-enable/rollback note are in §2.3.1. `sim_crm_testing` has identical grants and its Data API state is still unverified. |
+
+| **22 Aug 2026** | — | **טבלאות פיבוט** (branch `pivot_tables`, §8.12 rewritten, §5.1, §5.2, §3.5). `/yaadot` renamed from *יעדי סדנאות* — route unchanged — and opened to **Tech**, who may edit rows but not the יעד שנתי. The four-row allocation table is replaced by a **12 month × 4 שיוך תקציבי** grid modelled on the centre's own Excel workbook, plus a new month-level view with one row per workshop. New **חדרים לספירה** (`src/lib/counted-rooms.ts`) replaces the raw room count in *all* allocation math: a live workshop counts its active rooms, one cancelled at NEW counts 0, one cancelled after איתור צרכים counts **1** regardless of rooms booked, and `countedRoomsOverride` beats any of them. **Cancelled workshops now enter the annual rollup**, which they never did before — the 2026 figures move as a result. A computed, uneditable **ביטול** column reads *מבוטל* or *בוטל לאחר איתור צרכים*; it is derived live and kept separate from the new free-text `pivotNotes` so a Tech cannot blur the distinction. `.xlsx` export via `exceljs`, סיכום-only or full. Two nullable columns (`20260822120000_add_pivot_fields`); **no backfill needed** — cancelling never writes `status`, so `status` is already frozen at the moment of cancellation on every historical row, which is also why no `preCancellationStatus` snapshot column exists. |
 
 ---
 
