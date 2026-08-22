@@ -161,6 +161,32 @@ Step 2 precedes step 3 for **additive** migrations — a new table, or a new nul
 - Passwords stored bcrypt-hashed, never plaintext. Minimum 8 characters, no complexity rules. `[code]`
 - Sessions expire after 8 hours of inactivity or on browser close. `[spec]`
 
+#### 2.3.1 The Supabase Data API is disabled — and must stay disabled `[code]`
+
+**Disabled on production (`uremusqbcnnfwuafirhz`) on 20 August 2026.** The dashboard now reads *"No schemas can be queried"*, and `/rest/v1/` returns errors.
+
+This is a **standing security control, not a preference.** The reasoning, so nobody re-enables it casually:
+
+- Supabase configures the `public` schema with `ALTER DEFAULT PRIVILEGES ... GRANT ALL ON TABLES TO anon, authenticated, service_role` for the `postgres` role.
+- Prisma connects **as `postgres`**, so **every table it creates automatically inherits full `anon` privileges** — `SELECT, INSERT, UPDATE, DELETE, TRUNCATE`, not read-only. Verified on `sim_crm_testing`: all 21 tables, including `Person`, `Actor`, `Feedback`, `Organization`.
+- **No table has RLS** (0 of 21; no migration contains `ENABLE ROW LEVEL SECURITY`). Permissions live in route handlers (§5.2), which the Data API bypasses entirely.
+- Therefore, while the Data API was enabled with `public` exposed, anyone holding the project's anon key had full read **and write** access to the whole database, outside every permission check in the application.
+
+The earlier assumption — recorded in §13 until now — that Prisma-created tables *do not* receive anon grants was **wrong**. They do, by default, silently, at creation.
+
+> ⚠ **This recurs with every new table.** Grants and RLS were deliberately *not* changed; the disabled Data API is the only thing making those grants unreachable. Any future Prisma migration will hand the same privileges to `anon`. **Do not re-enable the Data API** without first revoking grants and fixing the default privileges:
+>
+> ```sql
+> REVOKE ALL ON ALL TABLES IN SCHEMA public FROM anon, authenticated;
+> ALTER DEFAULT PRIVILEGES IN SCHEMA public REVOKE ALL ON TABLES FROM anon, authenticated;
+> ```
+
+**Nothing in the application uses the Data API** — verified three ways: no `@supabase/supabase-js` in `package.json` or the lockfile; no `createClient` or `rest/v1` anywhere in `src/`; and **no anon or service-role key exists in any Vercel environment variable** (§2.2), so the running app holds no credential for it. The nightly backup (§9) uses `pg` directly plus the Google Drive API, not PostgREST.
+
+> **If a bug appears after this change:** the only symptom this can cause is an error from a `/rest/v1/` endpoint. Nothing in the CRM calls one, so a CRM fault is almost certainly unrelated — check elsewhere first. Should you need to rule it out, **re-enabling is a single dashboard toggle and takes effect immediately** (Settings → Data API → Enable Data API). Re-enable to diagnose if you must, then turn it back off.
+
+`sim_crm_testing` (`dcnisxtwszzomimmzdar`) carries the **same anon grants and the same absence of RLS**. It was believed to have been created with the Data API disabled; that was never verified. Confirm it, or apply the REVOKE above there too.
+
 ---
 
 ## 3. Data Model
@@ -1091,10 +1117,10 @@ Carried forward for V2 planning. Each needs a decision.
 | 5 | Cron timezone | `[gap]` | Runs 01:00 UTC; does not track Israel DST. Confirm acceptable. |
 | 6 | Supabase pooler blocks DDL | `[code]` | Enum migrations need manual SQL + manual `_prisma_migrations` entry. Document in README. |
 | 7 | Mobile spec | `[gap]` | Casting is mobile-responsive and the actor table hides columns on mobile, but no comprehensive mobile spec exists. |
-| 8 | **Is the Supabase Data API exposing the tables?** | `[?]` | **Unverified, security-relevant.** The app never uses Supabase's Data API (PostgREST) — it reaches Postgres directly through Prisma as the `postgres` role. But nobody has confirmed whether that API is enabled on the production project (`uremusqbcnnfwuafirhz`), or whether the 19 Prisma-created tables are readable with the public anon key. No table has RLS: permissions are enforced in route handlers (§5.2), which is deliberate and consistent, but leaves nothing between PostgREST and the data if the grants happen to exist. Prisma-created tables normally do *not* receive the anon/authenticated grants Supabase applies to tables made through its own UI, so the expectation is "not exposed" — confirm rather than assume. At risk: `Person` (staff emails, bcrypt hashes), `Actor` (~40 names, phones), `Feedback`, `Organization`. **Check:** `curl "https://<ref>.supabase.co/rest/v1/Person?select=id&limit=1" -H "apikey: <anon key>"` — 200 with rows means exposed. **Fix if so:** disable the Data API outright, since nothing uses it; revoking grants or adding RLS are second choices. The `sim_crm_testing` project had the Data API disabled at creation, so it is not affected. |
 
-Two items previously listed here are now **resolved**:
+Three items previously listed here are now **resolved**:
 
+- **Supabase Data API exposure** — **investigated and closed, 20 Aug 2026. It was exposed.** The Data API was enabled on production with `public` exposed, and the tables did carry full `anon` privileges — the opposite of what this row assumed. Disabled on production; see **§2.3.1**, which also records why it must stay disabled.
 - **Backup retention** — see §9.9. Managed manually by design; the 30-day auto-delete policy is withdrawn.
 - **Aggregate RAG summary on the actor profile** — **not wanted.** Moved to §12 (out of scope). The per-feedback RAG dots that already exist are sufficient; no statistical aggregation over feedback is to be built.
 
@@ -1362,6 +1388,8 @@ Sessions 1–19 as built. Branch naming `session-N-*`, merged to `develop` then 
 | Aug 2026 | — | **Feedback delete added, Manager only** (branch `feedback_delete`, §8.7). A 🗑 control per row in the actor profile's היסטוריית פידבק table, behind a confirmation dialog; the Feedback Documenter keeps enter/edit/export and does not see the column (§5.2). Hard delete — no soft-delete flag, no undo — via a new `DELETE /api/feedback/[id]` guarded on MANAGER in the route itself. The route calls `checkAndAdvanceStatus()` on the workshop explicitly, the same way removing a Step 1 confirmed actor triggers the READY → SPECIFIED check, so a workshop that loses its last complete record regresses CLOSED → CLOSING (§4.4). No schema change, no migration. |
 
 | Aug 2026 | — | **Three small Tech-facing fixes** (branch `tech_view_fixes`, §8.2, §8.10). (1) READY condition 3 on Workshop Detail now reads *הועתק לגוגל פורם של המשוב* instead of the misleading *טופס פידבק הועבר* — nothing was ever "passed on"; the Tech copies a generated string into the Google Form. (2) New `הסתר סדנאות שממתינות רק לפידבק` toggle on the workshop table, persisted per user in `localStorage`. (3) The scenario counts on רשימות מערכת counted cancelled scenarios and scenarios of cancelled workshops; both `GET /api/nosim` and `GET /api/modelim` now filter them out. No schema change, no migration. |
+
+| **20 Aug 2026** | — | **Supabase Data API disabled on production — security fix, no code change** (new §2.3.1). §13 item 8 asked whether the Data API exposed the tables and assumed it did not. It did. The API was enabled with `public` exposed, and **all 21 Prisma-created tables carried full `anon` privileges — `SELECT, INSERT, UPDATE, DELETE, TRUNCATE`, not read-only — with RLS on none of them.** Cause: Supabase's default privileges on `public` grant everything to `anon`/`authenticated` for tables created by the `postgres` role, which is the role Prisma connects as; tables inherit those grants silently at creation. Anyone holding the project's anon key therefore had full read/write on `Person` (staff emails, bcrypt hashes), `Actor`, `Feedback` and `Organization`, bypassing every route-handler permission check (§5.2). Mitigating factor: the anon key is not published anywhere — the app ships no Supabase client and holds no anon key in any environment variable. **Fixed by disabling the Data API in the dashboard**, verified safe three ways (no `@supabase/supabase-js` in the lockfile; no `createClient`/`rest/v1` in `src/`; no anon or service-role key in any Vercel env var; the nightly backup uses `pg` + Google Drive). Grants and RLS deliberately left as they are — **the disabled API is the only control, so it must stay disabled; every future table will inherit the same grants.** Revoke SQL and the re-enable/rollback note are in §2.3.1. `sim_crm_testing` has identical grants and its Data API state is still unverified. |
 
 ---
 
