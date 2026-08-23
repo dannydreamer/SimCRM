@@ -30,6 +30,25 @@ function styleHeader(row: ExcelJS.Row) {
   row.height = 20
 }
 
+/**
+ * exceljs has no auto-fit, so widths have to be measured. Called after every row
+ * is in place — a preset width is only a starting point and gets overwritten by
+ * whatever the column actually contains.
+ */
+function autofitColumns(sheet: ExcelJS.Worksheet, min = 10, max = 52) {
+  sheet.columns.forEach((col) => {
+    let longest = 0
+    col.eachCell?.({ includeEmpty: false }, (cell) => {
+      const v = cell.value
+      if (v === null || v === undefined) return
+      const text = typeof v === "object" ? "" : String(v)
+      for (const line of text.split("\n")) longest = Math.max(longest, line.length)
+    })
+    // +2 for the cell padding Excel adds either side.
+    col.width = Math.min(max, Math.max(min, longest + 2))
+  })
+}
+
 function styleTotals(row: ExcelJS.Row) {
   row.font = { bold: true }
   row.eachCell((cell) => {
@@ -48,9 +67,10 @@ function addSummarySheet(
   const grid  = buildAnnualGrid(rows, today)
   const sheet = wb.addWorksheet("סיכום", { views: [{ rightToLeft: true }] })
 
+  // Declares the column count and order; autofitColumns() sets the real widths
+  // once the content is in.
   sheet.columns = [
     { width: 16 },
-    // Wide enough for the full labels — "סדנאות חיצוניות בתשלום" is the longest.
     ...TAKZIVI_ORDER.map(() => ({ width: 24 })),
     { width: 12 },
   ]
@@ -97,6 +117,7 @@ function addSummarySheet(
     sumCategories(grid.elapsed),
   ]).font = { italic: true }
 
+  autofitColumns(sheet)
   return sheet
 }
 
@@ -137,6 +158,7 @@ function addMonthSheet(wb: ExcelJS.Workbook, year: number, month: number, rows: 
     "סה\"כ", "", rows.reduce((s, r) => s + r.countedRooms, 0), "", "", "",
   ]))
 
+  autofitColumns(sheet)
   return sheet
 }
 
