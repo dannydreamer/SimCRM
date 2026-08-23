@@ -1,7 +1,7 @@
 "use client"
 
 import { useCallback, useEffect, useState } from "react"
-import { TAKZIVI_LABELS, TAKZIVI_SHORT } from "@/lib/shiyuch"
+import { TAKZIVI_LABELS } from "@/lib/shiyuch"
 import { MONTHS, monthName } from "@/lib/months"
 import { useUser } from "../user-context"
 
@@ -410,15 +410,15 @@ function AnnualGrid({
   const totalRemain = totalAlloc - totalCounted
 
   return (
-    <div className="flex flex-col gap-4 max-w-3xl">
+    <div className="flex flex-col gap-4 max-w-5xl">
       <div className="border border-gray-200 rounded-lg overflow-x-auto">
         <table className="w-full text-sm tabular-nums">
           <thead>
             <tr className="bg-gray-50 border-b border-gray-200 text-right text-xs text-gray-500 font-medium">
               <th className="px-4 py-2.5">חודש</th>
               {categories.map((tv) => (
-                <th key={tv} className="px-4 py-2.5 text-center" title={TAKZIVI_LABELS[tv]}>
-                  {TAKZIVI_SHORT[tv] ?? tv}
+                <th key={tv} className="px-4 py-2.5 text-center">
+                  {TAKZIVI_LABELS[tv] ?? tv}
                 </th>
               ))}
               <th className="px-4 py-2.5 text-center">סה&quot;כ</th>
@@ -516,10 +516,11 @@ function AnnualGrid({
       </div>
 
       <p className="text-sm text-gray-500">
-        סה&quot;כ נכון ל־{fmtDayMonth(annual.today)}:{" "}
+        חדרים שנוצלו עד {fmtDayMonth(annual.today)}:{" "}
         <span className="font-semibold text-gray-700 tabular-nums">{totalElapsed}</span>
-        <span className="text-gray-400"> · יעד שנתי </span>
-        <span className="font-semibold text-gray-700 tabular-nums">{totalAlloc}</span>
+        <span className="text-gray-400">
+          {" "}מתוך {totalCounted} בכל השנה
+        </span>
       </p>
       <p className="text-xs text-gray-400">לחיצה על שורת חודש פותחת את הפירוט שלו.</p>
     </div>
@@ -578,7 +579,7 @@ function MonthTable({
       <div className="flex flex-wrap items-center gap-x-6 gap-y-1 text-sm text-gray-500">
         {categories.map((tv) => (
           <span key={tv}>
-            {TAKZIVI_SHORT[tv] ?? tv}:{" "}
+            {TAKZIVI_LABELS[tv] ?? tv}:{" "}
             <span className="font-semibold text-gray-700 tabular-nums">{monthByCat[tv] ?? 0}</span>
           </span>
         ))}

@@ -999,8 +999,9 @@ applies to the whole row.
 Modelled on the centre's own Excel workbook, which staff already read.
 
 - Each cell sums **חדרים לספירה** for that month and category.
-- Column headers use short forms (עו"ה / מנח"י / עירייה / חיצוני) — `TAKZIVI_SHORT`
-  in `src/lib/shiyuch.ts`. The full label is the cell's `title`.
+- Column headers use the **full** `TAKZIVI_LABELS` — עובדי הוראה, not עו"ה. The
+  centre's own workbook abbreviates; the CRM deliberately does not, since the
+  export goes to readers outside the centre who do not know the short forms.
 - Months still ahead render dimmed. Beneath the table: **סה"כ נכון ל‑DD.MM**, counting
   only workshops that have already happened.
 - **נותרו** = יעד שנתי − סה"כ. Red when negative, rendered `-9` not `9-`.
@@ -1040,8 +1041,8 @@ at export time:
 
 | Scope | Contents |
 |---|---|
-| **סיכום בלבד** | one sheet — the annual grid |
-| **מלא** | סיכום + 12 monthly sheets |
+| **סיכום בלבד** | one sheet — the annual grid. Filename `טבלאות פיבוט סיכום <year>.xlsx` |
+| **מלא** | סיכום + 12 monthly sheets. Filename `טבלאות פיבוט כולל חודשים <year>.xlsx` |
 
 Monthly sheets carry תאריך · שם הקבוצה · חדרים לספירה · שיוך תקציבי · ביטול · הערות —
 no חדרים בפועל, no מודל. Cancelled rows are struck through there too. Manager and

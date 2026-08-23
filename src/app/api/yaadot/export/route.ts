@@ -7,7 +7,7 @@ import {
   buildAnnualGrid, getAllocations, getPivotRows, sumCategories,
   type PivotRow,
 } from "@/lib/pivot-data"
-import { TAKZIVI_SHORT } from "@/lib/shiyuch"
+import { TAKZIVI_LABELS } from "@/lib/shiyuch"
 
 // exceljs needs the Node runtime — it is not edge-compatible.
 export const runtime = "nodejs"
@@ -50,13 +50,14 @@ function addSummarySheet(
 
   sheet.columns = [
     { width: 16 },
-    ...TAKZIVI_ORDER.map(() => ({ width: 12 })),
+    // Wide enough for the full labels — "סדנאות חיצוניות בתשלום" is the longest.
+    ...TAKZIVI_ORDER.map(() => ({ width: 24 })),
     { width: 12 },
   ]
 
   styleHeader(sheet.addRow([
     "חודש",
-    ...TAKZIVI_ORDER.map((tv) => TAKZIVI_SHORT[tv]),
+    ...TAKZIVI_ORDER.map((tv) => TAKZIVI_LABELS[tv]),
     "סה\"כ",
   ]))
 
@@ -87,9 +88,14 @@ function addSummarySheet(
     sumCategories(allocations) - sumCategories(grid.totals),
   ]).font = { bold: true }
 
+  // Rooms already consumed, as distinct from the סה"כ row above, which covers the
+  // whole year including everything still scheduled. The label has to say so —
+  // an unexplained number under a table that totals differently reads as an error.
   sheet.addRow([])
-  sheet.addRow([`סה"כ נכון ל‑${fmtDate(today.toISOString())}`, sumCategories(grid.elapsed)])
-  sheet.addRow(["סה\"כ יעד שנתי", sumCategories(allocations)])
+  sheet.addRow([
+    `חדרים שנוצלו עד ${fmtDate(today.toISOString())}`,
+    sumCategories(grid.elapsed),
+  ]).font = { italic: true }
 
   return sheet
 }
@@ -104,7 +110,7 @@ function addMonthSheet(wb: ExcelJS.Workbook, year: number, month: number, rows: 
     { width: 10 },  // תאריך
     { width: 42 },  // שם הקבוצה
     { width: 14 },  // חדרים לספירה
-    { width: 22 },  // שיוך תקציבי
+    { width: 24 },  // שיוך תקציבי
     { width: 22 },  // ביטול
     { width: 34 },  // הערות
   ]
@@ -118,7 +124,7 @@ function addMonthSheet(wb: ExcelJS.Workbook, year: number, month: number, rows: 
       fmtDate(r.date),
       r.groupName,
       r.countedRooms,
-      TAKZIVI_SHORT[r.shiyuchTakzivi] ?? r.shiyuchTakzivi,
+      TAKZIVI_LABELS[r.shiyuchTakzivi] ?? r.shiyuchTakzivi,
       r.cancelLabel ?? "",
       r.pivotNotes ?? "",
     ])
@@ -163,7 +169,9 @@ export async function GET(req: NextRequest) {
   }
 
   const buffer   = await wb.xlsx.writeBuffer()
-  const filename = `צפי סדנאות ${year}.xlsx`
+  const filename = full
+    ? `טבלאות פיבוט כולל חודשים ${year}.xlsx`
+    : `טבלאות פיבוט סיכום ${year}.xlsx`
 
   return new NextResponse(new Uint8Array(buffer as ArrayBuffer), {
     headers: {
