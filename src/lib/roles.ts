@@ -47,8 +47,8 @@ export const NAV_ITEMS = [
   },
   {
     href: "/yaadot",
-    label: "יעדי סדנאות",
-    roles: ["MANAGER"],
+    label: "טבלאות פיבוט",
+    roles: ["MANAGER", "TECH"],
   },
   {
     href: "/users",
