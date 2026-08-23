@@ -13,8 +13,10 @@ const ROUTE_PERMISSIONS: { prefix: string; roles: string[] }[] = [
   { prefix: "/shakhanim",     roles: ["MANAGER", "TECH", "CASTER", "FEEDBACK_DOCUMENTER"] },
   { prefix: "/lihukim",       roles: ["MANAGER", "CASTER"] },
   { prefix: "/luach",         roles: ["MANAGER", "TECH", "CASTER", "FEEDBACK_DOCUMENTER", "FACILITATOR"] },
-  { prefix: "/yaadot",        roles: ["MANAGER"] },
-  { prefix: "/api/yaadot",   roles: ["MANAGER"] },
+  // טבלאות פיבוט is open to Tech; only the יעד שנתי PATCH stays Manager-only,
+  // and that is enforced in the route handler.
+  { prefix: "/yaadot",        roles: ["MANAGER", "TECH"] },
+  { prefix: "/api/yaadot",   roles: ["MANAGER", "TECH"] },
   { prefix: "/omas",          roles: ["MANAGER"] },
   { prefix: "/api/omas",     roles: ["MANAGER"] },
   { prefix: "/users",          roles: ["MANAGER"] },
