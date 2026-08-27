@@ -4,11 +4,14 @@ import { signIn } from "next-auth/react"
 import Image from "next/image"
 import { useRouter, useSearchParams } from "next/navigation"
 import { Suspense, useState } from "react"
+import { homePathFor } from "@/lib/roles"
 
 function LoginForm() {
   const router = useRouter()
   const searchParams = useSearchParams()
-  const callbackUrl = searchParams.get("callbackUrl") || "/sadnaot"
+  // No default here — where a user lands depends on her roles, which we only
+  // know once the session comes back. See homePathFor below.
+  const callbackUrl = searchParams.get("callbackUrl")
 
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
@@ -40,7 +43,7 @@ function LoginForm() {
     if (session?.user?.mustChangePassword) {
       router.push("/change-password")
     } else {
-      router.push(callbackUrl)
+      router.push(callbackUrl ?? homePathFor(session?.user?.roles ?? []))
     }
   }
 

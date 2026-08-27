@@ -36,6 +36,14 @@ function isPending(w: PendingWorkshop) {
   return !w.cancelled && !isComplete(w)
 }
 
+// Date-only comparison, matching the workshop page. A workshop happening today
+// still counts as upcoming — the Caster may be fixing its casting that morning.
+function isUpcoming(w: PendingWorkshop) {
+  const today = new Date(); today.setHours(0, 0, 0, 0)
+  const wDate = new Date(w.date); wDate.setHours(0, 0, 0, 0)
+  return wDate >= today
+}
+
 const LS_DISMISSED_CANCELLATIONS = (userId: string) =>
   `simcrm:dismissed-cancellations:${userId}`
 
@@ -47,7 +55,11 @@ export default function LihukimLandingPage() {
   const user   = useUser()
   const [workshops, setWorkshops] = useState<PendingWorkshop[]>([])
   const [loading,   setLoading]   = useState(true)
-  const [pendingOnly, setPendingOnly] = useState(true)
+  // Default view: every upcoming workshop, cast or not. "ממתינות בלבד" used to
+  // be on by default, which hid finished castings the Caster still needs to
+  // edit when a room or an actor changes.
+  const [pendingOnly, setPendingOnly] = useState(false)
+  const [upcomingOnly, setUpcomingOnly] = useState(true)
   const [dismissedCancelIds, setDismissedCancelIds] = useState<Set<string>>(new Set())
   // Dismissed change-log IDs — own key, independent from the detail page
   const [dismissedLogIds, setDismissedLogIds] = useState<Set<string>>(new Set())
@@ -159,8 +171,12 @@ export default function LihukimLandingPage() {
     )
   }
 
-  const pendingCount    = workshops.filter(isPending).length
-  const displayWorkshops = pendingOnly ? workshops.filter(isPending) : workshops
+  const pendingCount     = workshops.filter(isPending).length
+  // The two filters stack: each one only ever narrows the list.
+  const displayWorkshops = workshops.filter((w) =>
+    (!pendingOnly  || isPending(w)) &&
+    (!upcomingOnly || isUpcoming(w))
+  )
 
   return (
     <div className="flex flex-col h-full">
@@ -262,21 +278,32 @@ export default function LihukimLandingPage() {
               {pendingCount === 0
                 ? "אין סדנאות הממתינות לליהוק"
                 : `${pendingCount} סדנאות ממתינות לליהוק`}
-              {workshops.length > pendingCount && (
-                <span className="mr-2 text-gray-300">· {workshops.length} סה״כ</span>
+              {displayWorkshops.length !== pendingCount && (
+                <span className="mr-2 text-gray-300">· {displayWorkshops.length} מוצגות</span>
               )}
             </p>
           </div>
           {workshops.length > 0 && (
-            <button
-              onClick={() => setPendingOnly((v) => !v)}
-              className={`px-3 py-1.5 rounded-full text-xs font-semibold border transition-colors ${
-                pendingOnly
-                  ? "bg-navy text-white border-navy"
-                  : "bg-white text-gray-600 border-gray-300 hover:border-gray-400"
-              }`}>
-              {pendingOnly ? "✓ ממתינות בלבד" : "ממתינות בלבד"}
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setUpcomingOnly((v) => !v)}
+                className={`px-3 py-1.5 rounded-full text-xs font-semibold border transition-colors ${
+                  upcomingOnly
+                    ? "bg-navy text-white border-navy"
+                    : "bg-white text-gray-600 border-gray-300 hover:border-gray-400"
+                }`}>
+                {upcomingOnly ? "✓ סדנאות עתידיות בלבד" : "סדנאות עתידיות בלבד"}
+              </button>
+              <button
+                onClick={() => setPendingOnly((v) => !v)}
+                className={`px-3 py-1.5 rounded-full text-xs font-semibold border transition-colors ${
+                  pendingOnly
+                    ? "bg-navy text-white border-navy"
+                    : "bg-white text-gray-600 border-gray-300 hover:border-gray-400"
+                }`}>
+                {pendingOnly ? "✓ ממתינות בלבד" : "ממתינות בלבד"}
+              </button>
+            </div>
           )}
         </div>
       </div>
@@ -284,7 +311,11 @@ export default function LihukimLandingPage() {
       <div className="flex-1 overflow-auto px-8 pb-8">
         {displayWorkshops.length === 0 ? (
           <p className="text-sm text-gray-400 py-8 text-center">
-            {pendingOnly ? "אין סדנאות ממתינות לליהוק." : "כשסדנאות ישלחו לליהוק הן יופיעו כאן."}
+            {pendingOnly
+              ? "אין סדנאות ממתינות לליהוק."
+              : upcomingOnly
+                ? "אין סדנאות עתידיות שנשלחו לליהוק."
+                : "כשסדנאות ישלחו לליהוק הן יופיעו כאן."}
           </p>
         ) : (
           <div className="border border-gray-200 rounded-lg overflow-hidden">
