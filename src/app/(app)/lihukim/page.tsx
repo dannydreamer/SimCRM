@@ -50,14 +50,19 @@ const LS_DISMISSED_CANCELLATIONS = (userId: string) =>
 // Bug 3 fix: use a separate key from the detail page so dismissals are independent
 const LS_DISMISSED_LOGS_OVERVIEW = "simcrm:dismissed-logs-overview"
 
+// Filter pills, remembered per user — a Caster who works in ממתינות בלבד
+// should not have to re-pick it on every visit.
+const LS_FILTERS = (userId: string) => `simcrm:lihukim-filters:${userId}`
+
 export default function LihukimLandingPage() {
   const router = useRouter()
   const user   = useUser()
   const [workshops, setWorkshops] = useState<PendingWorkshop[]>([])
   const [loading,   setLoading]   = useState(true)
-  // Default view: every upcoming workshop, cast or not. "ממתינות בלבד" used to
-  // be on by default, which hid finished castings the Caster still needs to
-  // edit when a room or an actor changes.
+  // Defaults for a user who has never touched the pills: every upcoming
+  // workshop, cast or not. "ממתינות בלבד" used to be on by default, which hid
+  // finished castings the Caster still needs to edit when a room or an actor
+  // changes. A stored choice overrides both — see the load effect below.
   const [pendingOnly, setPendingOnly] = useState(false)
   const [upcomingOnly, setUpcomingOnly] = useState(true)
   const [dismissedCancelIds, setDismissedCancelIds] = useState<Set<string>>(new Set())
@@ -79,6 +84,19 @@ export default function LihukimLandingPage() {
     try {
       const stored = JSON.parse(localStorage.getItem(LS_DISMISSED_CANCELLATIONS(user.id)) ?? "[]")
       setDismissedCancelIds(new Set(Array.isArray(stored) ? stored : []))
+    } catch { /* ignore */ }
+  }, [user.id])
+
+  // Restore the filter pills. Read once on mount rather than in a lazy state
+  // initialiser: localStorage does not exist during the server render, and
+  // reading it at render time would make the two passes disagree.
+  useEffect(() => {
+    try {
+      const stored = JSON.parse(localStorage.getItem(LS_FILTERS(user.id)) ?? "null")
+      if (stored && typeof stored === "object") {
+        if (typeof stored.pendingOnly  === "boolean") setPendingOnly(stored.pendingOnly)
+        if (typeof stored.upcomingOnly === "boolean") setUpcomingOnly(stored.upcomingOnly)
+      }
     } catch { /* ignore */ }
   }, [user.id])
 
@@ -161,6 +179,25 @@ export default function LihukimLandingPage() {
     dismissLogsForWorkshop(workshopId, (l) =>
       l.changeType !== "ROOM_CANCELLED" && l.changeType !== "ROOM_ADDED"
     )
+  }
+
+  // Persist on toggle rather than in an effect watching the state: an effect
+  // would also fire on mount, writing the defaults over the stored choice
+  // before the restore effect had a chance to apply it.
+  function saveFilters(next: { pendingOnly: boolean; upcomingOnly: boolean }) {
+    setPendingOnly(next.pendingOnly)
+    setUpcomingOnly(next.upcomingOnly)
+    try {
+      localStorage.setItem(LS_FILTERS(user.id), JSON.stringify(next))
+    } catch { /* ignore */ }
+  }
+
+  function togglePendingOnly() {
+    saveFilters({ pendingOnly: !pendingOnly, upcomingOnly })
+  }
+
+  function toggleUpcomingOnly() {
+    saveFilters({ pendingOnly, upcomingOnly: !upcomingOnly })
   }
 
   if (loading) {
@@ -286,7 +323,7 @@ export default function LihukimLandingPage() {
           {workshops.length > 0 && (
             <div className="flex items-center gap-2">
               <button
-                onClick={() => setUpcomingOnly((v) => !v)}
+                onClick={toggleUpcomingOnly}
                 className={`px-3 py-1.5 rounded-full text-xs font-semibold border transition-colors ${
                   upcomingOnly
                     ? "bg-navy text-white border-navy"
@@ -295,7 +332,7 @@ export default function LihukimLandingPage() {
                 {upcomingOnly ? "✓ סדנאות עתידיות בלבד" : "סדנאות עתידיות בלבד"}
               </button>
               <button
-                onClick={() => setPendingOnly((v) => !v)}
+                onClick={togglePendingOnly}
                 className={`px-3 py-1.5 rounded-full text-xs font-semibold border transition-colors ${
                   pendingOnly
                     ? "bg-navy text-white border-navy"
