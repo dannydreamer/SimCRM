@@ -3,6 +3,7 @@
 import { useSession } from "next-auth/react"
 import { useRouter } from "next/navigation"
 import { useState } from "react"
+import { homePathFor } from "@/lib/roles"
 
 export default function ChangePasswordPage() {
   const { data: session, update } = useSession()
@@ -43,7 +44,7 @@ export default function ChangePasswordPage() {
 
     // Update JWT so mustChangePassword becomes false
     await update({ mustChangePassword: false })
-    router.push("/sadnaot")
+    router.push(homePathFor(session?.user?.roles ?? []))
   }
 
   return (

@@ -504,6 +504,8 @@ A workshop advances SPECIFIED → READY only when **all five** hold:
 
 All five regress identically: if any becomes unmet before the date passes, READY → SPECIFIED.
 
+**One implementation owns all five.** `src/lib/workshop-readiness.ts` exports `unmetReadyConditions()`, which returns the conditions a workshop fails, in checklist order. The status gate (`checkAndAdvanceStatus`), the readiness alert (§4.8), and the Workshop Detail checklist all read it, so no screen can name a different set of blockers than the one actually holding READY back. `[code]`
+
 > **Resolved conflict:** the original spec (§3.1 stage 5) said READY = "casting complete AND all rooms have PPT ✓" — two conditions. The design spec added the משוב עודכן blocker as a third. Conditions 4 and 5 were added later, with the physical-room feature.
 
 ### 4.4 Critical rules
@@ -544,6 +546,22 @@ Un-writing a scenario auto-unchecks `pptReceived` on all active rooms in that wo
 - Cancelled workshops remain in the system, shown with strikethrough, and are accessible read-only to all roles.
 - Changing the date after casting or slotting sets `postponedWarning`, showing an amber banner: **⚠ התאריך שונה — יש לאמת זמינות שחקנים ומתחקרים**. A `DATE_CHANGED` entry is written to the casting change log so the Caster is alerted.
 - Rooms and scenarios use **soft cancellation** — crossed out, never deleted, excluded from all checklists and casting requirements. Manager only.
+
+### 4.8 Readiness alert — a week out and not מוכן `[code]`
+
+Nothing in the system used to warn *before* a date; every flag fired only once the date had passed, by which point the workshop had already run unprepared. A workshop raises the readiness alert when **all** of these hold:
+
+- status is `סדנה חדשה` or `בוצע איתור צרכים` — anything already `מוכן` is by definition fine, and `בתהליך סגירה` / `סגור` have their own flags
+- not cancelled
+- the date is **today or up to 7 days away** (`READINESS_ALERT_DAYS`) — past dates raise nothing here
+
+The alert carries the day count and the unmet conditions from §4.3. A `סדנה חדשה` reports **only איתור צרכים**: everything downstream is genuinely unmet too, but none of it can be done before the needs assessment is, so listing the rest is noise.
+
+A workshop still `בוצע איתור צרכים` with **nothing** outstanding raises no alert. Its conditions are met and only the re-check is pending — `checkAndAdvanceStatus()` runs after mutations, not on a clock — so it advances to `מוכן` at the next one. Alerting there would show an empty חסר list.
+
+**Days are counted on Israel's calendar**, not the server's or the browser's. Workshop dates are stored as UTC midnight of the intended day, so `daysUntilWorkshop()` compares calendar dates via `Asia/Jerusalem` — otherwise Vercel's UTC clock reads a day early every Israeli evening, and the boundary would shift twice a year with DST.
+
+**The alert is a live condition, not an event.** It has no dismiss button and no `localStorage` key, unlike the cancellation and postponement banners (§4.7). It clears itself the moment the last condition is met or the date passes. Where it appears: §8.2 and §8.4.
 
 ---
 
@@ -780,6 +798,8 @@ Banners on the ליהוק landing and detail pages, driven by `CastingChangeLog`
 
 Email + password. No self-service registration; accounts are Manager-created. No "forgot password" in v1 — users contact the Manager. Generic error on failure ("incorrect email or password") without revealing which field was wrong. On first login with a temporary password, forced redirect to `/change-password` before any other screen. `[code]`
 
+**Landing page is role-aware.** `homePathFor()` in `src/lib/roles.ts` decides where a user starts: **Caster → `/lihukim`**, every other role → `/sadnaot`. A user holding several roles lands on the first match in that order, so a Manager who also casts still starts on the workshop table. The login screen, `/change-password`, and the root `/` redirect all read the same function; an explicit `?callbackUrl=` still wins over it. `[code]`
+
 ### 8.2 Workshop Table — `/sadnaot`
 
 Primary landing page for Manager, Tech, Feedback Documenter, and Facilitator.
@@ -808,6 +828,12 @@ Primary landing page for Manager, Tech, Feedback Documenter, and Facilitator.
 
 **Badges:** `⏳ ממתין לליהוק לחדרים` · `⏳ פידבק חסר` · `⚠ תאריך עבר ולא בוצע איתור צרכים` (red, under the status pill).
 
+**Readiness alert (§4.8).** A workshop a week or less away and not yet מוכן gets three marks on this page, each impossible to miss: `[code]`
+
+1. **A red panel above the table**, listing every such workshop — day count (`היום` / `מחר` / `בעוד יומיים` / `בעוד N ימים`), date, org — group, and a white chip per unmet condition (`מצגות`, `ליהוק`, `טופס משוב`, `מספר משתתפים`, `אישור חדר חיצוני`, or `איתור צרכים` for a סדנה חדשה). Each row clicks through to the workshop. Sorted most urgent first. **Manager and Tech only** — they are the ones who can act. The panel ignores the view/date filters: it is an alarm, not a view of the table.
+2. **The row itself is tinted red**, and carries a solid-red badge under the status pill: `🚨 בעוד N ימים — לא מוכן` (`— טרם בוצע איתור צרכים` for a סדנה חדשה). Shown to **all roles**, since it is a property of the row rather than a call to action.
+3. **A filter pill**, `🚨 לא מוכנות לשבוע הקרוב`, narrowing the table to exactly that set. Not persisted between visits.
+
 The first badge filters on **Step 2** completeness (`castingFilled < castingTotal`) — deliberately a different measure from the column beside it, hence the explicit לחדרים in the label. Without it the filter would appear to contradict the badge: a row can be returned as "pending" while its ליהוק column reads `2/2`.
 
 A third toggle, **`הסתר סדנאות שממתינות רק לפידבק`**, removes rows that are in `בתהליך סגירה` with **all מכתבים received** and `feedbackMissing > 0` — the exact set whose only outstanding item is feedback entry, which is the Feedback Documenter's job and not the Tech's. Letters still outstanding keeps the row visible. Off by default, set per user, and remembered in `localStorage` under `simcrm:hide-feedback-only:<userId>`. `[code]`
@@ -829,6 +855,12 @@ Fields: organization (dropdown + inline "ארגון חדש?" link) · participan
 Two-column layout: right (~65%) content sections, left (~35%) checklist sidebar.
 
 > **Resolved conflict:** the original spec explicitly said *"No sidebar panel for background details."* The design spec overrode this with a two-column layout. **The two-column layout is what was built.**
+
+**Readiness alert (§4.8).** When the workshop is a week or less away and not yet מוכן, a red banner sits at the **top of the banner stack**, above the postponement, room-cancelled and room-added banners: `[code]`
+
+> 🚨 הסדנה בעוד N ימים ואינה מוכנה — חסר: `מצגות` `ליהוק`
+
+Visible to **everyone who can open the workshop**, Manager and Tech included — like every other banner on this page, it is not role-gated. It has no × button (§4.8). The **readiness checklist** in the header card turns red to match, so the banner's chips and the checklist's `○` items are the same list read two ways. Both are computed from live page state, so ticking the last missing condition clears the alarm immediately, without a reload.
 
 **Right column:**
 - **תרחישים** — columns: נושא · **מודל סימולציה** · דרישות שחקנים (with per-scenario male/female counts) · נכתב · actions. Actor requirements are **required** when adding a scenario (`7b59553`). An author must be set before scenarios can be added (`b628323`).
@@ -853,7 +885,9 @@ The third element is the org's **שיוך פדגוגי**, not the org name. `[sp
 
 ### 8.5 Casting — `/lihukim` and `/lihukim/[id]`
 
-See §7. The landing page lists workshops pending casting with change-alert banners and a room-cancellation warning badge.
+See §7. The landing page lists workshops sent to casting, with change-alert banners and a room-cancellation warning badge. It is the **Caster's landing page after login** (§8.1).
+
+**Two independent filter pills, both toggleable:** `סדנאות עתידיות בלבד` (**on** by default; date-only comparison, a workshop happening today still counts as upcoming) and `ממתינות בלבד` (**off** by default). They stack — each only narrows the list. **Both choices persist per user in `localStorage`** (`simcrm:lihukim-filters:<userId>`), so the defaults apply only until the user first touches a pill; the same idiom as the workshop table's feedback-only toggle (§8.2). The default therefore shows every upcoming workshop *including ones already fully cast*, because a finished casting is not a closed one: rooms get added, actors drop out, and the Caster edits it. `ממתינות בלבד` was the sole filter and defaulted on, which hid exactly those workshops. `[code]`
 
 ### 8.6 Calendar — `/luach`
 
@@ -1176,6 +1210,7 @@ Phase 1 notifications are **in-system visual flags only** — badges, banners, h
 
 | Trigger | Who sees it | How |
 |---|---|---|
+| **≤ 7 days to the date, still not מוכן** | Manager, Tech (roll-up) · all roles (row + detail banner) | Red panel above the workshop table listing every unmet condition, red-tinted row with a `🚨 בעוד N ימים — לא מוכן` badge, a `🚨 לא מוכנות לשבוע הקרוב` filter pill, and a red banner on Workshop Detail. **The only alert that fires before the date.** Live condition — no dismiss. §4.8 |
 | Workshop sent to casting | Caster | Pending count + change banner on ליהוק |
 | Scenario/room/counts changed after send | Caster | Change-log banner (amber / red) |
 | Workshop postponed after casting | Manager, Tech, Caster | Amber banner + `DATE_CHANGED` log |
@@ -1495,6 +1530,10 @@ Sessions 1–19 as built. Branch naming `session-N-*`, merged to `develop` then 
 | **20 Aug 2026** | — | **Supabase Data API disabled on production — security fix, no code change** (new §2.3.1). §13 item 8 asked whether the Data API exposed the tables and assumed it did not. It did. The API was enabled with `public` exposed, and **all 21 Prisma-created tables carried full `anon` privileges — `SELECT, INSERT, UPDATE, DELETE, TRUNCATE`, not read-only — with RLS on none of them.** Cause: Supabase's default privileges on `public` grant everything to `anon`/`authenticated` for tables created by the `postgres` role, which is the role Prisma connects as; tables inherit those grants silently at creation. Anyone holding the project's anon key therefore had full read/write on `Person` (staff emails, bcrypt hashes), `Actor`, `Feedback` and `Organization`, bypassing every route-handler permission check (§5.2). Mitigating factor: the anon key is not published anywhere — the app ships no Supabase client and holds no anon key in any environment variable. **Fixed by disabling the Data API in the dashboard**, verified safe three ways (no `@supabase/supabase-js` in the lockfile; no `createClient`/`rest/v1` in `src/`; no anon or service-role key in any Vercel env var; the nightly backup uses `pg` + Google Drive). Grants and RLS deliberately left as they are — **the disabled API is the only control, so it must stay disabled; every future table will inherit the same grants.** Revoke SQL and the re-enable/rollback note are in §2.3.1. `sim_crm_testing` has identical grants and its Data API state is still unverified. |
 
 | **22 Aug 2026** | — | **טבלאות פיבוט** (branch `pivot_tables`, §8.12 rewritten, §5.1, §5.2, §3.5). `/yaadot` renamed from *יעדי סדנאות* — route unchanged — and opened to **Tech**, who may edit rows but not the יעד שנתי. The four-row allocation table is replaced by a **12 month × 4 שיוך תקציבי** grid modelled on the centre's own Excel workbook, plus a new month-level view with one row per workshop. New **חדרים לספירה** (`src/lib/counted-rooms.ts`) replaces the raw room count in *all* allocation math: a live workshop counts its active rooms, one cancelled at NEW counts 0, one cancelled after איתור צרכים counts **1** regardless of rooms booked, and `countedRoomsOverride` beats any of them. **Cancelled workshops now enter the annual rollup**, which they never did before — the 2026 figures move as a result. A computed, uneditable **ביטול** column reads *מבוטל* or *בוטל לאחר איתור צרכים*; it is derived live and kept separate from the new free-text `pivotNotes` so a Tech cannot blur the distinction. `.xlsx` export via `exceljs`, סיכום-only or full. Two nullable columns (`20260822120000_add_pivot_fields`); **no backfill needed** — cancelling never writes `status`, so `status` is already frozen at the moment of cancellation on every historical row, which is also why no `preCancellationStatus` snapshot column exists. |
+
+| **25 Aug 2026** | — | **Caster lands on ליהוק, and sees cast workshops there** (§8.1, §8.5). Login redirected everyone to `/sadnaot` — a page not in the Caster's navigation and of no use to her — because the destination was hardcoded in three places (`/login`, `/change-password`, and the `/` redirect, which picked the first *nav* item a role could reach and sent the Caster to the calendar). All three now call one `homePathFor()` in `src/lib/roles.ts`. On the ליהוק landing page, `ממתינות בלבד` was the only filter and defaulted on, hiding every completed casting; it now defaults **off** beside a new `סדנאות עתידיות בלבד` pill that defaults **on**, so the Caster opens on all upcoming workshops and can reopen a finished casting to edit it. The counter beside the heading reports rows displayed rather than an unfiltered total. No schema change and no permission change: `/sadnaot` is still reachable by direct URL for the Caster, since `/luach` — which is open to her — links workshop blocks straight into workshop detail. Blocking the route would have to come with a Caster-specific target for those clicks. |
+
+| **29 Aug 2026** | — | **Readiness alert — a week out and not מוכן** (branch `readiness_alert`, new §4.8, §4.3, §8.2, §8.4, §11). Every flag in the system fired *after* the date had passed; nothing warned that a workshop three days away still had no presentations and half a casting. A workshop now raises an alert while it is `סדנה חדשה` or `בוצע איתור צרכים`, uncancelled, and **0–7 days out**: a red roll-up panel above the workshop table for Manager and Tech naming each unmet condition as a chip, a red-tinted row with a `🚨 בעוד N ימים — לא מוכן` badge for every role, a `🚨 לא מוכנות לשבוע הקרוב` filter pill, and a red banner at the top of the Workshop Detail banner stack that turns the readiness checklist red to match. A `סדנה חדשה` reports only `איתור צרכים`, since nothing downstream can be done before it. **A live condition, not an event — no dismiss button and no `localStorage` key**, unlike the cancellation and postponement banners; it clears itself when the last condition is met or the date passes. New `src/lib/workshop-readiness.ts` now owns the five READY conditions, and `checkAndAdvanceStatus()` calls into it instead of testing them inline — the gate, the alert and the checklist read one implementation, and its casting test delegates to `castingProgress()` (§7.7). Days are counted on Israel's calendar via `Asia/Jerusalem`, not the server's UTC clock, which would read a day early every Israeli evening. **No schema change, no migration.** Also removed: the unused `daysUntil` / `scenarioUrgency` fields on `GET /api/workshops`, dead since no screen ever fetched that route — a red-at-7-days rule that had been computed and thrown away. |
 
 ---
 
