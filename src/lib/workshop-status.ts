@@ -1,5 +1,6 @@
 import { prisma } from "./prisma"
 import { WorkshopStatus } from "@prisma/client"
+import { unmetReadyConditions } from "./workshop-readiness"
 
 /**
  * Checks whether the workshop should auto-advance or regress in status
@@ -67,35 +68,23 @@ export async function checkAndAdvanceStatus(workshopId: string): Promise<string 
   wEndDateTime.setHours(endHour, endMin, 0, 0)
 
   // ── Helper: evaluate all five READY conditions ───────────────────────────
+  // The conditions themselves live in workshop-readiness.ts, which the workshop
+  // table's readiness alert and the Detail page checklist also read — so the
+  // gate and the screens that explain it can never drift apart. §4.3.
   function readyConditionsMet(): boolean {
-    // 1. All active rooms have pptReceived
-    if (w!.rooms.length === 0) return false
-    const allPpt = w!.rooms.every((r) => r.pptReceived)
-
-    // 2. Casting fully complete (sent + all Step 2 slots filled)
-    if (!w!.castingSentAt) return false
-    const slotsPerRoom  = w!.scenarios.reduce((s, sc) => s + sc.maleActorsNeeded + sc.femaleActorsNeeded, 0)
-    const castingTotal  = slotsPerRoom * w!.rooms.length + (w!.directorRequested ? 1 : 0)
-    const nonDirFilled  = w!.castings.filter((c) => !c.isDirector).length
-    const hasDir        = w!.castings.some((c) => c.isDirector)
-    const castingFilled = nonDirFilled + (w!.directorRequested && hasDir ? 1 : 0)
-    const castingComplete = castingTotal > 0 && castingFilled === castingTotal
-
-    // 3. Feedback form added
-    const feedbackDone = w!.feedbackFormAdded
-
-    // 4. Estimated participants set. Nullable in the DB for existing rows,
-    //    but required by the business rules before a workshop can be READY.
-    const participantsSet = w!.estimatedParticipants !== null
-
-    // 5. If a non-standard physical room is in use, it must be approved.
-    //    Physical rooms only exist at the centre — a חיצוני or זום workshop has
-    //    nothing to approve. Rooms 1–3 never need approval either.
-    const usesOtherRoom = w!.locationType === "CENTER" &&
-                          w!.roomLocations.some((l) => l.location === "OTHER")
-    const roomApproved  = !usesOtherRoom || w!.otherRoomApproved
-
-    return allPpt && castingComplete && feedbackDone && participantsSet && roomApproved
+    return unmetReadyConditions({
+      castingSentAt:         w!.castingSentAt,
+      directorRequested:     w!.directorRequested,
+      feedbackFormAdded:     w!.feedbackFormAdded,
+      estimatedParticipants: w!.estimatedParticipants,
+      locationType:          w!.locationType,
+      otherRoomApproved:     w!.otherRoomApproved,
+      roomLocations:         w!.roomLocations.map((l) => l.location),
+      // Rooms and scenarios are already filtered to the active ones by the query.
+      rooms:     w!.rooms,
+      scenarios: w!.scenarios,
+      castings:  w!.castings,
+    }).length === 0
   }
 
   // ── Helper: all expected feedback records have been entered with text ────

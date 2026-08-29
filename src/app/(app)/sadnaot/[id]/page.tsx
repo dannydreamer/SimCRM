@@ -5,6 +5,7 @@ import { useParams } from "next/navigation"
 import Link from "next/link"
 import { useSession } from "next-auth/react"
 import { ROOM_LOCATION_LABELS, ROOM_LOCATION_VALUES, sortRoomLocations } from "@/lib/room-locations"
+import { READY_CONDITION_LABEL, daysUntilPhrase, readinessAlert } from "@/lib/workshop-readiness"
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -905,6 +906,11 @@ export default function WorkshopDetailPage() {
 
   const hd = headerDraft
 
+  // Computed from live page state rather than fetched, so ticking the last
+  // missing condition clears the alarm on the spot. Same five conditions as the
+  // checklist below and as the status gate itself. §11
+  const readiness = readinessAlert(w)
+
   return (
     <div className="flex flex-col h-full overflow-auto">
       {/* Breadcrumb */}
@@ -917,6 +923,22 @@ export default function WorkshopDetailPage() {
       <div className="px-8 pb-10 flex flex-col gap-6 max-w-4xl w-full">
 
         {/* Banners */}
+        {readiness && (
+          <div className="bg-red-50 border-2 border-red-400 rounded-lg px-5 py-4 flex flex-col gap-2">
+            <p className="text-base font-bold text-red-800">
+              🚨 הסדנה {daysUntilPhrase(readiness.daysUntil)} ואינה מוכנה
+            </p>
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-sm text-red-700 font-medium">חסר:</span>
+              {readiness.unmet.map((k) => (
+                <span key={k}
+                  className="px-2 py-0.5 rounded bg-white border border-red-300 text-red-700 text-xs font-semibold">
+                  {READY_CONDITION_LABEL[k]}
+                </span>
+              ))}
+            </div>
+          </div>
+        )}
         {w.postponedWarning && !postponedDismissed && (
           <div className="bg-amber-100 border border-amber-400 rounded-lg px-4 py-3 text-sm text-amber-800 font-semibold flex items-center justify-between gap-3">
             <span>⚠️ הסדנה נדחתה — יש להודיע למתחקרים ולמלהקת</span>
@@ -1262,15 +1284,27 @@ export default function WorkshopDetailPage() {
 
                 const allDone = allPpt && castingComplete && feedbackDone && participantsSet && roomApproved
 
+                // With the date inside a week the checklist stops being a quiet
+                // progress note and becomes the to-do list for the banner above.
+                const urgent    = !!readiness
+                const markTodo  = urgent ? "text-red-500" : "text-gray-300"
+                const labelTodo = urgent ? "text-red-700" : "text-gray-500"
+
                 return (
-                  <div className="flex flex-col gap-2 bg-gray-50 rounded-lg px-4 py-3">
-                    <p className="text-xs font-semibold text-gray-500 mb-0.5">נדרש למעבר אוטומטי ל״מוכן״:</p>
+                  <div className={`flex flex-col gap-2 rounded-lg px-4 py-3 ${
+                    urgent ? "bg-red-50 border border-red-300" : "bg-gray-50"
+                  }`}>
+                    <p className={`text-xs font-semibold mb-0.5 ${urgent ? "text-red-800" : "text-gray-500"}`}>
+                      {urgent
+                        ? `⚠ הסדנה ${daysUntilPhrase(readiness!.daysUntil)} — נדרש למעבר ל״מוכן״:`
+                        : "נדרש למעבר אוטומטי ל״מוכן״:"}
+                    </p>
 
                     {/* Condition 1: PPT */}
                     <div className="flex items-start gap-2 text-xs">
-                      <span className={`mt-px font-bold ${allPpt ? "text-brand-green" : "text-gray-300"}`}>{allPpt ? "✓" : "○"}</span>
+                      <span className={`mt-px font-bold ${allPpt ? "text-brand-green" : markTodo}`}>{allPpt ? "✓" : "○"}</span>
                       <div>
-                        <span className={allPpt ? "text-gray-700" : "text-gray-500"}>
+                        <span className={allPpt ? "text-gray-700" : labelTodo}>
                           {`התקבלו מצגות לכל החדרים (${pptCount}/${activeRooms.length})`}
                         </span>
                         {!allPpt && !allFacilitators && (
@@ -1284,9 +1318,9 @@ export default function WorkshopDetailPage() {
 
                     {/* Condition 2: Casting */}
                     <div className="flex items-start gap-2 text-xs">
-                      <span className={`mt-px font-bold ${castingComplete ? "text-brand-green" : "text-gray-300"}`}>{castingComplete ? "✓" : "○"}</span>
+                      <span className={`mt-px font-bold ${castingComplete ? "text-brand-green" : markTodo}`}>{castingComplete ? "✓" : "○"}</span>
                       <div>
-                        <span className={castingComplete ? "text-gray-700" : "text-gray-500"}>
+                        <span className={castingComplete ? "text-gray-700" : labelTodo}>
                           {castingComplete ? "ליהוק הושלם" : castingSent ? "הליהוק בתהליך" : "ליהוק"}
                         </span>
                         {!castingComplete && !castingSent && (
@@ -1297,22 +1331,22 @@ export default function WorkshopDetailPage() {
 
                     {/* Condition 3: Feedback form */}
                     <div className="flex items-center gap-2 text-xs">
-                      <span className={`font-bold ${feedbackDone ? "text-brand-green" : "text-gray-300"}`}>{feedbackDone ? "✓" : "○"}</span>
-                      <span className={feedbackDone ? "text-gray-700" : "text-gray-500"}>הועתק לגוגל פורם של המשוב</span>
+                      <span className={`font-bold ${feedbackDone ? "text-brand-green" : markTodo}`}>{feedbackDone ? "✓" : "○"}</span>
+                      <span className={feedbackDone ? "text-gray-700" : labelTodo}>הועתק לגוגל פורם של המשוב</span>
                     </div>
 
                     {/* Condition 4: Estimated participants — mirrors the field above */}
                     <div className="flex items-center gap-2 text-xs">
-                      <span className={`font-bold ${participantsSet ? "text-brand-green" : "text-gray-300"}`}>{participantsSet ? "✓" : "○"}</span>
-                      <span className={participantsSet ? "text-gray-700" : "text-gray-500"}>
+                      <span className={`font-bold ${participantsSet ? "text-brand-green" : markTodo}`}>{participantsSet ? "✓" : "○"}</span>
+                      <span className={participantsSet ? "text-gray-700" : labelTodo}>
                         {participantsSet ? `מספר משתתפים משוער (${w.estimatedParticipants})` : "הוזן מספר משתתפים משוער"}
                       </span>
                     </div>
 
                     {/* Condition 5: room approval — only meaningful when חדר אחר is selected */}
                     <div className="flex items-center gap-2 text-xs">
-                      <span className={`font-bold ${roomApproved ? "text-brand-green" : "text-gray-300"}`}>{roomApproved ? "✓" : "○"}</span>
-                      <span className={roomApproved ? "text-gray-700" : "text-gray-500"}>
+                      <span className={`font-bold ${roomApproved ? "text-brand-green" : markTodo}`}>{roomApproved ? "✓" : "○"}</span>
+                      <span className={roomApproved ? "text-gray-700" : labelTodo}>
                         {usesOtherRoom ? "חדרים חיצוניים אושרו"
                           : w.locationType === "CENTER" ? "חדר אינו טעון אישור"
                           : "הסדנה אינה במרכז — אין חדר לאישור"}
