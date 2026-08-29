@@ -4,8 +4,15 @@ import { useEffect, useMemo, useState } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { useUser } from "@/app/(app)/user-context"
+import {
+  READY_CONDITION_LABEL, daysUntilPhrase,
+  type ReadyConditionKey,
+} from "@/lib/workshop-readiness"
 
 interface Facilitator { id: string; name: string }
+
+/** Non-null only while the workshop is a week or less away and not yet מוכן. §11 */
+interface Readiness { daysUntil: number; unmet: ReadyConditionKey[] }
 
 interface WorkshopRow {
   id: string; date: string; startTime: string; endTime: string
@@ -21,6 +28,7 @@ interface WorkshopRow {
   pptFilled: number; pptTotal: number
   letterFilled: number; letterTotal: number
   feedbackMissing: number
+  readiness: Readiness | null
   castingSentAt: string | null
   postponedWarning: boolean
   roomCancelledWarning: boolean
@@ -98,6 +106,17 @@ function FeedbackBadge({ missing, castingTotal, href }: { missing: number; casti
   return href ? <Link href={href} onClick={(e) => e.stopPropagation()}>{inner}</Link> : inner
 }
 
+// The row's half of the readiness alert. The banner above the table carries the
+// detail; the badge's only job is to make the row impossible to scroll past.
+function NotReadyBadge({ readiness }: { readiness: Readiness }) {
+  const needsAssessment = readiness.unmet[0] === "needsAssessment"
+  return (
+    <span className="inline-block mt-1 px-1.5 py-0.5 rounded bg-red-600 text-white text-xs font-bold">
+      🚨 {daysUntilPhrase(readiness.daysUntil)} — {needsAssessment ? "טרם בוצע איתור צרכים" : "לא מוכן"}
+    </span>
+  )
+}
+
 function SortTh({ col, label, sortCol, sortDir, onSort, className = "" }: {
   col: SortCol; label: string; sortCol: SortCol; sortDir: "asc" | "desc"
   onSort: (col: SortCol) => void; className?: string
@@ -155,6 +174,7 @@ export default function SadnaotPage() {
   const [dateTo,            setDateTo]            = useState("")
   const [castingPending,    setCastingPending]    = useState(false)
   const [feedbackPending,   setFeedbackPending]   = useState(false)
+  const [notReadyOnly,      setNotReadyOnly]      = useState(false)
   // Starts false and is filled in from localStorage after mount — reading storage
   // during render would break hydration.
   const [hideFeedbackOnly,  setHideFeedbackOnly]  = useState(false)
@@ -195,6 +215,20 @@ export default function SadnaotPage() {
       ? workshops.filter((w) => !w.cancelled && w.roomCancelledWarning && !dismissedRoomCancelledIds.has(w.id))
       : [],
     [workshops, dismissedRoomCancelledIds, isManager, isTech]
+  )
+
+  // A live condition, not an event — it clears itself the moment the workshop
+  // becomes מוכן or the date passes. So there is nothing to dismiss and no
+  // localStorage key, unlike the banners above. Manager and Tech act on it. §11
+  const notReadySoon = useMemo(
+    () => (isManager || isTech)
+      ? workshops
+          .filter((w) => w.readiness)
+          .sort((a, b) =>
+            a.readiness!.daysUntil - b.readiness!.daysUntil ||
+            a.orgName.localeCompare(b.orgName, "he"))
+      : [],
+    [workshops, isManager, isTech]
   )
 
   function dismissCancellation(workshopId: string) {
@@ -257,6 +291,7 @@ export default function SadnaotPage() {
       if (dateTo   && w.date > dateTo + "T23:59:59") return false
       if (castingPending  && !(w.castingTotal > 0 && w.castingFilled < w.castingTotal)) return false
       if (feedbackPending && w.feedbackMissing === 0) return false
+      if (notReadyOnly    && !w.readiness) return false
       if (hideFeedbackOnly && onlyFeedbackLeft(w)) return false
       return true
     }
@@ -275,7 +310,7 @@ export default function SadnaotPage() {
       active:    sorted.filter((w) => !w.cancelled),
       cancelled: viewFilter === "all" ? sorted.filter((w) => w.cancelled) : [],
     }
-  }, [workshops, viewFilter, facilitatorFilter, topicFilter, dateFrom, dateTo, castingPending, feedbackPending, hideFeedbackOnly, sortCol, sortDir])
+  }, [workshops, viewFilter, facilitatorFilter, topicFilter, dateFrom, dateTo, castingPending, feedbackPending, notReadyOnly, hideFeedbackOnly, sortCol, sortDir])
 
   return (
     <div className="flex flex-col h-full">
@@ -296,6 +331,38 @@ export default function SadnaotPage() {
       </div>
 
       {/* Alert banners */}
+      {!loading && notReadySoon.length > 0 && (
+        <div className="mx-8 mb-1.5 bg-red-50 border-2 border-red-400 rounded-lg px-4 py-3 shrink-0">
+          <p className="text-sm font-bold text-red-800 mb-2">
+            🚨 {notReadySoon.length === 1
+              ? "סדנה בשבוע הקרוב שאינה מוכנה"
+              : `${notReadySoon.length} סדנאות בשבוע הקרוב שאינן מוכנות`}
+          </p>
+          <ul className="flex flex-col gap-1">
+            {notReadySoon.map((w) => (
+              <li key={w.id}>
+                <button
+                  onClick={() => router.push(`/sadnaot/${w.id}`)}
+                  className="w-full text-right flex flex-wrap items-center gap-x-2 gap-y-1 rounded px-2 py-1 hover:bg-red-100 transition-colors">
+                  <span className="px-1.5 py-0.5 rounded bg-red-600 text-white text-xs font-bold shrink-0">
+                    {daysUntilPhrase(w.readiness!.daysUntil)}
+                  </span>
+                  <span className="text-sm font-semibold text-red-900">
+                    {fmtDate(w.date)} · {w.orgName} — {w.groupName}
+                  </span>
+                  <span className="text-xs text-red-700">חסר:</span>
+                  {w.readiness!.unmet.map((k) => (
+                    <span key={k}
+                      className="px-1.5 py-0.5 rounded bg-white border border-red-300 text-red-700 text-xs font-medium">
+                      {READY_CONDITION_LABEL[k]}
+                    </span>
+                  ))}
+                </button>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
       {!loading && newlyCancelledWorkshops.map((cw) => (
         <div key={cw.id} className="mx-8 mb-1 bg-red-50 border border-red-300 rounded-lg px-4 py-3 flex items-start justify-between gap-3 text-sm text-red-800 shrink-0">
           <div>
@@ -378,6 +445,14 @@ export default function SadnaotPage() {
       {/* Filters — row 2: pending toggles */}
       <div className="px-8 pb-3 flex items-center gap-3 shrink-0">
         <button
+          onClick={() => setNotReadyOnly((v) => !v)}
+          title="סדנאות שיתקיימו בשבוע הקרוב וטרם עברו למצב מוכן"
+          className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${
+            notReadyOnly ? "bg-red-600 text-white" : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+          }`}>
+          🚨 לא מוכנות לשבוע הקרוב
+        </button>
+        <button
           onClick={() => setCastingPending((v) => !v)}
           className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${
             castingPending ? "bg-amber-500 text-white" : "bg-gray-100 text-gray-600 hover:bg-gray-200"
@@ -429,7 +504,9 @@ export default function SadnaotPage() {
                 {active.map((w) => (
                   <tr key={w.id}
                     onClick={() => router.push(`/sadnaot/${w.id}`)}
-                    className="border-b border-gray-100 last:border-0 hover:bg-gray-50 cursor-pointer transition-colors">
+                    className={`border-b border-gray-100 last:border-0 cursor-pointer transition-colors ${
+                      w.readiness ? "bg-red-50 hover:bg-red-100" : "hover:bg-gray-50"
+                    }`}>
 
                     <td className="px-3 py-2.5 whitespace-nowrap">
                       <div className="flex items-center gap-1.5">
@@ -461,6 +538,7 @@ export default function SadnaotPage() {
                           ⚠ תאריך עבר ולא בוצע איתור צרכים
                         </span>
                       )}
+                      {w.readiness && <NotReadyBadge readiness={w.readiness} />}
                     </td>
 
                     <td className="px-3 py-2.5 text-center">

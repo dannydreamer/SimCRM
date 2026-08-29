@@ -66,27 +66,15 @@ export async function GET(req: Request) {
     const workshopDate = new Date(w.date)
     workshopDate.setHours(0, 0, 0, 0)
     const isUpcoming = workshopDate >= now
-    const msPerDay = 1000 * 60 * 60 * 24
-    const daysUntil = Math.ceil((workshopDate.getTime() - now.getTime()) / msPerDay)
 
     const needsAssessmentDone = w.status !== "NEW"
     const castingTotal = (w.castingMaleNeeded ?? 0) + (w.castingFemaleNeeded ?? 0)
     const castingDone = castActors.length
 
-    const allWritten =
-      activeScenarios.length > 0 &&
-      writtenScenarios.length === activeScenarios.length
-
-    let scenarioUrgency: "written" | "gray" | "orange" | "red"
-    if (allWritten) {
-      scenarioUrgency = "written"
-    } else if (isUpcoming && daysUntil < 7) {
-      scenarioUrgency = "red"
-    } else if (isUpcoming && daysUntil <= 14) {
-      scenarioUrgency = "orange"
-    } else {
-      scenarioUrgency = "gray"
-    }
+    // Removed 29 Aug 2026: a `scenarioUrgency` red/orange rule at 7 and 14 days out,
+    // and the `daysUntil` behind it. No screen ever fetched this route, so both were
+    // computed and thrown away. The date-proximity warning that shipped instead is
+    // the readiness alert — src/lib/workshop-readiness.ts, spec §4.8.
 
     return {
       id: w.id,
@@ -113,7 +101,6 @@ export async function GET(req: Request) {
 
       scenarioCount: activeScenarios.length,
       scenariosWrittenCount: writtenScenarios.length,
-      scenarioUrgency,
 
       castingMaleNeeded: w.castingMaleNeeded,
       castingFemaleNeeded: w.castingFemaleNeeded,
@@ -128,7 +115,6 @@ export async function GET(req: Request) {
       feedbackEntered: w.feedbacks.length,
 
       isUpcoming,
-      daysUntil,
     }
   })
 
