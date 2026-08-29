@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
 import { castingProgress } from "@/lib/casting-progress"
+import { readinessAlert } from "@/lib/workshop-readiness"
 
 export async function GET() {
   const session = await getServerSession(authOptions)
@@ -31,8 +32,15 @@ export async function GET() {
           aspect3ReflectionText: true, aspect4ProfessionalText: true,
         },
       },
+      // Needed by the readiness alert — condition 5 turns on whether a חדר אחר
+      // is in use at the centre.
+      roomLocations: { select: { location: true } },
     },
   })
+
+  // One clock for the whole response, so two rows a millisecond apart can never
+  // land on different days.
+  const now = new Date()
 
   return NextResponse.json(
     workshops.map((w) => {
@@ -89,6 +97,25 @@ export async function GET() {
         .filter((r) => r.facilitator)
         .map((r) => ({ id: r.facilitator!.id, name: r.facilitator!.name }))
 
+      // Computed here rather than on the client: the day boundary is Israel's,
+      // not the browser's, and the five conditions must match the status gate
+      // exactly. Null for anything ready, cancelled, past, or over a week out.
+      const readiness = readinessAlert({
+        status:                w.status,
+        cancelled:             w.cancelled,
+        date:                  w.date,
+        castingSentAt:         w.castingSentAt,
+        directorRequested:     w.directorRequested,
+        feedbackFormAdded:     w.feedbackFormAdded,
+        estimatedParticipants: w.estimatedParticipants,
+        locationType:          w.locationType,
+        otherRoomApproved:     w.otherRoomApproved,
+        roomLocations:         w.roomLocations.map((l) => l.location),
+        rooms:      w.rooms,
+        scenarios:  w.scenarios,
+        castings:   w.castings,
+      }, now)
+
       return {
         id:           w.id,
         date:         w.date.toISOString(),
@@ -116,6 +143,7 @@ export async function GET() {
         postponedWarning:     w.postponedWarning,
         roomCancelledWarning: w.roomCancelledWarning,
         feedbackMissing,
+        readiness,
         topics: [...new Map(
           activeScenarios.filter((s) => s.topic).map((s) => [s.topic.id, s.topic.name])
         ).entries()].map(([id, name]) => ({ id, name })),
