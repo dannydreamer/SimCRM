@@ -568,7 +568,12 @@ export default function SadnaotPage() {
                     </td>
 
                     <td className="px-3 py-2.5 text-center">
-                      <CheckBadge ok={w.feedbackFormAdded} warn={!w.feedbackFormAdded && w.castingTotal > 0} />
+                      {/* The participants' Google Form has nothing to do with casting —
+                          it is owed from the moment the needs assessment is done, whether
+                          or not a single actor has been cast. Warn from SPECIFIED onward;
+                          a סדנה חדשה owes only its needs assessment, and a cancelled
+                          workshop owes nothing. */}
+                      <CheckBadge ok={w.feedbackFormAdded} warn={!w.feedbackFormAdded && !w.cancelled && w.status !== "NEW"} />
                     </td>
 
                     <td className="px-3 py-2.5 text-center">
