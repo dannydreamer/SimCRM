@@ -28,6 +28,7 @@ interface WorkshopRow {
   pptFilled: number; pptTotal: number
   letterFilled: number; letterTotal: number
   feedbackMissing: number
+  feedbackExpected: number
   readiness: Readiness | null
   castingSentAt: string | null
   postponedWarning: boolean
@@ -97,8 +98,12 @@ function CastingBadge({ started, complete, href }: { started: boolean; complete:
     : inner
 }
 
-function FeedbackBadge({ missing, castingTotal, href }: { missing: number; castingTotal: number; href?: string }) {
-  if (castingTotal === 0) return <span className="text-gray-300 text-xs">—</span>
+// Gated on how much feedback is actually expected — the number of actors cast
+// into active rooms — not on castingTotal. castingTotal is the theoretical slot
+// count and is already > 0 before anyone has been cast, which turned "nobody is
+// cast, so nothing is missing" into a green ✓ on workshops that had not happened.
+function FeedbackBadge({ missing, expected, href }: { missing: number; expected: number; href?: string }) {
+  if (expected === 0) return <span className="text-gray-300 text-xs">—</span>
   if (missing === 0) return <span className="text-brand-green font-bold text-base">✓</span>
   const inner = (
     <span className="inline-block px-1.5 py-0.5 rounded bg-amber-100 text-amber-700 text-xs font-semibold">⚠ {missing}</span>
@@ -575,7 +580,7 @@ export default function SadnaotPage() {
                     </td>
 
                     <td className="px-3 py-2.5 text-center">
-                      <FeedbackBadge missing={w.feedbackMissing} castingTotal={w.castingTotal} href={`/sadnaot/${w.id}#feedback`} />
+                      <FeedbackBadge missing={w.feedbackMissing} expected={w.feedbackExpected} href={`/sadnaot/${w.id}#feedback`} />
                     </td>
                   </tr>
                 ))}

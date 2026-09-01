@@ -54,8 +54,10 @@ export async function GET() {
       const slottingTentative = activeRooms.some((r) => r.facilitatorTentative)
 
       // Raw Step 2 slot counts. No longer feed the ליהוק badge — they still drive the
-      // "ממתין לליהוק לחדרים" filter and the feedback columns' "has this workshop got
-      // casting at all" test (castingTotal > 0). See spec §8.2.
+      // "ממתין לליהוק לחדרים" filter and the משוב משתתפים column's "is this workshop
+      // far enough along to owe a feedback form" test (castingTotal > 0). The הזנת
+      // פידבק column deliberately does not use them; see feedbackExpected below.
+      // See spec §8.2.
       const slotsPerRoom  = activeScenarios.reduce((sum, s) => sum + s.maleActorsNeeded + s.femaleActorsNeeded, 0)
       const castingTotal  = slotsPerRoom * activeRooms.length + (w.directorRequested ? 1 : 0)
       const castingFilled = nonDirCastings.filter((c) => c.actorId).length + (w.directorRequested && directorCasting ? 1 : 0)
@@ -92,6 +94,18 @@ export async function GET() {
         ).length +
         (w.directorRequested && directorCasting &&
          !completedFeedbackSet.has(`${directorCasting.actorId}:null`) ? 1 : 0)
+
+      // How much feedback this workshop actually expects: one record per actor
+      // genuinely cast into an active room, plus the director if one was cast.
+      // Deliberately NOT castingTotal — that is the theoretical slot count from
+      // scenarios × rooms, which is already > 0 before anyone has been cast, so
+      // gating the badge on it made an uncast workshop's zero missing records
+      // read as "all feedback in". Counted the same way as feedbackMissing above
+      // so that missing can never exceed expected. Matches the Detail page's
+      // feedbackExpected. See spec §8.2.
+      const feedbackExpected =
+        nonDirCastings.filter((c) => c.roomId && activeRoomIds.has(c.roomId)).length +
+        (w.directorRequested && directorCasting ? 1 : 0)
 
       const roomFacilitators = activeRooms
         .filter((r) => r.facilitator)
@@ -143,6 +157,7 @@ export async function GET() {
         postponedWarning:     w.postponedWarning,
         roomCancelledWarning: w.roomCancelledWarning,
         feedbackMissing,
+        feedbackExpected,
         readiness,
         topics: [...new Map(
           activeScenarios.filter((s) => s.topic).map((s) => [s.topic.id, s.topic.name])
