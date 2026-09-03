@@ -7,6 +7,11 @@ import { useSession } from "next-auth/react"
 import { ROOM_LOCATION_LABELS, ROOM_LOCATION_VALUES, sortRoomLocations } from "@/lib/room-locations"
 import { READY_CONDITION_LABEL, daysUntilPhrase, readinessAlert } from "@/lib/workshop-readiness"
 
+// The participants' feedback Google Form is a single standing form shared by every
+// workshop — the copied מחרוזת is pasted into it as a new option, so the link sits
+// next to the copy button.
+const FEEDBACK_FORM_URL = "https://docs.google.com/forms/d/1TYZB-2_KwnO2DxZ8USndrrJn6zp6z4z6SXvUYPAY3QM/edit"
+
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 interface Room {
@@ -185,6 +190,7 @@ function ScenarioRow({
   const [femaleCount, setFemaleCount] = useState(String(s.femaleActorsNeeded))
   const [saving, setSaving] = useState(false)
   const [modelSaving, setModelSaving] = useState(false)
+  const [writtenSaving, setWrittenSaving] = useState(false)
 
   async function save() {
     setSaving(true)
@@ -205,15 +211,16 @@ function ScenarioRow({
     setSaving(false)
   }
 
-  async function toggleWritten() {
-    const next = !s.written
+  async function toggleWritten(next: boolean) {
+    setWrittenSaving(true)
     const res = await fetch(`/api/sadnaot/${workshopId}/scenarios/${s.id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ written: next }),
     })
-    if (!res.ok) return
+    if (!res.ok) { setWrittenSaving(false); return }
     const updated = await res.json()
+    setWrittenSaving(false)
     // Un-marking נכתב clears pptReceived on every room server-side, and either
     // direction can move the workshop between SPECIFIED and READY. Both change
     // state this row does not own, so reload rather than patch locally.
@@ -323,8 +330,11 @@ function ScenarioRow({
           </td>
           <td className="py-2 px-3 text-center">
             {canEdit && !s.cancelled ? (
-              <button onClick={toggleWritten} title={s.written ? "סמן כלא כתוב" : "סמן ככתוב"}
-                className="text-lg leading-none">{s.written ? "✓" : "○"}</button>
+              <input type="checkbox" checked={s.written}
+                disabled={writtenSaving}
+                onChange={(e) => toggleWritten(e.target.checked)}
+                title={s.written ? "סמן כלא כתוב" : "סמן ככתוב"}
+                className={`w-4 h-4 accent-navy ${writtenSaving ? "opacity-40 cursor-not-allowed" : "cursor-pointer"}`} />
             ) : <Check on={s.written} />}
           </td>
           <td className="py-2 px-3">
@@ -1703,12 +1713,18 @@ export default function WorkshopDetailPage() {
               <div>
                 <div className="flex items-center justify-between mb-1">
                   <span className="text-xs text-gray-500">מחרוזת לטופס Google</span>
-                  {hasScenario && (
-                    <button onClick={copyFormString}
-                      className={`text-xs px-2 py-1 rounded border transition-colors ${copied ? "bg-green-100 border-green-300 text-green-700" : "border-gray-300 text-gray-600 hover:bg-gray-50"}`}>
-                      {copied ? "הועתק ✓" : "העתק"}
-                    </button>
-                  )}
+                  <div className="flex items-center gap-3">
+                    {hasScenario && (
+                      <button onClick={copyFormString}
+                        className={`text-xs px-2 py-1 rounded border transition-colors ${copied ? "bg-green-100 border-green-300 text-green-700" : "border-gray-300 text-gray-600 hover:bg-gray-50"}`}>
+                        {copied ? "הועתק ✓" : "העתק"}
+                      </button>
+                    )}
+                    <a href={FEEDBACK_FORM_URL} target="_blank" rel="noopener noreferrer"
+                      className="text-xs text-navy hover:underline">
+                      לינק למשוב
+                    </a>
+                  </div>
                 </div>
                 {hasScenario ? (
                   <div className="bg-gray-50 border border-gray-200 rounded px-3 py-2 text-sm text-gray-700 font-mono select-all">
