@@ -3,6 +3,8 @@
 import { useCallback, useEffect, useMemo, useState } from "react"
 import { useParams, useRouter } from "next/navigation"
 import { useUser } from "@/app/(app)/user-context"
+import { GenderTag } from "@/components/GenderTag"
+import { genderCount, genderFieldClass, genderTextClass, genderWord, type Gender } from "@/lib/gender"
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -448,10 +450,12 @@ export default function LihukimPage() {
               <div className="flex items-center gap-1 bg-gray-100 rounded-lg p-0.5 text-xs">
                 {(["all", "MALE", "FEMALE"] as const).map((g) => (
                   <button key={g} onClick={() => setGenderFilter(g)}
-                    className={`px-2.5 py-1 rounded-md transition-colors ${
-                      genderFilter === g ? "bg-white shadow-sm text-gray-900 font-medium" : "text-gray-500 hover:text-gray-700"
+                    className={`px-2.5 py-1 rounded-md transition-colors font-medium ${
+                      genderFilter === g
+                        ? g === "all" ? "bg-white shadow-sm text-gray-900" : `bg-white shadow-sm ${genderTextClass(g)}`
+                        : g === "all" ? "text-gray-500 hover:text-gray-700" : `${genderTextClass(g)} opacity-60 hover:opacity-100`
                     }`}>
-                    {g === "all" ? "הכל" : g === "MALE" ? "♂ זכר" : "♀ נקבה"}
+                    {g === "all" ? "הכל" : genderWord(g)}
                   </button>
                 ))}
               </div>
@@ -488,8 +492,8 @@ export default function LihukimPage() {
                   <tr key={actor.id}
                     className={`border-b border-gray-50 last:border-0 transition-colors ${actor.available ? "bg-green-50/30" : ""}`}>
                     <td className="px-4 py-2.5 font-medium text-gray-800">{actor.name}</td>
-                    <td className="px-4 py-2.5 text-gray-500 text-xs hidden md:table-cell">
-                      {actor.gender === "MALE" ? "♂ זכר" : "♀ נקבה"}
+                    <td className="px-4 py-2.5 text-xs hidden md:table-cell">
+                      <GenderTag gender={actor.gender} />
                     </td>
                     <td className="px-4 py-2.5 text-gray-500 text-xs max-w-[200px] truncate hidden md:table-cell">
                       {actor.specialties ?? "—"}
@@ -559,7 +563,7 @@ export default function LihukimPage() {
                 {maleTarget > 0 && (
                   <div>
                     <p className="text-xs font-semibold text-blue-600 uppercase tracking-wide mb-3">
-                      ♂ שחקנים — {maleTarget} מושבים
+                      {genderWord("MALE")} — {maleTarget} מושבים
                     </p>
                     <div className="flex flex-wrap gap-3">
                       {Array.from({ length: maleTarget }, (_, idx) => {
@@ -569,7 +573,8 @@ export default function LihukimPage() {
                         return (
                           <ConfirmSlot
                             key={`MALE:${idx}`}
-                            label={`שחקן ${idx + 1}`}
+                            gender="MALE"
+                            label={`${genderWord("MALE", 1)} ${idx + 1}`}
                             confirmed={confirmed}
                             pool={pool}
                             canEdit={canCast}
@@ -587,7 +592,7 @@ export default function LihukimPage() {
                 {femaleTarget > 0 && (
                   <div>
                     <p className="text-xs font-semibold text-pink-600 uppercase tracking-wide mb-3">
-                      ♀ שחקניות — {femaleTarget} מושבים
+                      {genderWord("FEMALE")} — {femaleTarget} מושבים
                     </p>
                     <div className="flex flex-wrap gap-3">
                       {Array.from({ length: femaleTarget }, (_, idx) => {
@@ -597,7 +602,8 @@ export default function LihukimPage() {
                         return (
                           <ConfirmSlot
                             key={`FEMALE:${idx}`}
-                            label={`שחקנית ${idx + 1}`}
+                            gender="FEMALE"
+                            label={`${genderWord("FEMALE", 1)} ${idx + 1}`}
                             confirmed={confirmed}
                             pool={pool}
                             canEdit={canCast}
@@ -690,7 +696,10 @@ export default function LihukimPage() {
                       <p className="text-xs font-semibold text-gray-600 uppercase tracking-wide">
                         תרחיש {si + 1}{scenario.name ? ` — ${scenario.name}` : ""} · {scenario.topicName}
                         <span className="mr-2 normal-case font-normal text-gray-400">
-                          (♂ {scenario.maleActorsNeeded} · ♀ {scenario.femaleActorsNeeded} לחדר)
+                          (<span className={genderTextClass("MALE")}>{genderCount("MALE", scenario.maleActorsNeeded)}</span>
+                          {" · "}
+                          <span className={genderTextClass("FEMALE")}>{genderCount("FEMALE", scenario.femaleActorsNeeded)}</span>
+                          {" לחדר)"}
                         </span>
                       </p>
                       {scenario.actorRequirements && (
@@ -718,56 +727,69 @@ export default function LihukimPage() {
                                   {room.roomNumber}
                                 </td>
                                 <td className="px-4 py-2.5">
-                                  <div className="flex flex-wrap gap-2">
-                                    {Array.from({ length: scenario.maleActorsNeeded }, (_, idx) => {
-                                      const key        = `${scenario.id}:${room.id}:MALE:${idx}`
-                                      const assignment = assignmentBySlot.get(key) ?? null
-                                      // Exclude actors already used in this scenario+room except this slot
-                                      const usedInRoom = new Set(
-                                        assignments.filter((a) =>
-                                          a.scenarioId === scenario.id && a.roomId === room.id && !a.isDirector &&
-                                          !(a.slotGender === "MALE" && a.slotIndex === idx)
-                                        ).map((a) => a.actorId)
-                                      )
-                                      const pool = confirmedMaleActors.filter((a) => !usedInRoom.has(a.id))
-                                      return (
-                                        <div key={key} className="flex items-center gap-1">
-                                          <span className="text-xs text-blue-500 font-semibold">♂</span>
-                                          <GenderedPicker
-                                            actors={pool}
-                                            current={assignment}
-                                            canEdit={canCast}
-                                            saving={saving}
-                                            onAssign={(actorId) => assign(scenario.id, room.id, actorId, false, "MALE", idx)}
-                                            onClear={() => assignment && unassign(assignment.id)}
-                                          />
-                                        </div>
-                                      )
-                                    })}
-                                    {Array.from({ length: scenario.femaleActorsNeeded }, (_, idx) => {
-                                      const key        = `${scenario.id}:${room.id}:FEMALE:${idx}`
-                                      const assignment = assignmentBySlot.get(key) ?? null
-                                      const usedInRoom = new Set(
-                                        assignments.filter((a) =>
-                                          a.scenarioId === scenario.id && a.roomId === room.id && !a.isDirector &&
-                                          !(a.slotGender === "FEMALE" && a.slotIndex === idx)
-                                        ).map((a) => a.actorId)
-                                      )
-                                      const pool = confirmedFemaleActors.filter((a) => !usedInRoom.has(a.id))
-                                      return (
-                                        <div key={key} className="flex items-center gap-1">
-                                          <span className="text-xs text-pink-500 font-semibold">♀</span>
-                                          <GenderedPicker
-                                            actors={pool}
-                                            current={assignment}
-                                            canEdit={canCast}
-                                            saving={saving}
-                                            onAssign={(actorId) => assign(scenario.id, room.id, actorId, false, "FEMALE", idx)}
-                                            onClear={() => assignment && unassign(assignment.id)}
-                                          />
-                                        </div>
-                                      )
-                                    })}
+                                  {/* One coloured word per group — a tag on every slot would push the row too wide */}
+                                  <div className="flex flex-wrap gap-x-5 gap-y-2">
+                                    {scenario.maleActorsNeeded > 0 && (
+                                      <div className="flex flex-wrap items-center gap-2">
+                                        <span className={`text-[11px] font-semibold ${genderTextClass("MALE")}`}>
+                                          {genderWord("MALE")}
+                                        </span>
+                                        {Array.from({ length: scenario.maleActorsNeeded }, (_, idx) => {
+                                          const key        = `${scenario.id}:${room.id}:MALE:${idx}`
+                                          const assignment = assignmentBySlot.get(key) ?? null
+                                          // Exclude actors already used in this scenario+room except this slot
+                                          const usedInRoom = new Set(
+                                            assignments.filter((a) =>
+                                              a.scenarioId === scenario.id && a.roomId === room.id && !a.isDirector &&
+                                              !(a.slotGender === "MALE" && a.slotIndex === idx)
+                                            ).map((a) => a.actorId)
+                                          )
+                                          const pool = confirmedMaleActors.filter((a) => !usedInRoom.has(a.id))
+                                          return (
+                                            <GenderedPicker
+                                              key={key}
+                                              gender="MALE"
+                                              actors={pool}
+                                              current={assignment}
+                                              canEdit={canCast}
+                                              saving={saving}
+                                              onAssign={(actorId) => assign(scenario.id, room.id, actorId, false, "MALE", idx)}
+                                              onClear={() => assignment && unassign(assignment.id)}
+                                            />
+                                          )
+                                        })}
+                                      </div>
+                                    )}
+                                    {scenario.femaleActorsNeeded > 0 && (
+                                      <div className="flex flex-wrap items-center gap-2">
+                                        <span className={`text-[11px] font-semibold ${genderTextClass("FEMALE")}`}>
+                                          {genderWord("FEMALE")}
+                                        </span>
+                                        {Array.from({ length: scenario.femaleActorsNeeded }, (_, idx) => {
+                                          const key        = `${scenario.id}:${room.id}:FEMALE:${idx}`
+                                          const assignment = assignmentBySlot.get(key) ?? null
+                                          const usedInRoom = new Set(
+                                            assignments.filter((a) =>
+                                              a.scenarioId === scenario.id && a.roomId === room.id && !a.isDirector &&
+                                              !(a.slotGender === "FEMALE" && a.slotIndex === idx)
+                                            ).map((a) => a.actorId)
+                                          )
+                                          const pool = confirmedFemaleActors.filter((a) => !usedInRoom.has(a.id))
+                                          return (
+                                            <GenderedPicker
+                                              key={key}
+                                              gender="FEMALE"
+                                              actors={pool}
+                                              current={assignment}
+                                              canEdit={canCast}
+                                              saving={saving}
+                                              onAssign={(actorId) => assign(scenario.id, room.id, actorId, false, "FEMALE", idx)}
+                                              onClear={() => assignment && unassign(assignment.id)}
+                                            />
+                                          )
+                                        })}
+                                      </div>
+                                    )}
                                   </div>
                                 </td>
                               </tr>
@@ -806,10 +828,14 @@ function RequirementsPanel({ data, scenarios }: { data: CastingData; scenarios: 
         <div className="px-5 py-4 space-y-4">
           <div className="flex flex-wrap gap-4 text-sm">
             {data.castingMaleNeeded !== null && (
-              <span className="text-gray-700">♂ <strong>{data.castingMaleNeeded}</strong> שחקנים</span>
+              <span className={genderTextClass("MALE")}>
+                <strong>{data.castingMaleNeeded}</strong> {genderWord("MALE", data.castingMaleNeeded)}
+              </span>
             )}
             {data.castingFemaleNeeded !== null && (
-              <span className="text-gray-700">♀ <strong>{data.castingFemaleNeeded}</strong> שחקניות</span>
+              <span className={genderTextClass("FEMALE")}>
+                <strong>{data.castingFemaleNeeded}</strong> {genderWord("FEMALE", data.castingFemaleNeeded)}
+              </span>
             )}
             {data.directorRequested && (
               <span className="px-2 py-0.5 rounded bg-purple-100 text-purple-700 text-xs font-medium">🎬 דרוש/ה במאי/ת</span>
@@ -827,7 +853,12 @@ function RequirementsPanel({ data, scenarios }: { data: CastingData; scenarios: 
                   <p className="text-sm font-semibold text-gray-800 mb-1">
                     תרחיש {i + 1}{s.name ? ` — ${s.name}` : ""} · {s.topicName}
                     {s.modelName ? ` · מודל: ${s.modelName}` : ""}
-                    <span className="mr-2 font-normal text-gray-500 text-xs">♂ {s.maleActorsNeeded} · ♀ {s.femaleActorsNeeded} לחדר</span>
+                    <span className="mr-2 font-normal text-xs">
+                      <span className={genderTextClass("MALE")}>{genderCount("MALE", s.maleActorsNeeded)}</span>
+                      <span className="text-gray-400">{" · "}</span>
+                      <span className={genderTextClass("FEMALE")}>{genderCount("FEMALE", s.femaleActorsNeeded)}</span>
+                      <span className="text-gray-500">{" לחדר"}</span>
+                    </span>
                   </p>
                   {s.actorRequirements && (
                     <p className="text-sm text-gray-600 whitespace-pre-wrap">{s.actorRequirements}</p>
@@ -845,8 +876,9 @@ function RequirementsPanel({ data, scenarios }: { data: CastingData; scenarios: 
 // ─── ConfirmSlot — Step 1 picker ─────────────────────────────────────────────
 
 function ConfirmSlot({
-  label, confirmed, pool, canEdit, saving, onSelect, onClear,
+  gender, label, confirmed, pool, canEdit, saving, onSelect, onClear,
 }: {
+  gender: Gender
   label: string
   confirmed: ConfirmedActor | null
   pool: Actor[]
@@ -860,7 +892,7 @@ function ConfirmSlot({
       <div className={`border rounded-lg px-3 py-2 text-sm min-w-[130px] ${
         confirmed ? "border-green-300 bg-green-50 text-gray-800 font-medium" : "border-gray-200 text-gray-400"
       }`}>
-        <p className="text-xs text-gray-400 mb-0.5">{label}</p>
+        <p className={`text-xs font-medium mb-0.5 ${genderTextClass(gender)}`}>{label}</p>
         {confirmed ? confirmed.actorName : "—"}
       </div>
     )
@@ -869,7 +901,7 @@ function ConfirmSlot({
     <div className={`border rounded-lg px-3 py-2 min-w-[160px] ${
       confirmed ? "border-green-300 bg-green-50" : "border-gray-200"
     }`}>
-      <p className="text-xs text-gray-400 mb-1">{label}</p>
+      <p className={`text-xs font-medium mb-1 ${genderTextClass(gender)}`}>{label}</p>
       <div className="flex items-center gap-1">
         <select
           value={confirmed?.actorId ?? ""}
@@ -902,8 +934,9 @@ function ConfirmSlot({
 // ─── GenderedPicker — Step 2 slot ────────────────────────────────────────────
 
 function GenderedPicker({
-  actors, current, canEdit, saving, onAssign, onClear,
+  gender, actors, current, canEdit, saving, onAssign, onClear,
 }: {
+  gender: Gender
   actors: Actor[]
   current: Assignment | null
   canEdit: boolean
@@ -913,7 +946,9 @@ function GenderedPicker({
 }) {
   if (!canEdit) {
     return (
-      <span className={`text-sm ${current ? "text-gray-800 font-medium" : "text-gray-300"}`}>
+      <span className={`text-sm rounded border px-2 py-1 ${genderFieldClass(gender)} ${
+        current ? "font-medium" : "opacity-50"
+      }`}>
         {current?.actorName ?? "—"}
       </span>
     )
@@ -924,7 +959,7 @@ function GenderedPicker({
         value={current?.actorId ?? ""}
         onChange={(e) => { if (e.target.value) onAssign(e.target.value) }}
         disabled={saving}
-        className="border border-gray-200 rounded-lg px-2 py-2 text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-navy/30 min-h-[44px]">
+        className={`border rounded-lg px-2 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-navy/30 min-h-[44px] ${genderFieldClass(gender)}`}>
         <option value="">— בחר/י —</option>
         {actors.map((a) => (
           <option key={a.id} value={a.id}>{a.name}</option>

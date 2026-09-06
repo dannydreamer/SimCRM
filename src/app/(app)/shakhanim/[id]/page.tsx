@@ -5,6 +5,8 @@ import { useParams, useRouter } from "next/navigation"
 import Link from "next/link"
 import { useUser } from "@/app/(app)/user-context"
 import { RagDot } from "@/components/RagDot"
+import { GenderTag } from "@/components/GenderTag"
+import { genderTextClass, genderWord } from "@/lib/gender"
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -184,7 +186,7 @@ export default function ActorProfilePage() {
               <div>
                 <h1 className="text-2xl font-bold text-gray-900">{actor.name}</h1>
                 <p className="text-sm text-gray-500 mt-0.5">
-                  {actor.gender === "MALE" ? "שחקן" : "שחקנית"}
+                  <GenderTag gender={actor.gender} />
                   {actor.canDirect && " · במאי/ת"}
                   {actor.lastDate && ` · פעיל/ה לאחרונה: ${fmtDate(actor.lastDate)}`}
                   {" · "}{actor.workshopCount} סדנאות
@@ -236,8 +238,9 @@ export default function ActorProfilePage() {
                   {(["MALE", "FEMALE"] as const).map((g) => (
                     <label key={g} className="flex items-center gap-1.5 cursor-pointer">
                       <input type="radio" name="edit-gender" value={g} checked={editForm.gender === g}
-                        onChange={() => setEditForm((f) => ({ ...f, gender: g }))} className="accent-navy" />
-                      <span className="text-sm">{g === "MALE" ? "שחקן" : "שחקנית"}</span>
+                        onChange={() => setEditForm((f) => ({ ...f, gender: g }))}
+                        className={g === "MALE" ? "accent-blue-600" : "accent-pink-500"} />
+                      <span className={`text-sm font-medium ${genderTextClass(g)}`}>{genderWord(g, 1)}</span>
                     </label>
                   ))}
                 </div>
