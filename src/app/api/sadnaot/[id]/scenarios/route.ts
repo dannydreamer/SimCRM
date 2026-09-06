@@ -16,7 +16,7 @@ export async function POST(
     return NextResponse.json({ error: "Forbidden" }, { status: 403 })
 
   const { id } = await params
-  const w = await prisma.workshop.findUnique({ where: { id }, select: { status: true, authorId: true } })
+  const w = await prisma.workshop.findUnique({ where: { id }, select: { status: true, authorId: true, castingSentAt: true } })
   if (!w) return NextResponse.json({ error: "Not found" }, { status: 404 })
   if (FROZEN_STATUSES.includes(w.status))
     return NextResponse.json({ error: "הסדנה נעולה לעריכה" }, { status: 403 })
@@ -44,6 +44,20 @@ export async function POST(
       model: { select: { id: true, name: true } },
     },
   })
+
+  // A scenario added after the hand-over adds a slot in every room, so the Caster's
+  // grid is short and the Tech has to send again (§7.2.1). Before the hand-over this
+  // is ordinary Tech workflow and writes nothing, matching MODEL_CHANGED.
+  if (w.castingSentAt) {
+    const label = s.name ? `תרחיש "${s.name}"` : `תרחיש ${s.orderIndex + 1}`
+    await prisma.castingChangeLog.create({
+      data: {
+        workshopId: id,
+        changeType: "SCENARIO_ADDED",
+        detail: `${label} נוסף לסדנה`,
+      },
+    })
+  }
 
   return NextResponse.json({
     id: s.id, name: s.name, topicId: s.topicId, topicName: s.topic.name,

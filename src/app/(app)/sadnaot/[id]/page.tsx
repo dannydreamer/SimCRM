@@ -60,7 +60,8 @@ interface Workshop {
   tentative: boolean
   postponedWarning: boolean
   roomCancelledWarning: boolean
-  roomAddedWarning: boolean
+  /** Changes made since the hand-over to the Caster. Derived server-side, §7.2.1. */
+  castingStaleness: { stale: boolean; reasons: string[]; canSend: boolean }
   feedbackFormAdded: boolean
   feedbackEntered:  number
   feedbackExpected: number
@@ -529,6 +530,9 @@ export default function WorkshopDetailPage() {
 
   // Send to casting overlay
   const [showCastingOverlay, setShowCastingOverlay] = useState(false)
+  // The re-send prompt, and whether it has already been shown this visit.
+  const [showResendAsk, setShowResendAsk] = useState(false)
+  const [resendAsked,   setResendAsked]   = useState(false)
   const [castingMale, setCastingMale] = useState("0")
   const [castingFemale, setCastingFemale] = useState("0")
   const [castingOverlayNotes, setCastingOverlayNotes] = useState("")
@@ -601,14 +605,22 @@ export default function WorkshopDetailPage() {
     if (!res.ok) setW((prev) => prev ? { ...prev, scenarioOrderFlexible: !value } : prev)
   }
 
-  async function dismissRoomAddedWarning() {
-    if (!w) return
-    setW((prev) => prev ? { ...prev, roomAddedWarning: false } : prev)
-    await fetch(`/api/sadnaot/${id}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ roomAddedWarning: false }),
-    })
+  // A change that invalidates the Caster's slot grid: re-read the workshop so the
+  // staleness bar, the ליהוק progress and the status all reflect it, then offer to
+  // send again. Asked at most once per visit — a Tech editing four things in a row
+  // should not answer four dialogs, and the bar carries the reminder afterwards.
+  async function noteCastingChange() {
+    if (!w?.castingSentAt) return
+    const res = await fetch(`/api/sadnaot/${id}`, { cache: "no-store" })
+    if (!res.ok) return
+    const fresh: Workshop = await res.json()
+    setW(fresh)
+    // canSend: the send route refuses while a scenario lacks its model, so asking
+    // would open a form that cannot be submitted. The bar still shows.
+    if (fresh.castingStaleness?.stale && fresh.castingStaleness.canSend && !resendAsked) {
+      setResendAsked(true)
+      setShowResendAsk(true)
+    }
   }
 
   // Manager and Tech both edit the workshop (§5.2). This one flag gates the header
@@ -649,6 +661,7 @@ export default function WorkshopDetailPage() {
       if (!ok) return
     }
 
+    const roomCountBefore = w.numRooms
     setHeaderSaving(true)
     setHeaderError(null)
     const res = await fetch(`/api/sadnaot/${id}`, {
@@ -684,7 +697,6 @@ export default function WorkshopDetailPage() {
           directorNotes: headerDraft.directorNotes || null,
           postponedWarning:     updated.postponedWarning     ?? prev.postponedWarning,
           roomCancelledWarning: updated.roomCancelledWarning ?? prev.roomCancelledWarning,
-          roomAddedWarning:     updated.roomAddedWarning     ?? prev.roomAddedWarning,
           rooms: updated.rooms ?? prev.rooms,
           ...(updated.status !== undefined && {
             status: updated.status,
@@ -693,6 +705,8 @@ export default function WorkshopDetailPage() {
         }
       })
       setHeaderDraft(null)
+      // Adding or removing rooms adds or removes a whole column of casting slots.
+      if ((updated.numRooms ?? headerDraft.numRooms) !== roomCountBefore) void noteCastingChange()
     } else {
       const body = await res.json().catch(() => ({}))
       setHeaderError(body.error ?? `שגיאה (${res.status})`)
@@ -760,13 +774,24 @@ export default function WorkshopDetailPage() {
   // ── Scenario CRUD ──────────────────────────────────────────────────────────
 
   function updateScenario(sid: string, data: Partial<Scenario>) {
+    // Only a change to how many actors of each gender the scenario needs breaks
+    // the Caster's grid. Requirements text, model and נכתב leave it intact.
+    const before = w?.scenarios.find((s) => s.id === sid)
+    const countsChanged = !!before && (
+      (data.maleActorsNeeded   !== undefined && data.maleActorsNeeded   !== before.maleActorsNeeded) ||
+      (data.femaleActorsNeeded !== undefined && data.femaleActorsNeeded !== before.femaleActorsNeeded)
+    )
     setW((prev) => prev ? { ...prev, scenarios: prev.scenarios.map((s) => s.id === sid ? { ...s, ...data } : s) } : prev)
+    if (countsChanged) void noteCastingChange()
   }
 
   async function cancelScenario(sid: string) {
     if (!confirm("לבטל תרחיש זה?")) return
     const res = await fetch(`/api/sadnaot/${id}/scenarios/${sid}`, { method: "DELETE" })
-    if (res.ok) updateScenario(sid, { cancelled: true })
+    if (res.ok) {
+      setW((prev) => prev ? { ...prev, scenarios: prev.scenarios.map((s) => s.id === sid ? { ...s, cancelled: true } : s) } : prev)
+      void noteCastingChange()
+    }
   }
 
   async function addScenario() {
@@ -791,6 +816,8 @@ export default function WorkshopDetailPage() {
       setNewScenarioReq("")
       setNewScenarioMale("0")
       setNewScenarioFemale("0")
+      // A new scenario adds a slot in every room — the Caster's grid is short.
+      void noteCastingChange()
     }
     setAddingScenario(false)
   }
@@ -798,7 +825,11 @@ export default function WorkshopDetailPage() {
   // ── Room helpers ───────────────────────────────────────────────────────────
 
   function updateRoom(rid: string, data: Partial<Room>) {
+    const before = w?.rooms.find((r) => r.id === rid)
+    const wasCancelled = !!before && data.cancelled === true && !before.cancelled
     setW((prev) => prev ? { ...prev, rooms: prev.rooms.map((r) => r.id === rid ? { ...r, ...data } : r) } : prev)
+    // Cancelling a room removes a whole column of slots. מצגת/מכתב ticks do not.
+    if (wasCancelled) void noteCastingChange()
   }
 
   function applyWorkshopStatusChange(status: string) {
@@ -963,22 +994,38 @@ export default function WorkshopDetailPage() {
         )}
         {w.roomCancelledWarning && (
           <div className="bg-amber-100 border border-amber-400 rounded-lg px-4 py-3 text-sm text-amber-800 font-semibold flex items-center justify-between gap-3">
-            {/* Re-sending is only meaningful once the workshop has been to casting;
-                before that there is nothing to re-send, but the facilitator still needs telling. */}
-            <span>
-              {w.castingSentAt
-                ? "⚠️ חדר בוטל — יש להודיע למתחקר/ת ולשלוח מחדש לליהוק"
-                : "⚠️ חדר בוטל — יש להודיע למתחקר/ת"}
-            </span>
+            {/* Re-sending is handled by the staleness bar below, which a room
+                cancellation raises. This banner carries only the part that bar
+                cannot know about — that a person has to be told. */}
+            <span>⚠️ חדר בוטל — יש להודיע למתחקר/ת</span>
             <button onClick={dismissRoomCancelledWarning}
               className="text-amber-600 hover:text-amber-800 text-lg leading-none shrink-0" title="סגור">×</button>
           </div>
         )}
-        {w.roomAddedWarning && (
-          <div className="bg-blue-50 border border-blue-300 rounded-lg px-4 py-3 text-sm text-blue-800 font-semibold flex items-center justify-between gap-3">
-            <span>ℹ️ חדר נוסף — יש לשלוח מחדש לליהוק</span>
-            <button onClick={dismissRoomAddedWarning}
-              className="text-blue-600 hover:text-blue-800 text-lg leading-none shrink-0" title="סגור">×</button>
+        {/* Casting is stale — §7.2.1. Deliberately not dismissible: it is not an
+            alert but a statement of state, true until the Tech sends again, and
+            re-sending clears it on its own. Its predecessor, roomAddedWarning,
+            could be X'd away and then the Caster was left working from requirements
+            that no longer existed. */}
+        {w.castingStaleness?.stale && (
+          <div className="bg-amber-50 border border-amber-400 rounded-lg px-4 py-3 flex items-start justify-between gap-4">
+            <div className="min-w-0">
+              <p className="text-sm font-bold text-amber-900">⚠️ בוצעו שינויים מאז השליחה לליהוק</p>
+              <ul className="mt-1 text-xs text-amber-800 list-disc pr-4 space-y-0.5">
+                {w.castingStaleness.reasons.map((r, i) => <li key={i}>{r}</li>)}
+              </ul>
+              {!w.castingStaleness.canSend && (
+                <p className="mt-1.5 text-xs text-amber-700">
+                  יש להשלים מודל סימולציה ודרישות שחקנים בתרחישים לפני שליחה מחדש
+                </p>
+              )}
+            </div>
+            {canEditScenarios && w.castingStaleness.canSend && !w.frozen && !w.cancelled && (
+              <button onClick={openCastingOverlay}
+                className="shrink-0 px-3 py-1.5 bg-navy text-white text-xs font-semibold rounded-lg hover:bg-navy/90">
+                עדכן ושלח לליהוק
+              </button>
+            )}
           </div>
         )}
         {w.cancelled && (
@@ -1819,6 +1866,31 @@ export default function WorkshopDetailPage() {
         </div>
 
       </div>
+
+      {/* Re-send prompt — fires once per visit, right after a change that
+          invalidates the Caster's grid. §7.2.1. */}
+      {showResendAsk && w && !showCastingOverlay && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+          <div className="bg-white rounded-xl shadow-2xl max-w-sm w-full mx-4 p-6" dir="rtl">
+            <p className="text-base font-bold text-gray-900 mb-1">בוצע שינוי בהגדרות</p>
+            <p className="text-sm text-gray-600 mb-5">
+              השינוי משפיע על הליהוק שכבר נשלח. האם לשלוח מחדש לליהוק?
+            </p>
+            <div className="flex gap-2 justify-end">
+              <button
+                onClick={() => setShowResendAsk(false)}
+                className="px-4 py-2 text-sm font-semibold text-gray-600 rounded-lg hover:bg-gray-100">
+                לא עכשיו
+              </button>
+              <button
+                onClick={() => { setShowResendAsk(false); openCastingOverlay() }}
+                className="px-4 py-2 bg-navy text-white text-sm font-semibold rounded-lg hover:bg-navy/90">
+                כן, פתח טופס שליחה
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Send to casting overlay */}
       {showCastingOverlay && w && (
