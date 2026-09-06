@@ -4,6 +4,7 @@ import { useState } from "react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
 import { useUser } from "@/app/(app)/user-context"
+import { genderTextClass, genderWord } from "@/lib/gender"
 
 const EMPTY = {
   name:        "",
@@ -92,10 +93,10 @@ export default function NewActorPage() {
                     value={g}
                     checked={form.gender === g}
                     onChange={() => set("gender", g)}
-                    className="accent-navy"
+                    className={g === "MALE" ? "accent-blue-600" : "accent-pink-500"}
                   />
-                  <span className="text-sm text-gray-700">
-                    {g === "MALE" ? "שחקן" : "שחקנית"}
+                  <span className={`text-sm font-medium ${genderTextClass(g)}`}>
+                    {genderWord(g, 1)}
                   </span>
                 </label>
               ))}

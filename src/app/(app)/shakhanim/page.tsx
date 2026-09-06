@@ -3,6 +3,8 @@
 import { useEffect, useMemo, useState } from "react"
 import Link from "next/link"
 import { useUser } from "@/app/(app)/user-context"
+import { GenderTag } from "@/components/GenderTag"
+import { genderWord } from "@/lib/gender"
 
 interface ActorRow {
   id: string
@@ -98,13 +100,17 @@ export default function ShakhanimPage() {
         {/* Gender */}
         <div className="flex items-center gap-1">
           {([
-            { key: "all",    label: "הכל"      },
-            { key: "MALE",   label: "שחקנים"   },
-            { key: "FEMALE", label: "שחקניות"  },
+            { key: "all",    label: "הכל"                 },
+            { key: "MALE",   label: genderWord("MALE")    },
+            { key: "FEMALE", label: genderWord("FEMALE")  },
           ] as { key: GenderFilter; label: string }[]).map(({ key, label }) => (
             <button key={key} onClick={() => setGender(key)}
               className={`px-3 py-1.5 rounded-full text-sm font-medium transition-colors ${
-                gender === key ? "bg-navy text-white" : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+                gender !== key
+                  ? "bg-gray-100 text-gray-600 hover:bg-gray-200"
+                  : key === "all"    ? "bg-navy text-white"
+                  : key === "MALE"   ? "bg-blue-600 text-white"
+                  :                    "bg-pink-500 text-white"
               }`}>
               {label}
             </button>
@@ -154,8 +160,8 @@ export default function ShakhanimPage() {
                     className="border-b border-gray-100 last:border-0 hover:bg-gray-50 cursor-pointer transition-colors">
                     <td className="px-4 py-2.5">
                       <span className="font-medium text-gray-900">{actor.name}</span>
-                      <span className="text-xs text-gray-400 mr-2">
-                        {actor.gender === "MALE" ? "שחקן" : "שחקנית"}
+                      <span className="mr-2">
+                        <GenderTag gender={actor.gender} size="sm" />
                       </span>
                     </td>
                     <td className="px-4 py-2.5 text-gray-500 max-w-xs truncate">

@@ -6,6 +6,7 @@ import Link from "next/link"
 import { useSession } from "next-auth/react"
 import { ROOM_LOCATION_LABELS, ROOM_LOCATION_VALUES, sortRoomLocations } from "@/lib/room-locations"
 import { READY_CONDITION_LABEL, daysUntilPhrase, readinessAlert } from "@/lib/workshop-readiness"
+import { genderCount, genderFieldClass, genderTextClass, genderWord } from "@/lib/gender"
 
 // The participants' feedback Google Form is a single standing form shared by every
 // workshop — the copied מחרוזת is pasted into it as a new option, so the link sits
@@ -291,17 +292,17 @@ function ScenarioRow({
             <textarea value={req} onChange={(e) => setReq(e.target.value)} rows={2}
               className="border border-gray-300 rounded px-2 py-1 text-sm w-full" placeholder="דרישות שחקנים" />
             <div className="flex items-center gap-3 mt-1.5">
-              <label className="flex items-center gap-1 text-xs text-gray-600">
-                ♂
+              <label className={`flex items-center gap-1 text-xs font-medium ${genderTextClass("MALE")}`}>
+                {genderWord("MALE")}
                 <input type="number" min={0} value={maleCount}
                   onChange={(e) => setMaleCount(e.target.value)}
-                  className="border border-gray-300 rounded px-1.5 py-0.5 text-xs w-12 text-center" />
+                  className={`border rounded px-1.5 py-0.5 text-xs w-12 text-center ${genderFieldClass("MALE")}`} />
               </label>
-              <label className="flex items-center gap-1 text-xs text-gray-600">
-                ♀
+              <label className={`flex items-center gap-1 text-xs font-medium ${genderTextClass("FEMALE")}`}>
+                {genderWord("FEMALE")}
                 <input type="number" min={0} value={femaleCount}
                   onChange={(e) => setFemaleCount(e.target.value)}
-                  className="border border-gray-300 rounded px-1.5 py-0.5 text-xs w-12 text-center" />
+                  className={`border rounded px-1.5 py-0.5 text-xs w-12 text-center ${genderFieldClass("FEMALE")}`} />
               </label>
             </div>
           </td>
@@ -322,9 +323,13 @@ function ScenarioRow({
           <td className="py-2 px-3 text-gray-600 whitespace-pre-wrap">
             {s.actorRequirements ?? <span className="text-gray-300">—</span>}
             {(s.maleActorsNeeded > 0 || s.femaleActorsNeeded > 0) && (
-              <div className="mt-1 flex gap-2 text-xs text-gray-500">
-                {s.maleActorsNeeded > 0 && <span>♂ {s.maleActorsNeeded}</span>}
-                {s.femaleActorsNeeded > 0 && <span>♀ {s.femaleActorsNeeded}</span>}
+              <div className="mt-1 flex gap-3 text-xs font-medium">
+                {s.maleActorsNeeded > 0 && (
+                  <span className={genderTextClass("MALE")}>{genderCount("MALE", s.maleActorsNeeded)}</span>
+                )}
+                {s.femaleActorsNeeded > 0 && (
+                  <span className={genderTextClass("FEMALE")}>{genderCount("FEMALE", s.femaleActorsNeeded)}</span>
+                )}
               </div>
             )}
           </td>
@@ -1155,8 +1160,12 @@ export default function WorkshopDetailPage() {
               </div>
               {(w.castingMaleNeeded !== null || w.castingFemaleNeeded !== null) && (
                 <div className="col-span-2 text-gray-500 flex flex-wrap gap-x-4">
-                  <span>שחקנים: <span className="font-medium text-gray-700">{w.castingMaleNeeded ?? 0}</span></span>
-                  <span>שחקניות: <span className="font-medium text-gray-700">{w.castingFemaleNeeded ?? 0}</span></span>
+                  <span className={genderTextClass("MALE")}>
+                    {genderWord("MALE")}: <span className="font-semibold">{w.castingMaleNeeded ?? 0}</span>
+                  </span>
+                  <span className={genderTextClass("FEMALE")}>
+                    {genderWord("FEMALE")}: <span className="font-semibold">{w.castingFemaleNeeded ?? 0}</span>
+                  </span>
                   {w.castingNotes && <span>— {w.castingNotes}</span>}
                 </div>
               )}
@@ -1503,17 +1512,17 @@ export default function WorkshopDetailPage() {
                     newScenarioReq.trim() ? "border-gray-300" : "border-red-300"
                   }`} />
                 <div className="flex items-center gap-4 mt-1.5">
-                  <label className="flex items-center gap-1.5 text-xs text-gray-600">
-                    ♂ שחקנים נדרשים לתרחיש
+                  <label className={`flex items-center gap-1.5 text-xs font-medium ${genderTextClass("MALE")}`}>
+                    {genderWord("MALE")} נדרשים לתרחיש
                     <input type="number" min={0} value={newScenarioMale}
                       onChange={(e) => setNewScenarioMale(e.target.value)}
-                      className="border border-gray-300 rounded px-1.5 py-0.5 text-xs w-14 text-center" />
+                      className={`border rounded px-1.5 py-0.5 text-xs w-14 text-center ${genderFieldClass("MALE")}`} />
                   </label>
-                  <label className="flex items-center gap-1.5 text-xs text-gray-600">
-                    ♀ שחקניות נדרשות לתרחיש
+                  <label className={`flex items-center gap-1.5 text-xs font-medium ${genderTextClass("FEMALE")}`}>
+                    {genderWord("FEMALE")} נדרשות לתרחיש
                     <input type="number" min={0} value={newScenarioFemale}
                       onChange={(e) => setNewScenarioFemale(e.target.value)}
-                      className="border border-gray-300 rounded px-1.5 py-0.5 text-xs w-14 text-center" />
+                      className={`border rounded px-1.5 py-0.5 text-xs w-14 text-center ${genderFieldClass("FEMALE")}`} />
                   </label>
                 </div>
               </div>
@@ -1839,13 +1848,13 @@ export default function WorkshopDetailPage() {
                     </p>
                     {/* Actor counts — prominent */}
                     <div className="flex gap-6 mb-2">
-                      <div className="flex items-baseline gap-1.5">
-                        <span className="text-2xl font-bold text-gray-800">♂ {s.maleActorsNeeded}</span>
-                        <span className="text-sm text-gray-500">שחקנים</span>
+                      <div className={`flex items-baseline gap-1.5 ${genderTextClass("MALE")}`}>
+                        <span className="text-2xl font-bold">{s.maleActorsNeeded}</span>
+                        <span className="text-sm font-medium">{genderWord("MALE", s.maleActorsNeeded)}</span>
                       </div>
-                      <div className="flex items-baseline gap-1.5">
-                        <span className="text-2xl font-bold text-gray-800">♀ {s.femaleActorsNeeded}</span>
-                        <span className="text-sm text-gray-500">שחקניות</span>
+                      <div className={`flex items-baseline gap-1.5 ${genderTextClass("FEMALE")}`}>
+                        <span className="text-2xl font-bold">{s.femaleActorsNeeded}</span>
+                        <span className="text-sm font-medium">{genderWord("FEMALE", s.femaleActorsNeeded)}</span>
                       </div>
                     </div>
                     {/* Freetext below counts */}
@@ -1869,24 +1878,24 @@ export default function WorkshopDetailPage() {
                 <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">סה"כ שחקנים ושחקניות שיגיעו פיזית ביום הסדנה:</p>
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      שחקנים (זכר) <span className="text-red-500">*</span>
+                    <label className={`block text-sm font-semibold mb-1 ${genderTextClass("MALE")}`}>
+                      {genderWord("MALE")} <span className="text-red-500">*</span>
                     </label>
                     <input
                       type="number" min={0} value={castingMale}
                       onChange={(e) => setCastingMale(e.target.value)}
-                      className="border border-gray-300 rounded px-3 py-2 text-sm w-full"
+                      className={`border rounded px-3 py-2 text-sm w-full ${genderFieldClass("MALE")}`}
                       placeholder="0"
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      שחקניות (נקבה) <span className="text-red-500">*</span>
+                    <label className={`block text-sm font-semibold mb-1 ${genderTextClass("FEMALE")}`}>
+                      {genderWord("FEMALE")} <span className="text-red-500">*</span>
                     </label>
                     <input
                       type="number" min={0} value={castingFemale}
                       onChange={(e) => setCastingFemale(e.target.value)}
-                      className="border border-gray-300 rounded px-3 py-2 text-sm w-full"
+                      className={`border rounded px-3 py-2 text-sm w-full ${genderFieldClass("FEMALE")}`}
                       placeholder="0"
                     />
                   </div>
