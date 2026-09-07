@@ -6,6 +6,7 @@ import Link from "next/link"
 import { useSession } from "next-auth/react"
 import { ROOM_LOCATION_LABELS, ROOM_LOCATION_VALUES, sortRoomLocations } from "@/lib/room-locations"
 import { READY_CONDITION_LABEL, daysUntilPhrase, readinessAlert } from "@/lib/workshop-readiness"
+import { CASTING_STATE_LABEL, castingState } from "@/lib/casting-progress"
 import { genderCount, genderFieldClass, genderTextClass, genderWord } from "@/lib/gender"
 
 // The participants' feedback Google Form is a single standing form shared by every
@@ -1337,6 +1338,7 @@ export default function WorkshopDetailPage() {
                 // reads, so the two halves of this page cannot disagree. Spec §7.7.
                 const castingSent     = !!w.castingSentAt
                 const castingComplete = castingSent && w.casting.complete
+                const castingIsStale  = !!w.castingStaleness?.stale
 
                 // Condition 3: Feedback form
                 const feedbackDone = w.feedbackFormAdded
@@ -1384,13 +1386,21 @@ export default function WorkshopDetailPage() {
 
                     {/* Condition 2: Casting */}
                     <div className="flex items-start gap-2 text-xs">
-                      <span className={`mt-px font-bold ${castingComplete ? "text-brand-green" : markTodo}`}>{castingComplete ? "✓" : "○"}</span>
+                      <span className={`mt-px font-bold ${castingComplete && !castingIsStale ? "text-brand-green" : castingIsStale ? "text-red-600" : markTodo}`}>{castingIsStale ? "!" : castingComplete ? "✓" : "○"}</span>
                       <div>
-                        <span className={castingComplete ? "text-gray-700" : labelTodo}>
-                          {castingComplete ? "ליהוק הושלם" : castingSent ? "הליהוק בתהליך" : "ליהוק"}
+                        {/* Stale casting can still be "complete" by slot count, so the ✓
+                            is withheld explicitly — §7.7. */}
+                        <span className={castingComplete && !castingIsStale ? "text-gray-700" : labelTodo}>
+                          {castingIsStale ? "ליהוק — שינויים טרם נשלחו"
+                            : castingComplete ? "ליהוק הושלם"
+                            : castingSent ? "הליהוק בתהליך"
+                            : "ליהוק"}
                         </span>
                         {!castingComplete && !castingSent && (
                           <p className="text-gray-400 mt-0.5">← ממתין לשליחה לליהוק</p>
+                        )}
+                        {castingIsStale && (
+                          <p className="text-red-600 mt-0.5">← יש לשלוח מחדש לליהוק</p>
                         )}
                       </div>
                     </div>
@@ -1648,7 +1658,8 @@ export default function WorkshopDetailPage() {
 
           // Casting state, computed server-side so this section and the readiness
           // checklist above can never disagree. Spec §7.7.
-          const c = w.casting
+          const c     = w.casting
+          const state = castingState({ ...c, stale: !!w.castingStaleness?.stale })
 
           return (
             <section id="casting" className="border border-gray-200 rounded-xl p-5 bg-white shadow-sm">
@@ -1662,9 +1673,17 @@ export default function WorkshopDetailPage() {
                   )}
                   {/* No number. Expand הצג שחקנים below for the room-by-room detail,
                       which is the only casting view the Tech can act on. Spec §7.7. */}
+                  {/* STALE deliberately outranks COMPLETE: the slot count can be full
+                      again while the hand-over the Caster is working from is out of
+                      date, and a green ✓ there says there is nothing left to do. */}
                   {wasSent && (
-                    <p className={`text-base font-bold mt-1 ${c.complete ? "text-brand-green" : "text-amber-600"}`}>
-                      {c.complete ? "✓ הליהוק הושלם" : "⏳ הליהוק בתהליך"}
+                    <p className={`text-base font-bold mt-1 ${
+                      state === "COMPLETE" ? "text-brand-green"
+                        : state === "STALE" ? "text-red-600"
+                        : "text-amber-600"
+                    }`}>
+                      {state === "COMPLETE" ? "✓ " : state === "STALE" ? "⏳! " : "⏳ "}
+                      {CASTING_STATE_LABEL[state]}
                     </p>
                   )}
                   {scenariosWithReq.length === 0 && (

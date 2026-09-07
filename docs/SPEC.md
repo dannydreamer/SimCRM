@@ -747,7 +747,7 @@ All preconditions are re-checked on **every** call — first send and re-send al
 
 ### 7.2.1 Casting staleness — asking the Tech to send again `[code]`
 
-> Source: `src/lib/casting-staleness.ts`, `src/lib/casting-change-log.ts`.
+> Source: `src/lib/casting-staleness.ts`, `src/lib/casting-change-log.ts`. Covered by `npm run check:casting` — 23 pure-function checks, no database. The epoch rule below is the one worth re-running before any release.
 
 Some changes made after the handoff leave the Caster working from requirements that no longer exist. The Tech is the only one who can fix that, by sending again — so the workshop tells her.
 
@@ -808,17 +808,24 @@ Banners on the ליהוק landing and detail pages, driven by `CastingChangeLog`
 
 ### 7.7 Casting state outside the Casting page
 
-> Source: `src/lib/casting-progress.ts` — one computation, used by both the workshop table (§8.2) and Workshop Detail (§8.4). `[code]`
+> Source: `src/lib/casting-progress.ts` — one computation, used by both the workshop table (§8.2) and Workshop Detail (§8.4). Covered by `npm run check:casting`. `[code]`
 
-**The Tech's screens report three states and no number.**
+**The Tech's screens report four states and no number.**
 
 | State | Condition | Workshop table | Workshop Detail |
 |---|---|---|---|
 | Not started | `castingSentAt` empty | `—` gray | *(nothing — the שלח לליהוק button is the state)* |
+| **Stale** | sent, then invalidated, not re-sent (§7.2.1) | **⏳! red** | **⏳! שינויים טרם נשלחו לליהוק** red |
 | In progress | sent, not complete | ⏳ amber | **⏳ הליהוק בתהליך** |
 | Complete | every Step 2 slot filled | ✓ green | **✓ הליהוק הושלם** |
 
-`complete` mirrors READY condition 2 (§4.3) exactly, and the readiness checklist reads the same value, so the two halves of Workshop Detail cannot disagree. The checklist's condition-2 line carries the same three states in words: `ליהוק` (with the existing *← ממתין לשליחה לליהוק* hint) · `הליהוק בתהליך` · `ליהוק הושלם`.
+**Stale outranks complete, deliberately.** Most invalidating changes empty a slot, so `complete` goes false on its own and the two agree. But cancelling a scenario *shrinks* the slot count, and the Caster can fill new slots straight off her own change banner without waiting for a re-send — so a stale workshop can still count as full. A green ✓ there would tell the Tech there is nothing left to do while the Caster works from a hand-over that no longer matches the workshop. The ⏳ carries an `!` rather than being replaced: the casting genuinely is in progress, *and* something is wrong with it. A bare hourglass reads as "someone else has this", which is the one thing it must not say here.
+
+`complete` mirrors READY condition 2 (§4.3) exactly, and the readiness checklist reads the same value, so the two halves of Workshop Detail cannot disagree. The checklist's condition-2 line carries the same states in words: `ליהוק` (with the existing *← ממתין לשליחה לליהוק* hint) · `הליהוק בתהליך` · `ליהוק הושלם` · `ליהוק — שינויים טרם נשלחו` with a red `!` mark and a *← יש לשלוח מחדש לליהוק* hint.
+
+> **Staleness is not itself a READY condition.** It changes what the screens *say*, not whether the workshop qualifies for מוכן. In nearly every case it does not need to be: the same change empties a slot, and condition 2 fails on its own. The narrow gap — stale but still slot-complete — is left open on purpose rather than quietly widening the gate on live workshops. Revisit if it shows up in practice.
+
+The state is one function, `castingState()` in `src/lib/casting-progress.ts`, called by the workshop list route and Workshop Detail, so the table and the page cannot drift apart.
 
 **When the Tech wants detail she expands it.** The ליהוק section's הצג שחקנים panel already shows the real thing, room by room — `חדר 1: Joe, Mary | חדר 2: Joe + חסר`, with `חסר` in red and a `במאי/ת:` line above. That is the only casting view on this page she can act on, and it needs no summary number in front of it.
 
@@ -1588,6 +1595,7 @@ Sessions 1–19 as built. Branch naming `session-N-*`, merged to `develop` then 
 | **6 Sep 2026** | — | **מגדר shown in words and colour, ♂ / ♀ retired** (branch `gender_color_labels`, new §6.7). The glyphs were confusing Techs, worst in the Step 2 room grid where a bare ♂ or ♀ sat beside each picker with no word anywhere near it. Every gender in the UI is now a Hebrew word — שחקנים כחול, שחקניות ורוד — across the casting page (filter, actor pool, both step headers, slot labels, scenario counts, requirements panel), Workshop Detail (scenario count inputs and read-outs, the add-scenario form, the שלח לליהוק form and summary, the casting overlay), and the actor screens (list filter and rows, profile header, both gender radio groups). Colour never stands alone — the word carries the meaning and the colour is the fast scan. One vocabulary throughout: the casting filter's זכר / נקבה and the *שחקנים (זכר)* labels are gone. Words, colours and tints live in one place, `src/lib/gender.ts` plus the `GenderTag` component, and singular/plural agrees with the number. Display layer only: no schema change, no migration, `MALE` / `FEMALE` untouched. |
 
 | **6 Sep 2026** | — | **Casting staleness — the Tech is asked to send again** (branch `casting_staleness`, new §7.2.1). Changing a scenario's actor counts after the handoff was completely silent, and worse than silent: the castings for slots that no longer existed survived, unreachable from the Step 2 grid but still counted by `castingProgress`, so a workshop that had had its one שחקן flipped to one שחקנית read ליהוק הושלם and stayed at מוכן while the Caster saw an empty slot; the same edit never re-evaluated status at all. Now the invalidated castings are deleted and the status re-checked (§7.4), the change is logged (`SCENARIO_ACTORS_CHANGED`, and `SCENARIO_ADDED` which was also silent), and Workshop Detail carries a non-dismissible **staleness bar** plus a **prompt** — *"בוצע שינוי בהגדרות — האם לשלוח מחדש לליהוק?"* — shown once per visit and suppressed while the send form would refuse. Staleness is derived from the change log against `castingSentAt`, so there is no new column and **no migration**, and re-sending clears it with no cleanup code. A `CASTING_STALENESS_EPOCH` cutoff keeps years of historical change rows from raising bars on live workshops on day one — **set it to the release date**. `roomAddedWarning` is retired into the bar (§3.5); the room-cancelled banner drops its re-send half. The change-log vocabulary moves to `src/lib/casting-change-log.ts` — it had been an inline literal in three places, two of them allowlists that dropped a missing type silently. |
+| **7 Sep 2026** | — | **A fourth ליהוק state, STALE** (§7.7). A workshop whose casting had been invalidated and not re-sent still showed a plain ⏳ on the workshop table and *הליהוק בתהליך* on Workshop Detail — "someone else is working on it", said about casting the Tech herself had broken. Both now read **⏳!** in red, and the readiness checklist's condition-2 line says *ליהוק — שינויים טרם נשלחו*. **Stale outranks complete**, because cancelling a scenario shrinks the slot count and the Caster can fill new slots off her own banner, so a stale workshop can read as full — and a green ✓ would say there is nothing left to do. The state is one function, `castingState()`, shared by the list route and the detail page. Staleness is deliberately **not** made a READY condition; see the note in §7.7. Also: `npm run check:casting`, 23 pure-function checks over staleness, state precedence and the invalidated-slot predicate — the repo's first automated tests. |
 
 ---
 
