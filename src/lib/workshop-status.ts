@@ -3,6 +3,31 @@ import { WorkshopStatus } from "@prisma/client"
 import { unmetReadyConditions } from "./workshop-readiness"
 
 /**
+ * Has the workshop finished? Built from `date` + `endTime` ("HH:MM"), with a
+ * missing or unparseable end time treated as end of day.
+ *
+ * Shared by `checkAndAdvanceStatus` below and the date-based sweep in
+ * `GET /api/sadnaot`, so a workshop can never read as "over" in the workshops
+ * table and "still running" on its own page.
+ */
+export function workshopHasEnded(
+  date: Date | string,
+  endTime: string | null,
+  now: Date = new Date()
+): boolean {
+  // Matched rather than split on ":": `"".split(":")` parses as hour 0, which
+  // would close a workshop at midnight on its own day rather than after it.
+  const hhmm = /^(\d{1,2}):(\d{2})$/.exec(endTime ?? "")
+  const h = hhmm ? Number(hhmm[1]) : NaN
+  const m = hhmm ? Number(hhmm[2]) : NaN
+  const valid = h <= 23 && m <= 59 // false for NaN, so bad data ends the day
+
+  const end = new Date(date)
+  end.setHours(valid ? h : 23, valid ? m : 59, 0, 0)
+  return now >= end
+}
+
+/**
  * Checks whether the workshop should auto-advance or regress in status
  * and performs the update if so. READY, CLOSING, and CLOSED are
  * system-triggered only — no user action can set them directly.
@@ -61,11 +86,8 @@ export async function checkAndAdvanceStatus(workshopId: string): Promise<string 
 
   if (!w || w.cancelled) return null
 
-  // Build the precise end-of-workshop datetime from date + endTime ("HH:MM")
   const now = new Date()
-  const wEndDateTime = new Date(w.date)
-  const [endHour, endMin] = (w.endTime ?? "23:59").split(":").map(Number)
-  wEndDateTime.setHours(endHour, endMin, 0, 0)
+  const hasEnded = workshopHasEnded(w.date, w.endTime, now)
 
   // ── Helper: evaluate all five READY conditions ───────────────────────────
   // The conditions themselves live in workshop-readiness.ts, which the workshop
@@ -113,19 +135,14 @@ export async function checkAndAdvanceStatus(workshopId: string): Promise<string 
   let newStatus: string | null = null
 
   if (w.status === "SPECIFIED") {
-    // Transition once the calendar date is in the past, OR today's end time has passed
-    const todayStart = new Date()
-    todayStart.setHours(0, 0, 0, 0)
-    const wDateStart = new Date(w.date)
-    wDateStart.setHours(0, 0, 0, 0)
-    if (wDateStart < todayStart || now >= wEndDateTime) {
+    if (hasEnded) {
       newStatus = "CLOSING"
     } else if (readyConditionsMet()) {
       newStatus = "READY"
     }
 
   } else if (w.status === "READY") {
-    if (now >= wEndDateTime) {
+    if (hasEnded) {
       newStatus = "CLOSING"
     } else if (!readyConditionsMet()) {
       // Regression: a condition was unmet before the end time passed

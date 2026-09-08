@@ -4,6 +4,7 @@ import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
 import { castingProgress } from "@/lib/casting-progress"
 import { readinessAlert } from "@/lib/workshop-readiness"
+import { workshopHasEnded } from "@/lib/workshop-status"
 
 export async function GET() {
   const session = await getServerSession(authOptions)
@@ -41,6 +42,31 @@ export async function GET() {
   // One clock for the whole response, so two rows a millisecond apart can never
   // land on different days.
   const now = new Date()
+
+  // Date-based CLOSING for the whole table, in one write.
+  //
+  // checkAndAdvanceStatus() is pull-based — it runs only when someone opens or
+  // edits a particular workshop — and nothing sweeps on a clock. A workshop that
+  // finished and that nobody has touched since would therefore sit here in מוכן
+  // indefinitely, which is exactly how a past workshop was found still showing
+  // מוכן the morning after. This is the one transition that needs no per-workshop
+  // evaluation (the SPECIFIED/READY → CLOSING leg depends on the date alone), so
+  // it can be settled for every row at once; everything else — READY, CLOSED and
+  // both regressions — still belongs to checkAndAdvanceStatus. §4.4.
+  const nowClosing = workshops.filter(
+    (w) => !w.cancelled &&
+           (w.status === "SPECIFIED" || w.status === "READY") &&
+           workshopHasEnded(w.date, w.endTime, now)
+  )
+  if (nowClosing.length > 0) {
+    await prisma.workshop.updateMany({
+      where: { id: { in: nowClosing.map((w) => w.id) } },
+      data:  { status: "CLOSING" },
+    })
+    // Serve the new status in this same response rather than making the table
+    // wait for a refetch to stop lying.
+    for (const w of nowClosing) w.status = "CLOSING"
+  }
 
   return NextResponse.json(
     workshops.map((w) => {
