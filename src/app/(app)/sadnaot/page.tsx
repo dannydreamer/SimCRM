@@ -92,16 +92,16 @@ function FractionBadge({ filled, total, href, alwaysFraction }: { filled: number
 // over and knowing when it is finished; the slot counting belongs to the Caster,
 // on /lihukim. Spec §7.7.
 //
-// STALE reads ⏳! rather than a plain ⏳ — in progress, and something is wrong with
-// it. A bare hourglass said "someone else is working on it", which is exactly the
-// wrong thing to say about casting the Tech has invalidated and not sent again.
+// BLOCKED reads ⏳! rather than a plain ⏳ — in progress, and stuck. A bare
+// hourglass says "someone else is working on it", which is the wrong thing to say
+// to the only person who can unstick it.
 function CastingBadge({ state, href }: { state: CastingState; href?: string }) {
   if (state === "NOT_SENT")
     return <span title={CASTING_STATE_LABEL.NOT_SENT} className="text-gray-300 text-xs">—</span>
   if (state === "COMPLETE")
     return <span title={CASTING_STATE_LABEL.COMPLETE} className="text-brand-green font-bold text-base">✓</span>
-  const inner = state === "STALE"
-    ? <span title={CASTING_STATE_LABEL.STALE} className="text-sm leading-none font-bold text-red-600">⏳!</span>
+  const inner = state === "BLOCKED"
+    ? <span title={CASTING_STATE_LABEL.BLOCKED} className="text-sm leading-none font-bold text-red-600">⏳!</span>
     : <span title={CASTING_STATE_LABEL.IN_PROGRESS} className="text-sm leading-none">⏳</span>
   return href
     ? <Link href={href} className="hover:underline" onClick={(e) => e.stopPropagation()}>{inner}</Link>

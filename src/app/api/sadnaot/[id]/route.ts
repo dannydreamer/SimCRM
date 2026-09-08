@@ -5,8 +5,7 @@ import { authOptions } from "@/lib/auth"
 import { checkAndAdvanceStatus } from "@/lib/workshop-status"
 import { ROOM_LOCATION_VALUES, sortRoomLocations } from "@/lib/room-locations"
 import { castingProgress } from "@/lib/casting-progress"
-import { castingStaleness } from "@/lib/casting-staleness"
-import { CASTING_INVALIDATING_TYPES } from "@/lib/casting-change-log"
+import { castingPool } from "@/lib/casting-pool"
 import type { RoomLocation } from "@prisma/client"
 
 const FROZEN_STATUSES = ["CLOSING", "CLOSED", "CANCELLED"]
@@ -63,13 +62,6 @@ export async function GET(
         },
       },
       roomLocations: { select: { location: true } },
-      // Only the types that invalidate casting, for the "send again" bar (§7.2.1).
-      // Not filtered on `dismissed`: that flag is the Caster's, on her own banner.
-      castingChangeLogs: {
-        where: { changeType: { in: [...CASTING_INVALIDATING_TYPES] } },
-        select: { changeType: true, detail: true, createdAt: true },
-        orderBy: { createdAt: "asc" },
-      },
     },
   })
 
@@ -114,14 +106,12 @@ export async function GET(
       scenarios: w.scenarios,
       castings:  w.castings,
     }),
-    // Changes made since the hand-over that the Caster cannot act on until the
-    // Tech sends again (§7.2.1). Derived from the change log, not stored.
-    castingStaleness: castingStaleness({
-      castingSentAt: w.castingSentAt,
-      status:        w.status,
-      cancelled:     w.cancelled,
-      scenarios:     w.scenarios,
-      changeLogs:    w.castingChangeLogs,
+    // Whether the confirmed pool still covers the scenarios. When it does not,
+    // the Caster is stuck until the Tech raises the numbers (§7.2.1).
+    castingPool: castingPool({
+      castingMaleNeeded:   w.castingMaleNeeded,
+      castingFemaleNeeded: w.castingFemaleNeeded,
+      scenarios:           w.scenarios,
     }),
     status: w.status,
     cancelled: w.cancelled,

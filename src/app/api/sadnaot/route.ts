@@ -3,8 +3,7 @@ import { prisma } from "@/lib/prisma"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
 import { castingProgress, castingState } from "@/lib/casting-progress"
-import { castingStaleness } from "@/lib/casting-staleness"
-import { CASTING_INVALIDATING_TYPES } from "@/lib/casting-change-log"
+import { castingPool } from "@/lib/casting-pool"
 import { readinessAlert } from "@/lib/workshop-readiness"
 
 export async function GET() {
@@ -25,8 +24,7 @@ export async function GET() {
           facilitator: { select: { id: true, name: true } },
         },
       },
-      // modelId / actorRequirements are here only for the staleness `canSend` test.
-      scenarios: { select: { id: true, cancelled: true, written: true, maleActorsNeeded: true, femaleActorsNeeded: true, modelId: true, actorRequirements: true, topic: { select: { id: true, name: true } } } },
+      scenarios: { select: { id: true, cancelled: true, written: true, maleActorsNeeded: true, femaleActorsNeeded: true, topic: { select: { id: true, name: true } } } },
       castings:  { select: { actorId: true, isDirector: true, roomId: true } },
       feedbacks: {
         select: {
@@ -38,13 +36,6 @@ export async function GET() {
       // Needed by the readiness alert — condition 5 turns on whether a חדר אחר
       // is in use at the centre.
       roomLocations: { select: { location: true } },
-      // Drives the STALE ליהוק badge (§7.2.1). Filtered to the invalidating types
-      // so this stays a narrow read across the whole workshop list.
-      castingChangeLogs: {
-        where: { changeType: { in: [...CASTING_INVALIDATING_TYPES] } },
-        select: { changeType: true, detail: true, createdAt: true },
-        orderBy: { createdAt: "asc" },
-      },
     },
   })
 
@@ -80,13 +71,12 @@ export async function GET() {
         castings:  w.castings,
       })
 
-      // The badge's fourth state — handed over, then invalidated, never re-sent.
-      const staleness = castingStaleness({
-        castingSentAt: w.castingSentAt,
-        status:        w.status,
-        cancelled:     w.cancelled,
-        scenarios:     w.scenarios,
-        changeLogs:    w.castingChangeLogs,
+      // The badge's fourth state — the confirmed pool no longer covers the
+      // scenarios, so the Caster cannot finish without the Tech (§7.2.1).
+      const pool = castingPool({
+        castingMaleNeeded:   w.castingMaleNeeded,
+        castingFemaleNeeded: w.castingFemaleNeeded,
+        scenarios:           w.scenarios,
       })
 
       const scenarioWritten = activeScenarios.length > 0 && activeScenarios.every((s) => s.written)
@@ -168,7 +158,7 @@ export async function GET() {
         slottingFilled, slottingTotal, slottingTentative,
         castingFilled,  castingTotal,
         casting,
-        castingState: castingState({ ...casting, stale: staleness.stale }),
+        castingState: castingState({ ...casting, blocked: casting.started && pool.blocked }),
         scenarioWritten,
         feedbackFormAdded: w.feedbackFormAdded,
         pptFilled, pptTotal,

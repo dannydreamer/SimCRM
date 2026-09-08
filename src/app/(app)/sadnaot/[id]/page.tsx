@@ -61,8 +61,12 @@ interface Workshop {
   tentative: boolean
   postponedWarning: boolean
   roomCancelledWarning: boolean
-  /** Changes made since the hand-over to the Caster. Derived server-side, §7.2.1. */
-  castingStaleness: { stale: boolean; reasons: string[]; canSend: boolean }
+  /** Whether the confirmed pool still covers the scenarios. Server-derived, §7.2.1. */
+  castingPool: {
+    blocked: boolean
+    male:   { needed: number; confirmed: number; short: boolean }
+    female: { needed: number; confirmed: number; short: boolean }
+  }
   feedbackFormAdded: boolean
   feedbackEntered:  number
   feedbackExpected: number
@@ -606,19 +610,21 @@ export default function WorkshopDetailPage() {
     if (!res.ok) setW((prev) => prev ? { ...prev, scenarioOrderFlexible: !value } : prev)
   }
 
-  // A change that invalidates the Caster's slot grid: re-read the workshop so the
-  // staleness bar, the ליהוק progress and the status all reflect it, then offer to
-  // send again. Asked at most once per visit — a Tech editing four things in a row
-  // should not answer four dialogs, and the bar carries the reminder afterwards.
+  // A change to the scenarios or rooms: re-read the workshop so the ליהוק state,
+  // the progress and the status all reflect it.
+  //
+  // The prompt fires only on the transition **into** blocked — the moment the
+  // Caster stops being able to finish. Everything else she can absorb by
+  // re-casting, and she already has a change banner for it, so telling the Tech
+  // to act would be a nag. Asked at most once per visit either way.
   async function noteCastingChange() {
     if (!w?.castingSentAt) return
+    const wasBlocked = !!w.castingPool?.blocked
     const res = await fetch(`/api/sadnaot/${id}`, { cache: "no-store" })
     if (!res.ok) return
     const fresh: Workshop = await res.json()
     setW(fresh)
-    // canSend: the send route refuses while a scenario lacks its model, so asking
-    // would open a form that cannot be submitted. The bar still shows.
-    if (fresh.castingStaleness?.stale && fresh.castingStaleness.canSend && !resendAsked) {
+    if (fresh.castingPool?.blocked && !wasBlocked && !resendAsked) {
       setResendAsked(true)
       setShowResendAsk(true)
     }
@@ -1003,25 +1009,27 @@ export default function WorkshopDetailPage() {
               className="text-amber-600 hover:text-amber-800 text-lg leading-none shrink-0" title="סגור">×</button>
           </div>
         )}
-        {/* Casting is stale — §7.2.1. Deliberately not dismissible: it is not an
-            alert but a statement of state, true until the Tech sends again, and
-            re-sending clears it on its own. Its predecessor, roomAddedWarning,
-            could be X'd away and then the Caster was left working from requirements
-            that no longer existed. */}
-        {w.castingStaleness?.stale && (
-          <div className="bg-amber-50 border border-amber-400 rounded-lg px-4 py-3 flex items-start justify-between gap-4">
+        {/* Casting is blocked — §7.2.1. Not dismissible: it is a statement of state,
+            true until the numbers are raised, and the re-send clears it on its own.
+            Only a Step 1 shortfall gets a bar. Every other change costs the Caster
+            nothing but re-casting, and she has her own banner for those. */}
+        {w.castingSentAt && w.castingPool?.blocked && !w.frozen && !w.cancelled && (
+          <div className="bg-red-50 border-2 border-red-400 rounded-lg px-4 py-3 flex items-start justify-between gap-4">
             <div className="min-w-0">
-              <p className="text-sm font-bold text-amber-900">⚠️ בוצעו שינויים מאז השליחה לליהוק</p>
-              <ul className="mt-1 text-xs text-amber-800 list-disc pr-4 space-y-0.5">
-                {w.castingStaleness.reasons.map((r, i) => <li key={i}>{r}</li>)}
+              <p className="text-sm font-bold text-red-800">⚠️ הליהוק חסום — אין מספיק שחקנים מאושרים</p>
+              <ul className="mt-1 text-xs text-red-700 list-disc pr-4 space-y-0.5">
+                {w.castingPool.male.short && (
+                  <li>נדרשים {w.castingPool.male.needed} שחקנים לתרחיש, אושרו {w.castingPool.male.confirmed}</li>
+                )}
+                {w.castingPool.female.short && (
+                  <li>נדרשות {w.castingPool.female.needed} שחקניות לתרחיש, אושרו {w.castingPool.female.confirmed}</li>
+                )}
               </ul>
-              {!w.castingStaleness.canSend && (
-                <p className="mt-1.5 text-xs text-amber-700">
-                  יש להשלים מודל סימולציה ודרישות שחקנים בתרחישים לפני שליחה מחדש
-                </p>
-              )}
+              <p className="mt-1.5 text-xs text-red-700">
+                המלהקת לא תוכל להשלים את השיבוץ — יש לעדכן את המספרים ולשלוח מחדש לליהוק
+              </p>
             </div>
-            {canEditScenarios && w.castingStaleness.canSend && !w.frozen && !w.cancelled && (
+            {canEditScenarios && (
               <button onClick={openCastingOverlay}
                 className="shrink-0 px-3 py-1.5 bg-navy text-white text-xs font-semibold rounded-lg hover:bg-navy/90">
                 עדכן ושלח לליהוק
@@ -1338,7 +1346,7 @@ export default function WorkshopDetailPage() {
                 // reads, so the two halves of this page cannot disagree. Spec §7.7.
                 const castingSent     = !!w.castingSentAt
                 const castingComplete = castingSent && w.casting.complete
-                const castingIsStale  = !!w.castingStaleness?.stale
+                const castingBlocked  = castingSent && !!w.castingPool?.blocked
 
                 // Condition 3: Feedback form
                 const feedbackDone = w.feedbackFormAdded
@@ -1386,12 +1394,13 @@ export default function WorkshopDetailPage() {
 
                     {/* Condition 2: Casting */}
                     <div className="flex items-start gap-2 text-xs">
-                      <span className={`mt-px font-bold ${castingComplete && !castingIsStale ? "text-brand-green" : castingIsStale ? "text-red-600" : markTodo}`}>{castingIsStale ? "!" : castingComplete ? "✓" : "○"}</span>
+                      <span className={`mt-px font-bold ${castingComplete && !castingBlocked ? "text-brand-green" : castingBlocked ? "text-red-600" : markTodo}`}>{castingBlocked ? "!" : castingComplete ? "✓" : "○"}</span>
                       <div>
-                        {/* Stale casting can still be "complete" by slot count, so the ✓
-                            is withheld explicitly — §7.7. */}
-                        <span className={castingComplete && !castingIsStale ? "text-gray-700" : labelTodo}>
-                          {castingIsStale ? "ליהוק — שינויים טרם נשלחו"
+                        {/* Blocked casting can still be "complete" by slot count — the
+                            old casting fills the old slots — so the ✓ is withheld
+                            explicitly. §7.7. */}
+                        <span className={castingComplete && !castingBlocked ? "text-gray-700" : labelTodo}>
+                          {castingBlocked ? "ליהוק חסום — חסרים שחקנים מאושרים"
                             : castingComplete ? "ליהוק הושלם"
                             : castingSent ? "הליהוק בתהליך"
                             : "ליהוק"}
@@ -1399,8 +1408,8 @@ export default function WorkshopDetailPage() {
                         {!castingComplete && !castingSent && (
                           <p className="text-gray-400 mt-0.5">← ממתין לשליחה לליהוק</p>
                         )}
-                        {castingIsStale && (
-                          <p className="text-red-600 mt-0.5">← יש לשלוח מחדש לליהוק</p>
+                        {castingBlocked && (
+                          <p className="text-red-600 mt-0.5">← יש לעדכן את המספרים ולשלוח מחדש</p>
                         )}
                       </div>
                     </div>
@@ -1659,7 +1668,7 @@ export default function WorkshopDetailPage() {
           // Casting state, computed server-side so this section and the readiness
           // checklist above can never disagree. Spec §7.7.
           const c     = w.casting
-          const state = castingState({ ...c, stale: !!w.castingStaleness?.stale })
+          const state = castingState({ ...c, blocked: !!w.castingPool?.blocked })
 
           return (
             <section id="casting" className="border border-gray-200 rounded-xl p-5 bg-white shadow-sm">
@@ -1673,16 +1682,17 @@ export default function WorkshopDetailPage() {
                   )}
                   {/* No number. Expand הצג שחקנים below for the room-by-room detail,
                       which is the only casting view the Tech can act on. Spec §7.7. */}
-                  {/* STALE deliberately outranks COMPLETE: the slot count can be full
-                      again while the hand-over the Caster is working from is out of
-                      date, and a green ✓ there says there is nothing left to do. */}
+                  {/* BLOCKED deliberately outranks COMPLETE: the old casting still
+                      fills the old slots, so the count can read full while the pool
+                      no longer covers the scenarios — and a green ✓ there tells the
+                      one person who can fix it that there is nothing to do. */}
                   {wasSent && (
                     <p className={`text-base font-bold mt-1 ${
                       state === "COMPLETE" ? "text-brand-green"
-                        : state === "STALE" ? "text-red-600"
+                        : state === "BLOCKED" ? "text-red-600"
                         : "text-amber-600"
                     }`}>
-                      {state === "COMPLETE" ? "✓ " : state === "STALE" ? "⏳! " : "⏳ "}
+                      {state === "COMPLETE" ? "✓ " : state === "BLOCKED" ? "⏳! " : "⏳ "}
                       {CASTING_STATE_LABEL[state]}
                     </p>
                   )}
@@ -1893,7 +1903,8 @@ export default function WorkshopDetailPage() {
           <div className="bg-white rounded-xl shadow-2xl max-w-sm w-full mx-4 p-6" dir="rtl">
             <p className="text-base font-bold text-gray-900 mb-1">בוצע שינוי בהגדרות</p>
             <p className="text-sm text-gray-600 mb-5">
-              השינוי משפיע על הליהוק שכבר נשלח. האם לשלוח מחדש לליהוק?
+              כעת נדרשים שחקנים שטרם אושרו, והמלהקת לא תוכל להשלים את השיבוץ.
+              האם לעדכן את המספרים ולשלוח מחדש לליהוק?
             </p>
             <div className="flex gap-2 justify-end">
               <button

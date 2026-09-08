@@ -31,30 +31,32 @@ export interface CastingProgress {
 }
 
 /**
- * What the Tech's screens show for ליהוק. The fourth state, STALE, was added with
- * §7.2.1: casting that was handed over and then invalidated by a change nobody
- * sent again. Without it the workshop table and the ליהוק section showed a plain
- * ⏳ — "in progress, nothing to see" — for a workshop whose casting is wrong.
+ * What the Tech's screens show for ליהוק. The fourth state, BLOCKED, is the one
+ * that needs her: the confirmed pool no longer covers the scenarios, so the
+ * Caster's Step 2 pickers have nobody to offer and only the Tech can raise the
+ * numbers (§7.2.1, `casting-pool.ts`).
  *
- * **STALE beats COMPLETE deliberately.** Most invalidating changes empty a slot,
- * so `complete` goes false on its own and the two agree. But cancelling a scenario
- * shrinks the slot count, and the Caster can fill new slots from her own banner
- * without waiting for a re-send — so a stale workshop can still count as full. A
- * green ✓ there would tell the Tech there is nothing left to do while the Caster
- * is working from a hand-over that no longer matches the workshop.
+ * It is deliberately **not** "something changed since the hand-over". Most changes
+ * cost the Caster nothing but re-casting — she sees the new requirements live and
+ * gets her own change banner — and flagging those to the Tech is a nag she learns
+ * to ignore. Only a shortfall she cannot work around is her problem.
+ *
+ * **BLOCKED beats COMPLETE.** A workshop can be slot-complete on the old casting
+ * while the pool no longer covers the current scenarios; a green ✓ there says
+ * there is nothing left to do, to the one person who can fix it.
  */
-export type CastingState = "NOT_SENT" | "STALE" | "COMPLETE" | "IN_PROGRESS"
+export type CastingState = "NOT_SENT" | "BLOCKED" | "COMPLETE" | "IN_PROGRESS"
 
-export function castingState(p: { started: boolean; complete: boolean; stale: boolean }): CastingState {
+export function castingState(p: { started: boolean; complete: boolean; blocked: boolean }): CastingState {
   if (!p.started) return "NOT_SENT"
-  if (p.stale)    return "STALE"
+  if (p.blocked)  return "BLOCKED"
   if (p.complete) return "COMPLETE"
   return "IN_PROGRESS"
 }
 
 export const CASTING_STATE_LABEL: Record<CastingState, string> = {
   NOT_SENT:    "טרם נשלח לליהוק",
-  STALE:       "שינויים טרם נשלחו לליהוק",
+  BLOCKED:     "הליהוק חסום — חסרים שחקנים מאושרים",
   COMPLETE:    "הליהוק הושלם",
   IN_PROGRESS: "הליהוק בתהליך",
 }
