@@ -1,7 +1,9 @@
 import { prisma } from "@/lib/prisma"
+import { expandRoles } from "@/lib/roles"
 import { compare } from "bcryptjs"
 import type { NextAuthOptions } from "next-auth"
 import CredentialsProvider from "next-auth/providers/credentials"
+import type { Role } from "@prisma/client"
 
 const SESSION_MAX_AGE = parseInt(process.env.SESSION_MAX_AGE ?? "2592000", 10)
 
@@ -36,7 +38,12 @@ export const authOptions: NextAuthOptions = {
           id: person.id,
           name: person.name,
           email: person.email,
-          roles: person.roles.map((r) => r.role),
+          // Expanded here, once, so the token carries the effective roles and
+          // every downstream check — middleware included — sees them without
+          // knowing the implication exists. §5.4.
+          // Cast is safe by construction: every value ROLE_IMPLIES can add is
+          // itself a Role, and the input came from the Role column.
+          roles: expandRoles(person.roles.map((r) => r.role)) as Role[],
           mustChangePassword: person.mustChangePassword,
         }
       },

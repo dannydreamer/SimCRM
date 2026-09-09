@@ -9,6 +9,7 @@ import {
   type ReadyConditionKey,
 } from "@/lib/workshop-readiness"
 import { CASTING_STATE_LABEL, type CastingState } from "@/lib/casting-progress"
+import { CAN_CREATE_WORKSHOP, hasAny } from "@/lib/roles"
 
 interface Facilitator { id: string; name: string }
 
@@ -175,6 +176,7 @@ export default function SadnaotPage() {
   const isManager = user.roles.includes("MANAGER")
   const isTech    = user.roles.includes("TECH")
   const isCaster  = user.roles.includes("CASTER")
+  const canCreateWorkshop = hasAny(user.roles, CAN_CREATE_WORKSHOP)
 
   const [workshops, setWorkshops] = useState<WorkshopRow[]>([])
   const [loading, setLoading]     = useState(true)
@@ -337,7 +339,7 @@ export default function SadnaotPage() {
             {loading ? "טוען..." : `${active.length} סדנאות`}
           </p>
         </div>
-        {isManager && (
+        {canCreateWorkshop && (
           <Link href="/sadnaot/new"
             className="px-4 py-2 bg-navy text-white text-sm font-medium rounded hover:bg-navy-dark transition-colors">
             + סדנה חדשה

@@ -36,7 +36,8 @@ Next.js 16 (App Router) · React 19 · Prisma 7 + `@prisma/adapter-pg` · Postgr
 - **Dates render `DD.MM.YY`** (e.g. `7.5.26`).
 - **Negative numbers need `dir="ltr"` on the cell**, or they render as `9-` instead of `-9`.
 - Routes use Hebrew transliteration: `sadnaot` (workshops), `lihukim` (casting), `shakhanim` (actors), `irgunnim` (organizations), `nosim` (topics), `omas` (facilitator load), `yaadot` (goals), `luach` (calendar).
-- Roles: MANAGER, TECH, CASTER, FEEDBACK_DOCUMENTER, FACILITATOR. Nav visibility is centralised in `src/lib/roles.ts`. **Permissions must be enforced in the API route, not only in the UI.**
+- Roles: MANAGER, TECH, SENIOR_TECH, CASTER, FEEDBACK_DOCUMENTER, FACILITATOR. Nav visibility is centralised in `src/lib/roles.ts`. **Permissions must be enforced in the API route, not only in the UI.**
+- **SENIOR_TECH implies TECH**, expanded once in `authorize()` via `expandRoles()`. A guard that names TECH already admits her — do **not** add SENIOR_TECH beside an existing TECH test. Only a right a plain Tech must not have names the senior role, through a capability list in `roles.ts`. Store SENIOR_TECH alone, never both. The expansion does not reach Prisma queries filtering on the role column. Spec §5.4; `npm run check:roles`.
 
 ## Things that will bite you
 
@@ -58,6 +59,7 @@ npm run dev            # local dev server
 npx prisma studio      # inspect the database
 npm run build          # verify before pushing — Vercel builds on push
 npm run check:casting  # pure-function checks for casting staleness + state (§7.2.1, §7.7)
+npm run check:roles    # pure-function checks for role implication + capabilities (§5.4)
 ```
 
 ## Git

@@ -6,6 +6,7 @@ import Link from "next/link"
 import { useUser } from "@/app/(app)/user-context"
 import { PEDAGOGI_LABELS, TAKZIVI_LABELS } from "@/lib/shiyuch"
 import { NewOrgModal, type CreatedOrg } from "@/components/NewOrgModal"
+import { CAN_CREATE_WORKSHOP, hasAny } from "@/lib/roles"
 
 interface OrgOption {
   id:              string
@@ -16,10 +17,8 @@ interface OrgOption {
 }
 
 interface PersonOption {
-  id:    string
-  name:  string
-  roles: string[]
-  active: boolean
+  id:   string
+  name: string
 }
 
 function makeTimes(fromH: number, fromM: number, toH: number, toM: number): string[] {
@@ -46,7 +45,7 @@ function NewWorkshopForm() {
   const user      = useUser()
   const router    = useRouter()
   const params    = useSearchParams()
-  const isManager = user.roles.includes("MANAGER")
+  const canCreate = hasAny(user.roles, CAN_CREATE_WORKSHOP)
 
   const [orgs, setOrgs]               = useState<OrgOption[]>([])
   const [facilitators, setFacilitators] = useState<PersonOption[]>([])
@@ -84,12 +83,15 @@ function NewWorkshopForm() {
   }
 
   useEffect(() => {
+    // /api/facilitators, not /api/users — the latter is Manager-only, and a
+    // Senior Tech opening this form would get a 403 body where an array was
+    // expected. It already returns exactly the active facilitators, by name.
     Promise.all([
       fetch("/api/irgunnim").then((r) => r.json()),
-      fetch("/api/users").then((r) => r.json()),
-    ]).then(([orgsData, usersData]) => {
+      fetch("/api/facilitators").then((r) => r.json()),
+    ]).then(([orgsData, facilitatorsData]) => {
       setOrgs(orgsData)
-      setFacilitators((usersData as PersonOption[]).filter((u) => u.roles.includes("FACILITATOR") && u.active))
+      setFacilitators(facilitatorsData as PersonOption[])
       setLoadingOptions(false)
     })
   }, [])
@@ -102,7 +104,7 @@ function NewWorkshopForm() {
     setGroupName("")
   }, [orgId])
 
-  if (!isManager) {
+  if (!canCreate) {
     return (
       <div className="p-8">
         <p className="text-sm text-red-500">אין הרשאה לדף זה.</p>

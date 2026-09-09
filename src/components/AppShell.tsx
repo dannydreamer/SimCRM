@@ -4,7 +4,7 @@ import Link from "next/link"
 import Image from "next/image"
 import { usePathname } from "next/navigation"
 import { signOut } from "next-auth/react"
-import { NAV_ITEMS, ROLE_LABELS } from "@/lib/roles"
+import { NAV_ITEMS, ROLE_LABELS, displayRoles } from "@/lib/roles"
 
 interface AppShellProps {
   user: {
@@ -24,7 +24,9 @@ export function AppShell({ user, version, backupWarning, children }: AppShellPro
     item.roles.some((r) => user.roles.includes(r))
   )
 
-  const roleLabels = user.roles
+  // displayRoles drops anything held only by implication, so a Senior Tech
+  // reads as "מפעילה טכנית בכירה" rather than that plus "מפעילה טכנית".
+  const roleLabels = displayRoles(user.roles)
     .map((r) => ROLE_LABELS[r] ?? r)
     .join(", ")
 

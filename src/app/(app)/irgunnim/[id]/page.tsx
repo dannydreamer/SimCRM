@@ -6,6 +6,7 @@ import Link from "next/link"
 import { useUser } from "@/app/(app)/user-context"
 import { StatusPill } from "@/components/StatusPill"
 import { PEDAGOGI_LABELS, PEDAGOGI_VALUES, TAKZIVI_LABELS, TAKZIVI_VALUES } from "@/lib/shiyuch"
+import { CAN_CREATE_WORKSHOP, CAN_MANAGE_ORGS, hasAny } from "@/lib/roles"
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -52,8 +53,9 @@ function fmtDate(iso: string) {
 
 export default function OrgDetailPage() {
   const { id }    = useParams<{ id: string }>()
-  const user      = useUser()
-  const isManager = user.roles.includes("MANAGER")
+  const user              = useUser()
+  const canManageOrg      = hasAny(user.roles, CAN_MANAGE_ORGS)
+  const canCreateWorkshop = hasAny(user.roles, CAN_CREATE_WORKSHOP)
 
   const [org, setOrg]           = useState<OrgDetail | null>(null)
   const [loading, setLoading]   = useState(true)
@@ -189,7 +191,7 @@ export default function OrgDetailPage() {
             </p>
           </div>
           <div className="flex items-center gap-2 shrink-0">
-            {isManager && !editing && (
+            {canManageOrg && !editing && (
               <button
                 onClick={openEdit}
                 className="px-3 py-1.5 text-sm border border-gray-300 rounded hover:bg-gray-50 text-gray-700 transition-colors"
@@ -197,7 +199,7 @@ export default function OrgDetailPage() {
                 עריכה
               </button>
             )}
-            {isManager && (
+            {canCreateWorkshop && (
               <Link
                 href={`/sadnaot/new?orgId=${org.id}`}
                 className="px-3 py-1.5 bg-navy text-white text-sm font-medium rounded hover:bg-navy-dark transition-colors"
@@ -325,14 +327,14 @@ export default function OrgDetailPage() {
           חדרים מתוכננים: <span className="font-medium text-gray-700">{org.totalRoomsPlanned}</span>
         </p>
 
-        {/* Notes — inline editable for Manager, read-only for Tech */}
-        {(org.notes || isManager) && (
+        {/* Notes — inline editable for Manager and Senior Tech, read-only for Tech */}
+        {(org.notes || canManageOrg) && (
           <div className="mb-6">
             <div className="flex items-center gap-2 mb-1">
               <h3 className="text-sm font-semibold text-gray-700">הערות</h3>
               {notesSaving && <span className="text-xs text-gray-400">שומר...</span>}
             </div>
-            {isManager ? (
+            {canManageOrg ? (
               <textarea
                 value={notesValue ?? ""}
                 onChange={(e) => { setNotesValue(e.target.value); setNotesDirty(true) }}
@@ -363,14 +365,14 @@ export default function OrgDetailPage() {
                 orgId={org.id}
                 expanded={expandedGroups.has(group.id)}
                 onToggle={() => toggleGroup(group.id)}
-                isManager={isManager}
+                canCreateWorkshop={canCreateWorkshop}
               />
             ))}
           </div>
         </div>
 
-        {/* Add group — Manager only */}
-        {isManager && (
+        {/* Add group — Manager and Senior Tech */}
+        {canManageOrg && (
           <div className="mt-6 border-t border-gray-100 pt-4">
             <p className="text-sm font-medium text-gray-700 mb-2">+ קבוצה חדשה תחת ארגון זה</p>
             <div className="flex items-center gap-2">
@@ -410,13 +412,13 @@ function InfoRow({ label, value, ltr = false }: { label: string; value: string; 
 }
 
 function GroupSection({
-  group, orgId, expanded, onToggle, isManager,
+  group, orgId, expanded, onToggle, canCreateWorkshop,
 }: {
   group: Group
   orgId: string
   expanded: boolean
   onToggle: () => void
-  isManager: boolean
+  canCreateWorkshop: boolean
 }) {
   return (
     <div className="border border-gray-200 rounded-lg overflow-hidden">
@@ -433,7 +435,7 @@ function GroupSection({
           </span>
         </div>
         <div className="flex items-center gap-3">
-          {isManager && (
+          {canCreateWorkshop && (
             <Link
               href={`/sadnaot/new?orgId=${orgId}&groupId=${group.id}`}
               onClick={(e) => e.stopPropagation()}

@@ -5,6 +5,7 @@ import { authOptions } from "@/lib/auth"
 import { castingProgress, castingState } from "@/lib/casting-progress"
 import { castingPool } from "@/lib/casting-pool"
 import { readinessAlert } from "@/lib/workshop-readiness"
+import { CAN_CREATE_WORKSHOP, hasAny } from "@/lib/roles"
 import { workshopHasEnded } from "@/lib/workshop-status"
 
 export async function GET() {
@@ -207,7 +208,7 @@ export async function GET() {
 export async function POST(req: NextRequest) {
   const session = await getServerSession(authOptions)
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-  if (!session.user.roles.includes("MANAGER")) {
+  if (!hasAny(session.user.roles, CAN_CREATE_WORKSHOP)) {
     return NextResponse.json({ error: "אין הרשאה" }, { status: 403 })
   }
 
