@@ -233,11 +233,22 @@ export default function LihukimLandingPage() {
               ? "bg-red-50 border-red-300 text-red-800"
               : "bg-amber-50 border-amber-300 text-amber-800"
           }`}>
-            <div>
+            <div className="min-w-0">
               <p className="font-semibold mb-0.5">עדכון בסדנה — יש לבדוק לפני ביצוע ליהוק</p>
-              <p className={`text-xs mt-0.5 ${isRed ? "text-red-700" : "text-amber-700"}`}>
-                {fmtDate(ow.date)} · {ow.groupName} — {logs.map((l) => l.detail).join(", ")}
+              <p className={`text-xs ${isRed ? "text-red-700" : "text-amber-700"}`}>
+                {fmtDate(ow.date)} · {ow.groupName}
               </p>
+              {/* One line per change. Comma-joining them ran distinct facts together
+                  into a sentence, so "a whole extra actor is now needed" carried the
+                  same weight as everything else and the pool change — the only one
+                  that can stop her working — read as a tail on a list. */}
+              <ul className={`text-xs mt-1 list-disc pr-4 space-y-0.5 ${isRed ? "text-red-700" : "text-amber-700"}`}>
+                {logs.map((l) => (
+                  <li key={l.id} className={l.changeType === "COUNTS_CHANGED" ? "font-semibold" : undefined}>
+                    {l.detail}
+                  </li>
+                ))}
+              </ul>
             </div>
             <button
               onClick={() => dismissOtherChanges(ow.id)}

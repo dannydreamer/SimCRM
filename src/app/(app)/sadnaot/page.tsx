@@ -8,6 +8,7 @@ import {
   READY_CONDITION_LABEL, daysUntilPhrase,
   type ReadyConditionKey,
 } from "@/lib/workshop-readiness"
+import { CASTING_STATE_LABEL, type CastingState } from "@/lib/casting-progress"
 
 interface Facilitator { id: string; name: string }
 
@@ -23,6 +24,7 @@ interface WorkshopRow {
   slottingFilled: number; slottingTotal: number; slottingTentative: boolean
   castingFilled: number; castingTotal: number
   casting: { started: boolean; complete: boolean }
+  castingState: CastingState
   scenarioWritten: boolean
   feedbackFormAdded: boolean
   pptFilled: number; pptTotal: number
@@ -86,13 +88,21 @@ function FractionBadge({ filled, total, href, alwaysFraction }: { filled: number
   return inner
 }
 
-// Casting is three states and no number. The Tech's stake in casting is handing it
+// Casting is four states and no number. The Tech's stake in casting is handing it
 // over and knowing when it is finished; the slot counting belongs to the Caster,
 // on /lihukim. Spec §7.7.
-function CastingBadge({ started, complete, href }: { started: boolean; complete: boolean; href?: string }) {
-  if (!started) return <span title="טרם נשלח לליהוק" className="text-gray-300 text-xs">—</span>
-  if (complete) return <span title="הליהוק הושלם" className="text-brand-green font-bold text-base">✓</span>
-  const inner = <span title="הליהוק בתהליך" className="text-sm leading-none">⏳</span>
+//
+// BLOCKED reads ⏳! rather than a plain ⏳ — in progress, and stuck. A bare
+// hourglass says "someone else is working on it", which is the wrong thing to say
+// to the only person who can unstick it.
+function CastingBadge({ state, href }: { state: CastingState; href?: string }) {
+  if (state === "NOT_SENT")
+    return <span title={CASTING_STATE_LABEL.NOT_SENT} className="text-gray-300 text-xs">—</span>
+  if (state === "COMPLETE")
+    return <span title={CASTING_STATE_LABEL.COMPLETE} className="text-brand-green font-bold text-base">✓</span>
+  const inner = state === "BLOCKED"
+    ? <span title={CASTING_STATE_LABEL.BLOCKED} className="text-sm leading-none font-bold text-red-600">⏳!</span>
+    : <span title={CASTING_STATE_LABEL.IN_PROGRESS} className="text-sm leading-none">⏳</span>
   return href
     ? <Link href={href} className="hover:underline" onClick={(e) => e.stopPropagation()}>{inner}</Link>
     : inner
@@ -548,8 +558,7 @@ export default function SadnaotPage() {
 
                     <td className="px-3 py-2.5 text-center">
                       <CastingBadge
-                        started={w.casting.started}
-                        complete={w.casting.complete}
+                        state={w.castingState}
                         href={(isCaster || isManager) && w.castingSentAt ? `/lihukim/${w.id}` : `/sadnaot/${w.id}#casting`}
                       />
                     </td>

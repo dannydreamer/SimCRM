@@ -55,6 +55,45 @@ export async function PATCH(
 
   const scenarioLabel = sc.name ? `תרחיש "${sc.name}"` : `תרחיש ${sc.orderIndex + 1}`
 
+  // ── Actor counts ────────────────────────────────────────────────────────────
+  // A gender or count change invalidates the Caster's slot grid, unlike the free
+  // text below it. Two things follow: the change is logged so the Tech's "send
+  // again" bar can see it (§7.2.1), and the castings whose slot no longer exists
+  // are deleted. Leaving them was the bug this fixes — a slot is identified by
+  // (scenario, room, slotGender, slotIndex), so flipping 1 שחקן to 1 שחקנית left
+  // the MALE row in place, unreachable from the grid, which renders slots from the
+  // current counts only. It still counted toward castingProgress, so the workshop
+  // read ליהוק הושלם and stayed מוכן while the Caster saw an empty slot.
+  const newMale   = maleActorsNeeded   !== undefined ? (data.maleActorsNeeded   as number) : sc.maleActorsNeeded
+  const newFemale = femaleActorsNeeded !== undefined ? (data.femaleActorsNeeded as number) : sc.femaleActorsNeeded
+  const countsChanged = newMale !== sc.maleActorsNeeded || newFemale !== sc.femaleActorsNeeded
+
+  if (countsChanged) {
+    // gte is right for both directions: when a count grows, no index is out of
+    // range and nothing is deleted.
+    await prisma.casting.deleteMany({
+      where: {
+        workshopId: id,
+        scenarioId: sid,
+        isDirector: false,
+        OR: [
+          { slotGender: "MALE",   slotIndex: { gte: newMale } },
+          { slotGender: "FEMALE", slotIndex: { gte: newFemale } },
+        ],
+      },
+    })
+
+    if (w.castingSentAt) {
+      await prisma.castingChangeLog.create({
+        data: {
+          workshopId: id,
+          changeType: "SCENARIO_ACTORS_CHANGED",
+          detail: `דרישות השחקנים של ${scenarioLabel} שונו — שחקנים: ${newMale}, שחקניות: ${newFemale}`,
+        },
+      })
+    }
+  }
+
   // Log if requirements changed after casting was sent
   if (
     w.castingSentAt &&
@@ -100,7 +139,13 @@ export async function PATCH(
   // MUST run after the PPT reset above: it evaluates READY condition 1 against
   // pptReceived, so running it first judged the regression on stale values and
   // left the workshop READY with every מצגת unchecked.
-  const workshopStatus = written !== undefined ? await checkAndAdvanceStatus(id) : null
+  //
+  // Counts changing must re-evaluate too: the deletion above can empty a slot, and
+  // adding a slot leaves one unfilled — either way ליהוק stops being complete and
+  // a מוכן workshop has to regress. Before this, a counts-only edit never called
+  // it at all and the workshop stayed מוכן on invalid casting.
+  const workshopStatus =
+    written !== undefined || countsChanged ? await checkAndAdvanceStatus(id) : null
 
   return NextResponse.json({
     id: updated.id,

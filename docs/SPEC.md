@@ -272,7 +272,7 @@ Multiple groups with the same name under one organization are permitted — no d
 | tentative | Boolean | Shows `?` badge |
 | postponedWarning | Boolean | Set when date changes after casting/slotting |
 | **roomCancelledWarning** | Boolean | Caster alert flag |
-| **roomAddedWarning** | Boolean | Caster alert flag. Raised **only** when a room is added to a workshop whose `castingSentAt` is already set |
+| **roomAddedWarning** | Boolean | **Retired** — superseded by derived casting staleness (§7.2.1). Neither read nor written; existing `true` values are inert. Column kept to avoid a migration |
 | feedbackFormAdded | Boolean | משוב משתתפים — Tech confirms the Google Form string was added |
 | **castingMaleNeeded** | Int? | Total male actors required (set by Tech at send-to-casting) |
 | **castingFemaleNeeded** | Int? | Total female actors required |
@@ -398,7 +398,7 @@ Unique on `(workshopId, gender, slotIndex)`.
 | Field | Type | Notes |
 |---|---|---|
 | workshopId | FK | |
-| changeType | String | SENT, RESENT, SCENARIO_REQ, SCENARIO_CANCELLED, ROOM_CANCELLED, ROOM_ADDED, COUNTS_CHANGED, MODEL_CHANGED, DATE_CHANGED |
+| changeType | String | SENT, RESENT, SCENARIO_REQ, SCENARIO_ACTORS_CHANGED, SCENARIO_ADDED, SCENARIO_CANCELLED, ROOM_CANCELLED, ROOM_ADDED, COUNTS_CHANGED, MODEL_CHANGED, DATE_CHANGED |
 | detail | String | Hebrew description, e.g. "תרחיש 2 בוטל" |
 | dismissed | Boolean | |
 | createdAt | DateTime | |
@@ -410,6 +410,8 @@ Drives the Caster's change-alert banners. Hebrew labels:
 | SENT | נשלח לליהוק |
 | RESENT | עדכון ושליחה חוזרת לליהוק |
 | SCENARIO_REQ | דרישות שחקנים עודכנו |
+| SCENARIO_ACTORS_CHANGED | מספר השחקנים בתרחיש שונה |
+| SCENARIO_ADDED | תרחיש נוסף לסדנה |
 | SCENARIO_CANCELLED | תרחיש בוטל |
 | ROOM_CANCELLED | חדר בוטל |
 | ROOM_ADDED | חדר נוסף לסדנה |
@@ -417,9 +419,15 @@ Drives the Caster's change-alert banners. Hebrew labels:
 | MODEL_CHANGED | מודל סימולציה עודכן |
 | DATE_CHANGED | הסדנה נדחתה |
 
-`MODEL_CHANGED` is written **only** when a scenario's `modelId` changes on a workshop where `castingSentAt` is already set. Before casting is sent, setting the model is ordinary Tech workflow and writes nothing.
+`COUNTS_CHANGED` is written by **`send-to-casting`**, which is the only route that ever sets the pool numbers. It used to be written solely by the workshop PATCH route, which nothing calls with those fields — so the one change the Caster most needed to hear about, the size of her Step 1 pool, was the one change she was never told about.
+
+Every type is written **only** on a workshop where `castingSentAt` is already set. Before casting is sent, all of this is ordinary Tech workflow and writes nothing. (`SCENARIO_ACTORS_CHANGED` additionally carries the new counts in its detail: *"דרישות השחקנים של תרחיש 2 שונו — שחקנים: 2, שחקניות: 0"*.)
 
 Dismissal is tracked **per user in localStorage** (key `simcrm:dismissed-logs`) in addition to the DB flag. `[code]`
+
+The vocabulary — the caster-alert list, the invalidating subset (§7.2.1) and the Hebrew labels — lives in `src/lib/casting-change-log.ts`. It was previously an inline literal in the two `/api/lihukim` routes and again in the Caster's page; because both route filters are allowlists, a type missing from one was dropped silently rather than erroring. Add a type there, not in the routes.
+
+Where a detail describes the change in the same words as its label, the Caster's banner prints the label alone. The details have to be self-describing because the Tech's staleness bar shows them without a label. `[code]`
 
 ### 3.13 Feedback
 
@@ -735,6 +743,38 @@ All preconditions are re-checked on **every** call — first send and re-send al
 - Writes a `SENT` (or `RESENT` if already sent) change-log entry.
 - **On re-send with reduced counts:** confirmed actors whose `slotIndex >= newCount` are deleted, and their Step 2 assignments are cleared, keeping Step 1 consistent.
 - Triggers a status re-evaluation.
+- Writes a `COUNTS_CHANGED` entry carrying the new numbers whenever they actually moved, and naming anyone the trim just removed: *"מספר השחקנים הנדרשים עודכן — שחקנים: 3, שחקניות: 2. הוסרו מאישור ההגעה: רונית, מיכל"*. The bare `RESENT` is written only when it is the whole story, so the Caster never gets a line that says nothing beside one that says something.
+- Clears the blocked state implicitly, when the new numbers cover the scenarios (§7.2.1).
+
+### 7.2.1 When the Tech has to send again `[code]`
+
+> Source: `src/lib/casting-pool.ts`. Covered by `npm run check:casting` — 21 pure-function checks, no database.
+
+**Nothing is "sent" in the sense of copied.** The Caster reads the scenarios live and gets a change banner (§7.6) the moment anything moves, so she always sees current requirements whether or not the Tech sends again. What שלח לליהוק actually carries is `castingMaleNeeded` / `castingFemaleNeeded` — the size of the Step 1 pool — and those are set nowhere else.
+
+That splits every post-handoff change in two:
+
+- **Step 2 changes cost her nothing but re-casting.** A room added, a scenario added or cancelled, actor counts moved within what the pool can cover. She has the people; the grid just changed shape. Her banner tells her, and the Tech has nothing to do. **No bar, no prompt, plain ⏳.**
+- **A Step 1 shortfall stops her dead.** Step 2's pickers draw only from the actors confirmed in Step 1, and Step 1 has exactly the pool's slots. Flip a scenario to need a שחקנית on a workshop where no שחקניות were confirmed and her dropdown is simply empty, with nothing on screen to say why. Only the Tech can raise the numbers.
+
+**The test is current state, not history.** `castingPool()` asks whether the pool covers the scenarios *now* — no change log, no comparison against `castingSentAt`, no epoch constant to keep old rows from raising false alarms. An earlier draft derived this from the change log and needed all three; this replaced it.
+
+Blocked when, for either gender, the pool is smaller than the deepest single scenario:
+
+```
+castingFemaleNeeded < max(femaleActorsNeeded over active scenarios)
+```
+
+**The deepest scenario, not the sum.** An actor may be cast in several scenarios and several rooms; she may not appear twice in the same scenario + room (§7.4). So the pool has to cover the largest single cell, and adding rooms — which multiplies cells without deepening any of them — can never block.
+
+**How it surfaces on Workshop Detail:**
+- A red **bar**, not dismissible, naming the shortfall: *"נדרשות 2 שחקניות לתרחיש, אושרו 0"*, with the `עדכן ושלח לליהוק` button in it. It is a statement of state, true until the numbers are raised, and the re-send clears it with no bookkeeping. Its ancestor `roomAddedWarning` could be X'd away, and was never cleared by the re-send it asked for.
+- A **prompt** on the transition *into* blocked: *"בוצע שינוי בהגדרות — כעת נדרשים שחקנים שטרם אושרו… האם לעדכן את המספרים ולשלוח מחדש לליהוק?"*, answering כן opens the send form. Shown **at most once per visit** — a Tech editing four things in a row should not answer four dialogs, and the bar carries it afterwards.
+- The ליהוק state reads **BLOCKED** (§7.7) on both the workshop table and this page.
+
+> **Why not flag every change to the Tech.** The first draft did, on the theory that the Caster had to be re-sent the requirements. She does not — she already has them. Prompting her colleague for changes that need no action is the fastest way to teach him to dismiss the prompt that does.
+
+**`roomAddedWarning` is retired** by this. The column remains in the schema, unread and unwritten; existing `true` values are inert.
 
 ### 7.3 Page layout — four sections, in order
 
@@ -760,6 +800,7 @@ The casting page renders in this sequence (`7ff3bfa` fixed the ordering):
 - **All scenarios cancelled after casting was sent:** Step 2 shows *"אין תרחישים פעילים"* in gray rather than `X/0` in amber, and `step2Complete` returns **false** — 0/0 is explicitly not complete.
 - **Some scenarios cancelled:** Step 2 slots update to reflect only active scenarios; ליהוק reverts to incomplete until the remaining slots are filled.
 - Castings for cancelled scenarios are excluded from the filled count so orphaned slots don't inflate progress.
+- **Scenario actor counts changed after casting was sent:** the castings whose slot no longer exists — `slotGender` MALE with `slotIndex >= maleActorsNeeded`, and the female mirror — are **deleted**, and the workshop's status is re-evaluated. A slot is identified by (scenario, room, `slotGender`, `slotIndex`), and the Step 2 grid renders slots from the *current* counts only, so a row left behind by a change was unreachable from the UI while still counting toward `castingProgress`: flipping a scenario from one שחקן to one שחקנית left the workshop reading ליהוק הושלם and sitting at מוכן while the Caster saw an empty slot. Before this, a counts-only edit did not re-evaluate status at all.
 - The same actor may not appear twice in the same scenario + room, but may appear across different scenarios and rooms.
 
 ### 7.5 Live and reversible
@@ -776,17 +817,24 @@ Banners on the ליהוק landing and detail pages, driven by `CastingChangeLog`
 
 ### 7.7 Casting state outside the Casting page
 
-> Source: `src/lib/casting-progress.ts` — one computation, used by both the workshop table (§8.2) and Workshop Detail (§8.4). `[code]`
+> Source: `src/lib/casting-progress.ts` — one computation, used by both the workshop table (§8.2) and Workshop Detail (§8.4). Covered by `npm run check:casting`. `[code]`
 
-**The Tech's screens report three states and no number.**
+**The Tech's screens report four states and no number.**
 
 | State | Condition | Workshop table | Workshop Detail |
 |---|---|---|---|
 | Not started | `castingSentAt` empty | `—` gray | *(nothing — the שלח לליהוק button is the state)* |
+| **Blocked** | the confirmed pool no longer covers the scenarios (§7.2.1) | **⏳! red** | **⏳! הליהוק חסום — חסרים שחקנים מאושרים** red |
 | In progress | sent, not complete | ⏳ amber | **⏳ הליהוק בתהליך** |
 | Complete | every Step 2 slot filled | ✓ green | **✓ הליהוק הושלם** |
 
-`complete` mirrors READY condition 2 (§4.3) exactly, and the readiness checklist reads the same value, so the two halves of Workshop Detail cannot disagree. The checklist's condition-2 line carries the same three states in words: `ליהוק` (with the existing *← ממתין לשליחה לליהוק* hint) · `הליהוק בתהליך` · `ליהוק הושלם`.
+**Blocked outranks complete, deliberately.** The old casting still fills the old slots, so the count can read full while the pool no longer covers the current scenarios. A green ✓ there tells the one person who can fix it that there is nothing left to do. The ⏳ carries an `!` rather than being replaced: the casting genuinely is in progress, *and* it is stuck. A bare hourglass reads as "someone else has this", which is the one thing it must not say to the person who has to unstick it.
+
+`complete` mirrors READY condition 2 (§4.3) exactly, and the readiness checklist reads the same value, so the two halves of Workshop Detail cannot disagree. The checklist's condition-2 line carries the same states in words: `ליהוק` (with the existing *← ממתין לשליחה לליהוק* hint) · `הליהוק בתהליך` · `ליהוק הושלם` · `ליהוק חסום — חסרים שחקנים מאושרים` with a red `!` mark and a *← יש לעדכן את המספרים ולשלוח מחדש* hint.
+
+> **Being blocked is not itself a READY condition.** It changes what the screens *say*, not whether the workshop qualifies for מוכן. In nearly every case it does not need to be: the change that blocks the pool also empties a slot, and condition 2 fails on its own. The narrow gap — blocked but still slot-complete — is left open on purpose rather than quietly widening the gate on live workshops. Revisit if it shows up in practice.
+
+The state is one function, `castingState()` in `src/lib/casting-progress.ts`, called by the workshop list route and Workshop Detail, so the table and the page cannot drift apart.
 
 **When the Tech wants detail she expands it.** The ליהוק section's הצג שחקנים panel already shows the real thing, room by room — `חדר 1: Joe, Mary | חדר 2: Joe + חסר`, with `חסר` in red and a `במאי/ת:` line above. That is the only casting view on this page she can act on, and it needs no summary number in front of it.
 
@@ -1556,6 +1604,7 @@ Sessions 1–19 as built. Branch naming `session-N-*`, merged to `develop` then 
 | **6 Sep 2026** | — | **מגדר shown in words and colour, ♂ / ♀ retired** (branch `gender_color_labels`, new §6.7). The glyphs were confusing Techs, worst in the Step 2 room grid where a bare ♂ or ♀ sat beside each picker with no word anywhere near it. Every gender in the UI is now a Hebrew word — שחקנים כחול, שחקניות ורוד — across the casting page (filter, actor pool, both step headers, slot labels, scenario counts, requirements panel), Workshop Detail (scenario count inputs and read-outs, the add-scenario form, the שלח לליהוק form and summary, the casting overlay), and the actor screens (list filter and rows, profile header, both gender radio groups). Colour never stands alone — the word carries the meaning and the colour is the fast scan. One vocabulary throughout: the casting filter's זכר / נקבה and the *שחקנים (זכר)* labels are gone. Words, colours and tints live in one place, `src/lib/gender.ts` plus the `GenderTag` component, and singular/plural agrees with the number. Display layer only: no schema change, no migration, `MALE` / `FEMALE` untouched. |
 
 | **8 Sep 2026** | — | **Finished workshops now reach בתהליך סגירה on their own** (branch `closing_sweep`, §4.4 revised). A workshop that ran the previous day was still showing מוכן the next morning, and only moved when someone opened it. The cause was not the transition rule but the fact that nothing ever evaluated it: `checkAndAdvanceStatus()` runs on a mutation or on `GET /api/sadnaot/[id]`, the workshops table reads `status` straight from the database, and the only cron in the project is the nightly backup. So the one status a workshop reaches by doing nothing was the one status that required someone to act. `GET /api/sadnaot` now sweeps the date-based leg for the whole table before responding — one `updateMany` moving every non-cancelled SPECIFIED/READY workshop whose end time has passed to CLOSING, reflected in that same response so the table never serves a status it has just superseded. Only that leg is swept; it is the only transition that depends on the date alone. NEW is untouched, as always (§4.4). The date test itself is extracted as `workshopHasEnded()` and shared with `checkAndAdvanceStatus()`, so the table and the workshop page cannot drift, and it now falls back to 23:59 on a missing or malformed `endTime` — the previous inline parse turned bad data into an Invalid Date, which compares false against every clock and would have left such a workshop unable to close at all. No schema change, no migration. |
+| **8 Sep 2026** | — | **Casting: the invalidated-slot bug, and asking the Tech to act only when she has to** (branch `casting_staleness`, new §7.2.1, §7.7 revised). **The bug.** Changing a scenario's actor counts after the handoff was silent and worse than silent: a slot is identified by (scenario, room, `slotGender`, `slotIndex`) and the Step 2 grid renders slots from the *current* counts, so flipping one שחקן to one שחקנית left the male casting row in the database, unreachable from the UI but still counted by `castingProgress`, which compares totals. The workshop read ליהוק הושלם and sat at מוכן while the Caster saw an empty slot, and a counts-only edit never re-evaluated status at all. Those castings are now deleted and the status re-checked (§7.4). **Notification.** `SCENARIO_ACTORS_CHANGED` and `SCENARIO_ADDED` were silent and now reach the Caster; the change-log vocabulary moves to `src/lib/casting-change-log.ts`, having been an inline literal in three places, two of them allowlists that dropped a missing type silently. **`COUNTS_CHANGED` had never fired in the real workflow** — written only by the workshop PATCH route, which nothing calls with the pool numbers, while the send form posts to `send-to-casting`, which wrote a bare `RESENT`. So the Caster was never told her Step 1 pool had changed, nor that a reduction had **silently deleted confirmed actors and their Step 2 assignments**. It now carries the numbers and the removed actors' names, and the empty `RESENT` beside it is suppressed. Her landing-page banner lists changes one per line instead of comma-joining them into a sentence. **Asking the Tech.** A first draft flagged every post-handoff change, on the theory that requirements had to be re-sent. Testing showed the premise was false — the Caster reads scenarios live and is banner-notified — so the bar and prompt now fire **only** when the confirmed pool can no longer cover the deepest scenario, which empties her Step 2 picker and is the one thing only the Tech can fix. That made the test current-state rather than change-log-derived, deleting an entire module, both change-log queries, and an epoch constant that existed only to stop historical rows raising bars on live workshops. ליהוק gains a fourth state, **BLOCKED**, reading ⏳! in red on the workshop table and Workshop Detail; it outranks COMPLETE, because the old casting still fills the old slots. Being blocked is deliberately **not** a READY condition (§7.7). `roomAddedWarning` is retired (§3.5). Also `npm run check:casting` — 21 pure-function checks, the repo's first automated tests. |
 
 ---
 
