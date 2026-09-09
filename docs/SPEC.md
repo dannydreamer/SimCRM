@@ -1316,6 +1316,8 @@ Carried forward for V2 planning. Each needs a decision.
 | 5 | Cron timezone | `[gap]` | Runs 01:00 UTC; does not track Israel DST. Confirm acceptable. |
 | 6 | Supabase pooler blocks DDL | `[code]` | Enum migrations need manual SQL + manual `_prisma_migrations` entry. Document in README. |
 | 7 | Mobile spec | `[gap]` | Casting is mobile-responsive and the actor table hides columns on mobile, but no comprehensive mobile spec exists. |
+| 8 | **`castingProgress` counts slots, it does not match them** | `[gap]` | `src/lib/casting-progress.ts` compares `slotFilled === slotTotal`, so a casting sitting in a slot that no longer exists still counts as filled. The route that caused that now deletes such rows (§7.4), so no *new* drift is created, but pre-existing rows would still read as complete. Making it slot-aware is the real fix; it was left out because any workshop already holding such a row would flip out of מוכן the next time anything touched it. **`docs/audit-casting-slot-drift.sql` is the read-only query that finds them** — run it against production first; zero rows means the change is safe. Deliberately not run in Sep 2026: too few live workshops to be worth it. |
+| 9 | Cancelling a scenario does not re-evaluate status | `[gap]` | `DELETE /api/sadnaot/[id]/scenarios/[sid]` never calls `checkAndAdvanceStatus()`. On a workshop already sent to casting this is masked — the client re-reads the workshop, and that GET re-evaluates — but on one never sent to casting, cancelling the scenario that was holding מוכן back leaves the status stale until something else touches it. Pre-existing; noticed Sep 2026 while working on §7.2.1. |
 
 Three items previously listed here are now **resolved**:
 
