@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react"
 import { useParams, useRouter } from "next/navigation"
 import { useUser } from "@/app/(app)/user-context"
+import { CHANGE_TYPE_LABELS } from "@/lib/casting-change-log"
 import { GenderTag } from "@/components/GenderTag"
 import { genderCount, genderFieldClass, genderTextClass, genderWord, type Gender } from "@/lib/gender"
 
@@ -86,17 +87,6 @@ interface CastingData {
 function fmtDate(iso: string) {
   const d = new Date(iso)
   return `${d.getDate()}.${d.getMonth() + 1}.${String(d.getFullYear()).slice(2)}`
-}
-
-const CHANGE_TYPE_LABELS: Record<string, string> = {
-  SCENARIO_REQ:       "דרישות שחקנים עודכנו",
-  SCENARIO_CANCELLED: "תרחיש בוטל",
-  ROOM_CANCELLED:     "חדר בוטל",
-  ROOM_ADDED:         "חדר נוסף לסדנה",
-  COUNTS_CHANGED:     "מספרים כמותיים עודכנו",
-  MODEL_CHANGED:      "מודל סימולציה עודכן",
-  RESENT:             "עדכון ושליחה חוזרת לליהוק",
-  DATE_CHANGED:       "הסדנה נדחתה",
 }
 
 const LS_KEY = "simcrm:dismissed-logs"
@@ -403,6 +393,11 @@ export default function LihukimPage() {
             <div className="space-y-2">
               {visibleLogs.map((log) => {
                 const isRed = castingInProgress
+                // Some details describe the change in the same words as the label
+                // (they have to: the Tech's staleness bar shows the detail alone).
+                // Printing both would read "חדר נוסף לסדנה: חדר נוסף לסדנה".
+                const label  = CHANGE_TYPE_LABELS[log.changeType] ?? log.changeType
+                const detail = log.detail.trim() === label ? null : log.detail
                 return (
                   <div key={log.id}
                     className={`flex items-center justify-between gap-3 rounded-lg px-4 py-2.5 text-sm border ${
@@ -411,8 +406,8 @@ export default function LihukimPage() {
                         : "bg-amber-50 border-amber-300 text-amber-800"
                     }`}>
                     <span>
-                      <span className="font-semibold">{CHANGE_TYPE_LABELS[log.changeType] ?? log.changeType}:</span>
-                      {" "}{log.detail}
+                      <span className="font-semibold">{label}{detail ? ":" : ""}</span>
+                      {detail ? ` ${detail}` : ""}
                     </span>
                     <button
                       onClick={() => dismissLog(log.id)}

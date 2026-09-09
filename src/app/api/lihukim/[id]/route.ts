@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
+import { CASTER_ALERT_TYPES } from "@/lib/casting-change-log"
 
 export async function GET(
   _req: NextRequest,
@@ -44,7 +45,7 @@ export async function GET(
       castingChangeLogs: {
         where: {
           dismissed: false,
-          changeType: { in: ["SCENARIO_REQ", "SCENARIO_CANCELLED", "ROOM_CANCELLED", "ROOM_ADDED", "COUNTS_CHANGED", "MODEL_CHANGED", "RESENT", "DATE_CHANGED"] },
+          changeType: { in: [...CASTER_ALERT_TYPES] },
         },
         orderBy: { createdAt: "asc" },
       },

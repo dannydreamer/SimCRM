@@ -5,6 +5,7 @@ import { authOptions } from "@/lib/auth"
 import { checkAndAdvanceStatus } from "@/lib/workshop-status"
 import { ROOM_LOCATION_VALUES, sortRoomLocations } from "@/lib/room-locations"
 import { castingProgress } from "@/lib/casting-progress"
+import { castingPool } from "@/lib/casting-pool"
 import type { RoomLocation } from "@prisma/client"
 
 const FROZEN_STATUSES = ["CLOSING", "CLOSED", "CANCELLED"]
@@ -105,12 +106,18 @@ export async function GET(
       scenarios: w.scenarios,
       castings:  w.castings,
     }),
+    // Whether the confirmed pool still covers the scenarios. When it does not,
+    // the Caster is stuck until the Tech raises the numbers (§7.2.1).
+    castingPool: castingPool({
+      castingMaleNeeded:   w.castingMaleNeeded,
+      castingFemaleNeeded: w.castingFemaleNeeded,
+      scenarios:           w.scenarios,
+    }),
     status: w.status,
     cancelled: w.cancelled,
     tentative: w.tentative,
     postponedWarning: w.postponedWarning,
     roomCancelledWarning: w.roomCancelledWarning,
-    roomAddedWarning: w.roomAddedWarning,
     feedbackFormAdded: w.feedbackFormAdded,
     castingSentAt: w.castingSentAt?.toISOString() ?? null,
     notes: w.notes,
@@ -189,7 +196,6 @@ export async function PATCH(
     feedbackFormAdded, estimatedParticipants,
     roomLocations, otherRoomNotes, otherRoomApproved, scenarioOrderFlexible,
     roomCancelledWarning: roomCancelledWarningDismiss,
-    roomAddedWarning: roomAddedWarningDismiss,
   } = body
 
   if (roomLocations !== undefined) {
@@ -223,7 +229,6 @@ export async function PATCH(
 
   // Room-warning dismissal is allowed for both Manager and Tech
   if (roomCancelledWarningDismiss === false) data.roomCancelledWarning = false
-  if (roomAddedWarningDismiss === false)     data.roomAddedWarning     = false
 
   // Workshop cancellation stays Manager-only (§5.2). postponedWarning rides along:
   // it is raised automatically by a date change, never cleared by Tech.
@@ -285,7 +290,6 @@ export async function PATCH(
   let updatedRooms: ReturnType<typeof mapRoom>[] | undefined
   let roomsWereCancelled = false
   let roomsWereAdded = false
-  let raiseRoomAddedWarning = false
   if (numRooms !== undefined && !isFrozen) {
     const newNum = Number(numRooms)
     const allRooms = await prisma.room.findMany({
@@ -336,17 +340,15 @@ export async function PATCH(
       roomsWereCancelled = true
     }
 
-    // Set room-change warning flags on workshop.
-    // The room-added banner says "יש לשלוח מחדש לליהוק" — meaningless before the
-    // workshop was ever sent to casting, so only raise it once castingSentAt is set.
-    raiseRoomAddedWarning = roomsWereAdded && !!w.castingSentAt
-    if (roomsWereCancelled || raiseRoomAddedWarning) {
+    // The room-cancelled banner tells the Tech to notify the מתחקר/ת — unrelated to
+    // casting, so it keeps its own flag. `roomAddedWarning` used to be raised here
+    // too; it said "יש לשלוח מחדש לליהוק" and is now the derived staleness bar
+    // (§7.2.1), which the ROOM_ADDED log below drives and which the re-send clears
+    // on its own — the old flag never was cleared by the re-send it asked for.
+    if (roomsWereCancelled) {
       await prisma.workshop.update({
         where: { id },
-        data: {
-          ...(roomsWereCancelled     && { roomCancelledWarning: true }),
-          ...(raiseRoomAddedWarning  && { roomAddedWarning:     true }),
-        },
+        data: { roomCancelledWarning: true },
       })
     }
 
@@ -356,7 +358,7 @@ export async function PATCH(
         data: {
           workshopId: id,
           changeType: "ROOM_ADDED",
-          detail:     "יש לעדכן ליהוק",
+          detail:     "חדר נוסף לסדנה",
         },
       })
     }
@@ -418,7 +420,6 @@ export async function PATCH(
     numRooms: updated.numRooms,
     postponedWarning: updated.postponedWarning,
     roomCancelledWarning: roomsWereCancelled ? true : updated.roomCancelledWarning,
-    roomAddedWarning:     raiseRoomAddedWarning ? true : updated.roomAddedWarning,
     estimatedParticipants: updated.estimatedParticipants,
     otherRoomNotes:        updated.otherRoomNotes,
     otherRoomApproved:     updated.otherRoomApproved,

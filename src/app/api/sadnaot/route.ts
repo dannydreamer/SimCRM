@@ -2,7 +2,8 @@
 import { prisma } from "@/lib/prisma"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
-import { castingProgress } from "@/lib/casting-progress"
+import { castingProgress, castingState } from "@/lib/casting-progress"
+import { castingPool } from "@/lib/casting-pool"
 import { readinessAlert } from "@/lib/workshop-readiness"
 import { workshopHasEnded } from "@/lib/workshop-status"
 
@@ -96,6 +97,14 @@ export async function GET() {
         castings:  w.castings,
       })
 
+      // The badge's fourth state — the confirmed pool no longer covers the
+      // scenarios, so the Caster cannot finish without the Tech (§7.2.1).
+      const pool = castingPool({
+        castingMaleNeeded:   w.castingMaleNeeded,
+        castingFemaleNeeded: w.castingFemaleNeeded,
+        scenarios:           w.scenarios,
+      })
+
       const scenarioWritten = activeScenarios.length > 0 && activeScenarios.every((s) => s.written)
 
       const pptTotal  = activeRooms.length
@@ -175,6 +184,7 @@ export async function GET() {
         slottingFilled, slottingTotal, slottingTentative,
         castingFilled,  castingTotal,
         casting,
+        castingState: castingState({ ...casting, blocked: casting.started && pool.blocked }),
         scenarioWritten,
         feedbackFormAdded: w.feedbackFormAdded,
         pptFilled, pptTotal,

@@ -60,16 +60,13 @@ export async function POST(
     },
   })
 
-  // Log the send event
-  await prisma.castingChangeLog.create({
-    data: {
-      workshopId: id,
-      changeType: isResend ? "RESENT" : "SENT",
-      detail: isResend ? "עדכון ושליחה חוזרת לליהוק" : "נשלח לליהוק",
-    },
-  })
+  const countsChanged = isResend && (
+    newMale !== (workshop.castingMaleNeeded ?? 0) ||
+    newFemale !== (workshop.castingFemaleNeeded ?? 0)
+  )
 
   // If counts were reduced, trim excess confirmed actors so Step 1 stays consistent
+  const removed: string[] = []
   if (isResend) {
     const gendersToCheck: Array<{ gender: string; newCount: number; oldCount: number }> = [
       { gender: "MALE",   newCount: newMale,   oldCount: workshop.castingMaleNeeded   ?? 0 },
@@ -80,6 +77,7 @@ export async function POST(
       // Delete confirmed actors whose slotIndex is now out of range (>= newCount)
       const excess = await prisma.workshopConfirmedActor.findMany({
         where: { workshopId: id, gender, slotIndex: { gte: newCount } },
+        include: { actor: { select: { name: true } } },
       })
       for (const c of excess) {
         // Also clear their Step 2 assignments
@@ -87,8 +85,37 @@ export async function POST(
           where: { workshopId: id, actorId: c.actorId, isDirector: false },
         })
         await prisma.workshopConfirmedActor.delete({ where: { id: c.id } })
+        removed.push(c.actor.name)
       }
     }
+  }
+
+  // Log the send event.
+  //
+  // COUNTS_CHANGED used to be written only by the workshop PATCH route, which
+  // nothing calls with these fields — the send form is the sole place they are
+  // ever set. So the one change the Caster most needs to hear about, the size of
+  // her Step 1 pool, was the one change she was never told about; all she got was
+  // a bare RESENT saying "עדכון ושליחה חוזרת לליהוק". It carries the numbers now,
+  // and names anyone whose confirmed place it just took away.
+  if (countsChanged) {
+    const detail = `מספר השחקנים הנדרשים עודכן — שחקנים: ${newMale}, שחקניות: ${newFemale}` +
+      (removed.length ? `. הוסרו מאישור ההגעה: ${removed.join(", ")}` : "")
+    await prisma.castingChangeLog.create({
+      data: { workshopId: id, changeType: "COUNTS_CHANGED", detail },
+    })
+  }
+
+  // A bare RESENT beside a COUNTS_CHANGED adds a line that says nothing. Only
+  // write it when it is the whole story — a re-send that moved no numbers.
+  if (!isResend || !countsChanged) {
+    await prisma.castingChangeLog.create({
+      data: {
+        workshopId: id,
+        changeType: isResend ? "RESENT" : "SENT",
+        detail: isResend ? "עדכון ושליחה חוזרת לליהוק" : "נשלח לליהוק",
+      },
+    })
   }
 
   // Auto-advance: sending casting may complete the READY conditions, and a

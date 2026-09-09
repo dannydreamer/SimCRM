@@ -50,9 +50,10 @@ Next.js 16 (App Router) · React 19 · Prisma 7 + `@prisma/adapter-pg` · Postgr
 ## Commands
 
 ```bash
-npm run dev        # local dev server
-npx prisma studio  # inspect the database
-npm run build      # verify before pushing — Vercel builds on push
+npm run dev            # local dev server
+npx prisma studio      # inspect the database
+npm run build          # verify before pushing — Vercel builds on push
+npm run check:casting  # pure-function checks for casting staleness + state (§7.2.1, §7.7)
 ```
 
 ## Git
