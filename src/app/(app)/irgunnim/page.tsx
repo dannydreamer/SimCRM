@@ -4,6 +4,7 @@ import { useEffect, useState } from "react"
 import Link from "next/link"
 import { useUser } from "@/app/(app)/user-context"
 import { PEDAGOGI_LABELS, PEDAGOGI_VALUES, TAKZIVI_LABELS, TAKZIVI_VALUES } from "@/lib/shiyuch"
+import { CAN_MANAGE_ORGS, hasAny } from "@/lib/roles"
 
 interface OrgCard {
   id: string
@@ -25,8 +26,8 @@ function fmtDate(iso: string) {
 type Sort = "lastWorkshop" | "name" | "workshopCount"
 
 export default function IrgunnimPage() {
-  const user      = useUser()
-  const isManager = user.roles.includes("MANAGER")
+  const user          = useUser()
+  const canManageOrgs = hasAny(user.roles, CAN_MANAGE_ORGS)
 
   const [orgs, setOrgs]         = useState<OrgCard[]>([])
   const [loading, setLoading]   = useState(true)
@@ -58,7 +59,7 @@ export default function IrgunnimPage() {
             {loading ? "טוען..." : `${orgs.length} ארגונים, ${totalGroups} קבוצות`}
           </p>
         </div>
-        {isManager && (
+        {canManageOrgs && (
           <Link
             href="/irgunnim/new"
             className="px-4 py-2 bg-navy text-white text-sm font-medium rounded hover:bg-navy-dark transition-colors"

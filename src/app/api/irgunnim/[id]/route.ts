@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
+import { CAN_MANAGE_ORGS, hasAny } from "@/lib/roles"
 
 export async function GET(
   _req: NextRequest,
@@ -84,7 +85,7 @@ export async function PATCH(
 ) {
   const session = await getServerSession(authOptions)
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-  if (!session.user.roles.includes("MANAGER")) {
+  if (!hasAny(session.user.roles, CAN_MANAGE_ORGS)) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 })
   }
 

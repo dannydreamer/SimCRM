@@ -8,7 +8,8 @@
     "start": "next start",
     "lint": "eslint",
     "seed": "tsx prisma/seed.ts",
-    "check:casting": "tsx scripts/check-casting-logic.ts"
+    "check:casting": "tsx scripts/check-casting-logic.ts",
+    "check:roles": "tsx scripts/check-roles-logic.ts"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"

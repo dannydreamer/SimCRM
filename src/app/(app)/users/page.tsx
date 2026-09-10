@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { ROLE_LABELS, LOGIN_ROLES } from "@/lib/roles"
+import { ROLE_LABELS, LOGIN_ROLES, impliedRoles } from "@/lib/roles"
 
 interface UserRecord {
   id: string
@@ -234,17 +234,30 @@ export default function UsersPage() {
           <div className="mb-4">
             <label className="block text-sm text-gray-700 mb-2">תפקידים *</label>
             <div className="flex flex-wrap gap-3">
-              {LOGIN_ROLES.map((role) => (
-                <label key={role} className="flex items-center gap-2 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={form.roles.includes(role)}
-                    onChange={() => toggleRole(role)}
-                    className="accent-navy"
-                  />
-                  <span className="text-sm text-gray-700">{ROLE_LABELS[role]}</span>
-                </label>
-              ))}
+              {LOGIN_ROLES.map((role) => {
+                // A role that comes free with another one she already holds —
+                // today only מפעילה טכנית under מפעילה טכנית בכירה. Shown ticked
+                // and locked so the implication is visible rather than magic.
+                const implied = impliedRoles(form.roles).has(role)
+                return (
+                  <label
+                    key={role}
+                    className={`flex items-center gap-2 ${implied ? "cursor-default" : "cursor-pointer"}`}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={implied || form.roles.includes(role)}
+                      onChange={() => toggleRole(role)}
+                      disabled={implied}
+                      className="accent-navy"
+                    />
+                    <span className={`text-sm ${implied ? "text-gray-400" : "text-gray-700"}`}>
+                      {ROLE_LABELS[role]}
+                      {implied && " (כלול)"}
+                    </span>
+                  </label>
+                )
+              })}
             </div>
           </div>
 

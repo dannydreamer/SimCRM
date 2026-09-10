@@ -8,9 +8,13 @@ datasource db {
 
 // ─── Enums ───────────────────────────────────────────────────────────────────
 
+// SENIOR_TECH implies TECH. A person holding it is granted TECH as well, once,
+// at the login boundary — see expandRoles() in src/lib/roles.ts. Never store
+// both; store SENIOR_TECH alone and let the expansion do the rest.
 enum Role {
   MANAGER
   TECH
+  SENIOR_TECH
   CASTER
   FEEDBACK_DOCUMENTER
   FACILITATOR
