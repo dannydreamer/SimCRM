@@ -8,6 +8,7 @@ import { ROOM_LOCATION_LABELS, ROOM_LOCATION_VALUES, sortRoomLocations } from "@
 import { READY_CONDITION_LABEL, daysUntilPhrase, readinessAlert } from "@/lib/workshop-readiness"
 import { CASTING_STATE_LABEL, castingState } from "@/lib/casting-progress"
 import { genderCount, genderFieldClass, genderTextClass, genderWord } from "@/lib/gender"
+import { CAN_CANCEL_WORKSHOP, hasAny } from "@/lib/roles"
 
 // The participants' feedback Google Form is a single standing form shared by every
 // workshop — the copied מחרוזת is pasted into it as a new option, so the link sits
@@ -549,6 +550,7 @@ export default function WorkshopDetailPage() {
   const isTech = roles.includes("TECH")
   const canEditScenarios = isManager || isTech
   const canCheckPptLetter = isManager || isTech
+  const canCancelWorkshop = hasAny(roles, CAN_CANCEL_WORKSHOP)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -1322,7 +1324,7 @@ export default function WorkshopDetailPage() {
                     </div>
                   )
                 })()}
-                {isManager && !w.cancelled && (
+                {canCancelWorkshop && !w.cancelled && (
                   <button onClick={cancelWorkshop}
                     className="px-4 py-1.5 text-sm rounded-lg border border-red-200 text-red-600 hover:bg-red-50">
                     ביטול סדנה

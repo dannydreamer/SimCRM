@@ -75,6 +75,7 @@ It manages the full lifecycle of a simulation workshop: initial booking of a cli
 |---|---|---|
 | Manager | מנהלת | Full system access. Books workshops, assigns facilitators, oversees all operations. |
 | Tech | מפעילה טכנית | Enters workshop data, runs needs assessment, tracks checklists, marks PPT and letters received, sends to casting. |
+| Senior Tech | מפעילה טכנית בכירה | Everything a Tech does, plus opening organizations and workshops and cancelling a workshop. A rank, not a separate job — see §5.4. |
 | Caster | מלהקת | Confirms actor attendance and assigns actors/directors to scenarios. Manages actor pool. |
 | Feedback Documenter | מתעד/ת פידבק | Enters post-workshop actor feedback. Maintains actor development log. |
 | Facilitator | מתחקר/ת | Runs workshops. Authors scenarios. Sends PPT and summary letter. Minimal CRM access. |
@@ -197,7 +198,7 @@ The earlier assumption — recorded in §13 until now — that Prisma-created ta
 
 | Enum | Values |
 |---|---|
-| `Role` | MANAGER, TECH, CASTER, FEEDBACK_DOCUMENTER, FACILITATOR |
+| `Role` | MANAGER, TECH, SENIOR_TECH, CASTER, FEEDBACK_DOCUMENTER, FACILITATOR |
 | `ShiyuchPedagogi` | GIL_HARACH, YESODI, TICHON, CHINUCH_MEYUCHAD, SHAFACH, MOVILEI_TECHUM, IRIYAT_YERUSHALAIM, MANCHI, ACHER |
 | `ShiyuchTakzivi` | OVDEI_HORAA, MANCHI, IRIYAT_YERUSHALAIM_TASHLUM, CHUTZNIIOT_TASHLUM |
 | `WorkshopStatus` | NEW, SPECIFIED, READY, CLOSING, CLOSED, CANCELLED |
@@ -592,55 +593,78 @@ A workshop still `בוצע איתור צרכים` with **nothing** outstanding r
 
 > **Changed from spec:** the Caster does **not** see סדנאות in navigation — she works from the ליהוק landing page. The calendar is open to **all** roles (the original spec said Manager only; the design spec said Manager + Tech).
 
+> **Senior Tech is absent from this table on purpose.** She sees exactly what a Tech sees, because the role implies TECH and navigation is driven by the expanded role list (§5.4). Nothing in `NAV_ITEMS` names SENIOR_TECH.
+
 ### 5.2 Action permissions
 
-| Action | Manager | Tech | Caster | Feedback Doc | Facilitator |
-|---|---|---|---|---|---|
-| Organizations — view | ✓ | ✓ | — | — | — |
-| Organizations — create/edit | ✓ | ✓ | — | — | — |
-| Workshops — view | ✓ | ✓ | via ליהוק | ✓ | Own only |
-| Workshops — **create** | ✓ | — | — | — | — |
-| Workshops — edit | ✓ | ✓ | — | — | — |
-| Workshops — cancel | ✓ | — | — | — | — |
-| Rooms — assign facilitator | ✓ | ✓ | — | — | — |
-| Rooms — mark PPT / letter | ✓ | ✓ | — | — | — |
-| Scenarios — create/edit | ✓ | ✓ | — | — | — |
-| Scenarios — mark written | ✓ | ✓ | — | — | — |
-| **Send to casting** | ✓ | ✓ | — | — | — |
-| Casting — view | ✓ | — | ✓ | — | — |
-| Casting — availability, Step 1, Step 2 | ✓ | — | ✓ | — | — |
-| Actors — view | ✓ | ✓ | ✓ | ✓ | — |
-| Actors — **create** | ✓ | ✓ | ✓ | — | — |
-| Actors — **edit** | ✓ | ✓ | ✓ | — | — |
-| Actor feedback history & dev log — view | ✓ | — | — | ✓ | — |
-| Feedback — enter/edit | ✓ | — | — | ✓ | — |
-| Feedback — **delete** | ✓ | — | — | — | — |
-| Feedback — export | ✓ | — | — | ✓ | — |
-| Dev log — write | ✓ | — | — | ✓ | — |
-| Topics — view | ✓ | ✓ | — | — | — |
-| Topics — edit | ✓ | — | — | — | — |
-| Simulation models — view | ✓ | ✓ | — | — | — |
-| Simulation models — edit | ✓ | — | — | — | — |
-| Scenario simulation model — set/change | ✓ | ✓ | — | — | — |
-| Soft-cancel room/scenario | ✓ | ✓ | — | — | — |
-| טבלאות פיבוט — view | ✓ | ✓ | — | — | — |
-| Pivot — edit חדרים לספירה / הערות | ✓ | ✓ | — | — | — |
-| Pivot — edit **יעד שנתי** | ✓ | — | — | — | — |
-| Pivot — export | ✓ | ✓ | — | — | — |
-| Facilitator Load, Goals, Users, Settings | ✓ | — | — | — | — |
+| Action | Manager | Tech | Senior Tech | Caster | Feedback Doc | Facilitator |
+|---|---|---|---|---|---|---|
+| Organizations — view | ✓ | ✓ | ✓ | — | — | — |
+| Organizations — **create/edit** | ✓ | — | ✓ | — | — | — |
+| Organizations — **add participant group** | ✓ | — | ✓ | — | — | — |
+| Workshops — view | ✓ | ✓ | ✓ | via ליהוק | ✓ | Own only |
+| Workshops — **create** | ✓ | — | ✓ | — | — | — |
+| Workshops — edit | ✓ | ✓ | ✓ | — | — | — |
+| Workshops — **cancel** | ✓ | — | ✓ | — | — | — |
+| Rooms — assign facilitator | ✓ | ✓ | ✓ | — | — | — |
+| Rooms — mark PPT / letter | ✓ | ✓ | ✓ | — | — | — |
+| Scenarios — create/edit | ✓ | ✓ | ✓ | — | — | — |
+| Scenarios — mark written | ✓ | ✓ | ✓ | — | — | — |
+| **Send to casting** | ✓ | ✓ | ✓ | — | — | — |
+| Casting — view | ✓ | — | — | ✓ | — | — |
+| Casting — availability, Step 1, Step 2 | ✓ | — | — | ✓ | — | — |
+| Actors — view | ✓ | ✓ | ✓ | ✓ | ✓ | — |
+| Actors — **create** | ✓ | ✓ | ✓ | ✓ | — | — |
+| Actors — **edit** | ✓ | ✓ | ✓ | ✓ | — | — |
+| Actor feedback history & dev log — view | ✓ | — | — | — | ✓ | — |
+| Feedback — enter/edit | ✓ | — | — | — | ✓ | — |
+| Feedback — **delete** | ✓ | — | — | — | — | — |
+| Feedback — export | ✓ | — | — | — | ✓ | — |
+| Dev log — write | ✓ | — | — | — | ✓ | — |
+| Topics — view | ✓ | ✓ | ✓ | — | — | — |
+| Topics — edit | ✓ | — | — | — | — | — |
+| Simulation models — view | ✓ | ✓ | ✓ | — | — | — |
+| Simulation models — edit | ✓ | — | — | — | — | — |
+| Scenario simulation model — set/change | ✓ | ✓ | ✓ | — | — | — |
+| Soft-cancel room/scenario | ✓ | ✓ | ✓ | — | — | — |
+| טבלאות פיבוט — view | ✓ | ✓ | ✓ | — | — | — |
+| Pivot — edit חדרים לספירה / הערות | ✓ | ✓ | ✓ | — | — | — |
+| Pivot — edit **יעד שנתי** | ✓ | — | — | — | — | — |
+| Pivot — export | ✓ | ✓ | ✓ | — | — | — |
+| Facilitator Load, Goals, Users, Settings | ✓ | — | — | — | — | — |
+
+> The Senior Tech column differs from the Tech column in exactly four rows, all bolded above. Everywhere else the two are identical **by construction, not by coincidence** — no code grants those rows to SENIOR_TECH by name (§5.4).
 
 > **Rooms are cancelled only by lowering מספר חדרים** — there is no per-room cancel control on the Workshop Detail page. Lowering the count cancels the highest-numbered active rooms, deletes their Step 2 casting assignments, and logs `ROOM_CANCELLED` for the Caster if casting was already sent. Workshop **cancellation** remains Manager-only and is a separate action from anything in the edit form. `[code]`
 
 ### 5.3 Post-rollout permission changes `[code]`
 
-Four changes were made after go-live, in this order:
+Five changes were made after go-live, in this order:
 
 1. **Manager granted full casting access** (`c7eb4f3`) — previously Manager could view casting but not assign. The original spec made assignment Caster-exclusive. **That restriction was removed** — Manager now has full availability, Step 1, and Step 2 access.
 2. **Tech granted "add actor"** (`427fb3d`).
 3. **Tech granted "edit actor"** (`b223f7f`) — basic profile fields only.
 4. **Tech's workshop-edit rights made real** (branch `tech_editing_workshop`). The table above had always granted Tech "Workshops — edit", but the code locked her out of the header form entirely. Tech now edits the same basic-info form as Manager, assigns facilitators, sets the author, edits הערות, and soft-cancels rooms and scenarios. Workshop **creation** and workshop **cancellation** stay Manager-only.
 
-> ⚠ **Confirmed boundary:** Tech has **no access to feedback or development logs anywhere** — not viewing, not entering. The actor-edit permission covers profile fields (name, gender, phone, specialties, canDirect) only. `[code]`
+5. **Senior Tech introduced** (branch `senior_tech`). A new `SENIOR_TECH` role, granted alongside nothing else, that adds organization create/edit, participant-group creation, and workshop creation and cancellation to the ordinary Tech job. **Corrected in the same pass:** the §5.2 table had claimed since v1.0 that Tech could create and edit organizations. The code has never allowed it — `POST` and `PATCH /api/irgunnim` were Manager-only from the first commit — and the table now matches. That right went to Senior Tech, not to every Tech.
+
+> ⚠ **Confirmed boundary:** Tech has **no access to feedback or development logs anywhere** — not viewing, not entering. The actor-edit permission covers profile fields (name, gender, phone, specialties, canDirect) only. `[code]` **This is unchanged for the Senior Tech** — seniority buys organizations and workshops, nothing on the feedback side.
+
+### 5.4 Role implication — how Senior Tech works `[code]`
+
+> Source: `expandRoles()` in `src/lib/roles.ts`, applied in `authorize()` in `src/lib/auth.ts`. Guarded by `npm run check:roles`.
+
+`SENIOR_TECH` **implies** `TECH`. The implication is expanded exactly once, at the login boundary: `authorize()` runs the stored roles through `expandRoles()` before they reach the NextAuth token, so a person stored as `SENIOR_TECH` arrives at every downstream check already holding `TECH` as well.
+
+**Why it is built this way.** Roles are tested as raw strings in roughly thirty route handlers, plus the middleware and a dozen page-level gates. Teaching each of them a second role name would work until the first one was missed, and a missed check does not fail loudly — it silently removes a right the Senior Tech uses every day. Expanding once means the failure mode cannot arise: there is one place to get right, and `check:roles` asserts it.
+
+**Rules that follow from it:**
+
+- **Store `SENIOR_TECH` alone.** Do not also tick מפעילה טכנית. The users screen shows that checkbox ticked and locked to make the implication visible; the database row is not written.
+- **A guard that names `TECH` already admits her.** Do not add `SENIOR_TECH` beside an existing `TECH` test. Only a right a plain Tech must *not* have names the senior role, and it does so through a capability list — `CAN_MANAGE_ORGS`, `CAN_CREATE_WORKSHOP`, `CAN_CANCEL_WORKSHOP` — rather than a bare string.
+- **The header badge names the rank only.** `displayRoles()` drops a role held by implication, so she reads as מפעילה טכנית בכירה rather than as both.
+- ⚠ **The expansion does not reach the database.** A Prisma query filtering on the role column, such as `roles: { some: { role: "TECH" } }`, matches only people whose stored role is literally `TECH` and will not find a Senior Tech. Today only the facilitator lookups filter that way, so nothing is affected — but any future query on `TECH` must name both values itself.
+- **A role change needs a fresh login.** Roles live in the JWT, minted at sign-in and valid for `SESSION_MAX_AGE`. Ticking the box for someone already signed in changes nothing until she signs out and back in. This is not new to this role; it has always been true of every role change.
 
 ---
 
@@ -1316,6 +1340,8 @@ Carried forward for V2 planning. Each needs a decision.
 | 5 | Cron timezone | `[gap]` | Runs 01:00 UTC; does not track Israel DST. Confirm acceptable. |
 | 6 | Supabase pooler blocks DDL | `[code]` | Enum migrations need manual SQL + manual `_prisma_migrations` entry. Document in README. |
 | 7 | Mobile spec | `[gap]` | Casting is mobile-responsive and the actor table hides columns on mobile, but no comprehensive mobile spec exists. |
+| 8 | **`castingProgress` counts slots, it does not match them** | `[gap]` | `src/lib/casting-progress.ts` compares `slotFilled === slotTotal`, so a casting sitting in a slot that no longer exists still counts as filled. The route that caused that now deletes such rows (§7.4), so no *new* drift is created, but pre-existing rows would still read as complete. Making it slot-aware is the real fix; it was left out because any workshop already holding such a row would flip out of מוכן the next time anything touched it. **`docs/audit-casting-slot-drift.sql` is the read-only query that finds them** — run it against production first; zero rows means the change is safe. Deliberately not run in Sep 2026: too few live workshops to be worth it. |
+| 9 | Cancelling a scenario does not re-evaluate status | `[gap]` | `DELETE /api/sadnaot/[id]/scenarios/[sid]` never calls `checkAndAdvanceStatus()`. On a workshop already sent to casting this is masked — the client re-reads the workshop, and that GET re-evaluates — but on one never sent to casting, cancelling the scenario that was holding מוכן back leaves the status stale until something else touches it. Pre-existing; noticed Sep 2026 while working on §7.2.1. |
 
 Three items previously listed here are now **resolved**:
 
@@ -1605,6 +1631,9 @@ Sessions 1–19 as built. Branch naming `session-N-*`, merged to `develop` then 
 
 | **8 Sep 2026** | — | **Finished workshops now reach בתהליך סגירה on their own** (branch `closing_sweep`, §4.4 revised). A workshop that ran the previous day was still showing מוכן the next morning, and only moved when someone opened it. The cause was not the transition rule but the fact that nothing ever evaluated it: `checkAndAdvanceStatus()` runs on a mutation or on `GET /api/sadnaot/[id]`, the workshops table reads `status` straight from the database, and the only cron in the project is the nightly backup. So the one status a workshop reaches by doing nothing was the one status that required someone to act. `GET /api/sadnaot` now sweeps the date-based leg for the whole table before responding — one `updateMany` moving every non-cancelled SPECIFIED/READY workshop whose end time has passed to CLOSING, reflected in that same response so the table never serves a status it has just superseded. Only that leg is swept; it is the only transition that depends on the date alone. NEW is untouched, as always (§4.4). The date test itself is extracted as `workshopHasEnded()` and shared with `checkAndAdvanceStatus()`, so the table and the workshop page cannot drift, and it now falls back to 23:59 on a missing or malformed `endTime` — the previous inline parse turned bad data into an Invalid Date, which compares false against every clock and would have left such a workshop unable to close at all. No schema change, no migration. |
 | **8 Sep 2026** | — | **Casting: the invalidated-slot bug, and asking the Tech to act only when she has to** (branch `casting_staleness`, new §7.2.1, §7.7 revised). **The bug.** Changing a scenario's actor counts after the handoff was silent and worse than silent: a slot is identified by (scenario, room, `slotGender`, `slotIndex`) and the Step 2 grid renders slots from the *current* counts, so flipping one שחקן to one שחקנית left the male casting row in the database, unreachable from the UI but still counted by `castingProgress`, which compares totals. The workshop read ליהוק הושלם and sat at מוכן while the Caster saw an empty slot, and a counts-only edit never re-evaluated status at all. Those castings are now deleted and the status re-checked (§7.4). **Notification.** `SCENARIO_ACTORS_CHANGED` and `SCENARIO_ADDED` were silent and now reach the Caster; the change-log vocabulary moves to `src/lib/casting-change-log.ts`, having been an inline literal in three places, two of them allowlists that dropped a missing type silently. **`COUNTS_CHANGED` had never fired in the real workflow** — written only by the workshop PATCH route, which nothing calls with the pool numbers, while the send form posts to `send-to-casting`, which wrote a bare `RESENT`. So the Caster was never told her Step 1 pool had changed, nor that a reduction had **silently deleted confirmed actors and their Step 2 assignments**. It now carries the numbers and the removed actors' names, and the empty `RESENT` beside it is suppressed. Her landing-page banner lists changes one per line instead of comma-joining them into a sentence. **Asking the Tech.** A first draft flagged every post-handoff change, on the theory that requirements had to be re-sent. Testing showed the premise was false — the Caster reads scenarios live and is banner-notified — so the bar and prompt now fire **only** when the confirmed pool can no longer cover the deepest scenario, which empties her Step 2 picker and is the one thing only the Tech can fix. That made the test current-state rather than change-log-derived, deleting an entire module, both change-log queries, and an epoch constant that existed only to stop historical rows raising bars on live workshops. ליהוק gains a fourth state, **BLOCKED**, reading ⏳! in red on the workshop table and Workshop Detail; it outranks COMPLETE, because the old casting still fills the old slots. Being blocked is deliberately **not** a READY condition (§7.7). `roomAddedWarning` is retired (§3.5). Also `npm run check:casting` — 21 pure-function checks, the repo's first automated tests. |
+
+
+| **9 Sep 2026** | — | **מפעילה טכנית בכירה — a senior Tech rank** (branch `senior_tech`, new §5.4, §1.1, §5.2, §5.3 item 5). One of the techs needed to open organizations and workshops without becoming a Manager. Implemented as a sixth `Role` enum value, `SENIOR_TECH`, that **implies** `TECH` rather than replacing or duplicating it: `expandRoles()` runs the stored roles through the implication once, inside `authorize()`, so the token carries both and all ~30 existing `TECH` string tests keep working untouched. The alternative — teaching every guard a second role name — fails silently the first time one is missed, and a missed guard removes a right she uses daily rather than raising an error. Only the four rights that separate her from a Tech name the new role, and they do it through capability lists (`CAN_MANAGE_ORGS`, `CAN_CREATE_WORKSHOP`, `CAN_CANCEL_WORKSHOP`) rather than bare literals: organization create/edit, participant-group creation, workshop creation, workshop cancellation. Cancellation carries the postponement-warning dismissal with it, since she is now the one whose date change raises it. **Two corrections made in passing.** §5.2 had claimed since v1.0 that Tech could create and edit organizations; the code never allowed it, and the table now matches reality — that right went to Senior Tech, not to every Tech. And the new-workshop form fetched its facilitator list from `GET /api/users`, which is Manager-only, so a Senior Tech would have received a 403 body where an array was expected and crashed the form; it now uses `GET /api/facilitators`, which is open to any signed-in user and returns the same people. Also: `/irgunnim/new` gains a middleware rule, `displayRoles()` keeps the header badge from reading both labels, the users screen shows the implied מפעילה טכנית checkbox ticked and locked, and `npm run check:roles` adds 31 pure-function checks over the implication and the capability lists. **Migration `20260909120000_add_senior_tech_role` is one `ALTER TYPE` and is additive** — no backfill, nobody holds the role until the Manager grants it. **A role change takes effect only at her next login**, roles being baked into the JWT; true of every role change, worth saying out loud here. |
 
 ---
 

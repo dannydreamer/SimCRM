@@ -6,6 +6,7 @@ import { checkAndAdvanceStatus } from "@/lib/workshop-status"
 import { ROOM_LOCATION_VALUES, sortRoomLocations } from "@/lib/room-locations"
 import { castingProgress } from "@/lib/casting-progress"
 import { castingPool } from "@/lib/casting-pool"
+import { CAN_CANCEL_WORKSHOP, hasAny } from "@/lib/roles"
 import type { RoomLocation } from "@prisma/client"
 
 const FROZEN_STATUSES = ["CLOSING", "CLOSED", "CANCELLED"]
@@ -230,9 +231,11 @@ export async function PATCH(
   // Room-warning dismissal is allowed for both Manager and Tech
   if (roomCancelledWarningDismiss === false) data.roomCancelledWarning = false
 
-  // Workshop cancellation stays Manager-only (§5.2). postponedWarning rides along:
-  // it is raised automatically by a date change, never cleared by Tech.
-  if (isManager) {
+  // Workshop cancellation is Manager and Senior Tech (§5.2). postponedWarning
+  // rides along: it is raised automatically by a date change, and whoever may
+  // cancel a workshop may also clear the warning her own date change raised.
+  // A plain Tech can do neither.
+  if (hasAny(session.user.roles, CAN_CANCEL_WORKSHOP)) {
     if (cancelled !== undefined) data.cancelled = cancelled
     if (postponedWarning !== undefined) data.postponedWarning = postponedWarning
   }
