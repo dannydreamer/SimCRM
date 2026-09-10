@@ -6,6 +6,7 @@ import Link from "next/link"
 import { useUser } from "@/app/(app)/user-context"
 import { PEDAGOGI_LABELS, TAKZIVI_LABELS } from "@/lib/shiyuch"
 import { NewOrgModal, type CreatedOrg } from "@/components/NewOrgModal"
+import { OrgCombobox } from "@/components/OrgCombobox"
 import { CAN_CREATE_WORKSHOP, hasAny } from "@/lib/roles"
 
 interface OrgOption {
@@ -166,18 +167,12 @@ function NewWorkshopForm() {
           <div>
             <label className="block text-sm text-gray-700 mb-1">ארגון *</label>
             <div className="flex items-center gap-2">
-              <select
+              <OrgCombobox
+                orgs={orgs}
                 value={orgId}
-                onChange={(e) => setOrgId(e.target.value)}
-                className="flex-1 border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-navy/30"
-                disabled={loadingOptions}
-                required
-              >
-                <option value="">{loadingOptions ? "טוען..." : "בחר/י ארגון"}</option>
-                {orgs.map((o) => (
-                  <option key={o.id} value={o.id}>{o.name} — {o.city}</option>
-                ))}
-              </select>
+                onChange={setOrgId}
+                loading={loadingOptions}
+              />
               <button
                 type="button"
                 onClick={() => setShowOrgModal(true)}
