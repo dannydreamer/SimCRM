@@ -7,6 +7,7 @@ import { ROOM_LOCATION_VALUES, sortRoomLocations } from "@/lib/room-locations"
 import { castingProgress } from "@/lib/casting-progress"
 import { castingPool } from "@/lib/casting-pool"
 import { CAN_CANCEL_WORKSHOP, hasAny } from "@/lib/roles"
+import { MINOR_TASKS } from "@/lib/workshop-minor-tasks"
 import type { RoomLocation } from "@prisma/client"
 
 const FROZEN_STATUSES = ["CLOSING", "CLOSED", "CANCELLED"]
@@ -127,6 +128,15 @@ export async function GET(
     roomLocations: sortRoomLocations(w.roomLocations.map((l) => l.location)),
     otherRoomNotes: w.otherRoomNotes,
     otherRoomApproved: w.otherRoomApproved,
+    // משימות נוספות (§4.3.1). Sent raw rather than as a computed summary: the
+    // overlay needs each box's own state, and the page derives the x/y and the
+    // chip's colour from them with the same helpers the server uses.
+    tiktakOrdered: w.tiktakOrdered,
+    namesReceived: w.namesReceived,
+    scheduleSent: w.scheduleSent,
+    scenariosPrinted: w.scenariosPrinted,
+    summariesPrinted: w.summariesPrinted,
+    propsPrepared: w.propsPrepared,
     frozen: FROZEN_STATUSES.includes(w.status),
     feedbackEntered:  enteredActorRooms.size,
     feedbackExpected: expectedActorRooms.size,
@@ -244,6 +254,14 @@ export async function PATCH(
   if (feedbackFormAdded !== undefined) data.feedbackFormAdded = feedbackFormAdded
 
   if (!isFrozen) {
+    // משימות נוספות (§4.3.1). Driven off the catalogue rather than a hand-written
+    // list, so adding a task to MINOR_TASKS makes it saveable without touching
+    // this route. Frozen workshops are excluded with everything else below: these
+    // are preparation tasks, and a workshop that has already run cannot gain them.
+    for (const t of MINOR_TASKS) {
+      if (body[t.key] !== undefined) data[t.key] = !!body[t.key]
+    }
+
     if (otherRoomNotes !== undefined)    data.otherRoomNotes    = otherRoomNotes?.trim() || null
     if (otherRoomApproved !== undefined) data.otherRoomApproved = !!otherRoomApproved
     // Same gate as scenario editing: Manager and Tech, workshop not frozen/cancelled.
@@ -427,6 +445,15 @@ export async function PATCH(
     otherRoomNotes:        updated.otherRoomNotes,
     otherRoomApproved:     updated.otherRoomApproved,
     scenarioOrderFlexible: updated.scenarioOrderFlexible,
+    // Echoed back so the overlay's checkbox settles on the saved value rather
+    // than its optimistic one, and so a tick that completes the list updates the
+    // chip and the readiness banner in the same render.
+    tiktakOrdered:    updated.tiktakOrdered,
+    namesReceived:    updated.namesReceived,
+    scheduleSent:     updated.scheduleSent,
+    scenariosPrinted: updated.scenariosPrinted,
+    summariesPrinted: updated.summariesPrinted,
+    propsPrepared:    updated.propsPrepared,
     ...(updatedRooms !== undefined && { rooms: updatedRooms }),
     ...(updatedRoomLocations !== undefined && { roomLocations: updatedRoomLocations }),
   })

@@ -8,13 +8,23 @@ import {
   READY_CONDITION_LABEL, daysUntilPhrase,
   type ReadyConditionKey,
 } from "@/lib/workshop-readiness"
+import { type MinorTaskKey } from "@/lib/workshop-minor-tasks"
 import { CASTING_STATE_LABEL, type CastingState } from "@/lib/casting-progress"
 import { CAN_CREATE_WORKSHOP, hasAny } from "@/lib/roles"
 
 interface Facilitator { id: string; name: string }
 
 /** Non-null only while the workshop is a week or less away and not yet מוכן. §11 */
-interface Readiness { daysUntil: number; unmet: ReadyConditionKey[] }
+interface Readiness {
+  daysUntil: number
+  unmet: ReadyConditionKey[]
+  /**
+   * Outstanding משימות נוספות (§4.3.1). Shown here as a count only — this banner
+   * renders a row per workshop, and naming three tasks each turned it into a
+   * wall. The Detail page names the next few. §8.2
+   */
+  minorUnmet: MinorTaskKey[]
+}
 
 interface WorkshopRow {
   id: string; date: string; startTime: string; endTime: string
@@ -356,13 +366,21 @@ export default function SadnaotPage() {
                   <span className="text-sm font-semibold text-red-900">
                     {fmtDate(w.date)} · {w.orgName} — {w.groupName}
                   </span>
-                  <span className="text-xs text-red-700">חסר:</span>
+                  {w.readiness!.unmet.length > 0 && (
+                    <span className="text-xs text-red-700">חסר:</span>
+                  )}
                   {w.readiness!.unmet.map((k) => (
                     <span key={k}
                       className="px-1.5 py-0.5 rounded bg-white border border-red-300 text-red-700 text-xs font-medium">
                       {READY_CONDITION_LABEL[k]}
                     </span>
                   ))}
+                  {/* Count only, never the task names — see the Readiness type. */}
+                  {w.readiness!.minorUnmet.length > 0 && (
+                    <span className="px-1.5 py-0.5 rounded bg-red-100/60 border border-red-200 text-red-700 text-xs">
+                      ועוד <span className="font-mono" dir="ltr">{w.readiness!.minorUnmet.length}</span> משימות נוספות
+                    </span>
+                  )}
                 </button>
               </li>
             ))}

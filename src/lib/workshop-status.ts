@@ -1,6 +1,7 @@
 import { prisma } from "./prisma"
 import { WorkshopStatus } from "@prisma/client"
 import { unmetReadyConditions } from "./workshop-readiness"
+import { unmetMinorTasks } from "./workshop-minor-tasks"
 
 /**
  * Has the workshop finished? Built from `date` + `endTime` ("HH:MM"), with a
@@ -35,7 +36,9 @@ export function workshopHasEnded(
  * Transitions / regressions:
  *  SPECIFIED → READY    : all PPT received + casting fully complete + feedback form added
  *                         + estimated participants set + physical room approved
- *  READY     → SPECIFIED: any of the five READY conditions becomes unmet (before date)
+ *                         + every applicable משימות נוספות task ticked (§4.3.1)
+ *  READY     → SPECIFIED: any READY condition becomes unmet (before date), from
+ *                         either half of the gate
  *  READY     → CLOSING  : workshop date has passed
  *  CLOSING   → CLOSED   : all rooms have letterReceived
  *  CLOSED    → CLOSING  : any room loses letterReceived
@@ -61,6 +64,13 @@ export async function checkAndAdvanceStatus(workshopId: string): Promise<string 
       estimatedParticipants: true,
       locationType: true,
       otherRoomApproved: true,
+      // משימות נוספות — the second half of the READY gate (§4.3.1).
+      tiktakOrdered: true,
+      namesReceived: true,
+      scheduleSent: true,
+      scenariosPrinted: true,
+      summariesPrinted: true,
+      propsPrepared: true,
       roomLocations: { select: { location: true } },
       rooms: {
         where: { cancelled: false },
@@ -87,12 +97,16 @@ export async function checkAndAdvanceStatus(workshopId: string): Promise<string 
   const now = new Date()
   const hasEnded = workshopHasEnded(w.date, w.endTime, now)
 
-  // ── Helper: evaluate all five READY conditions ───────────────────────────
-  // The conditions themselves live in workshop-readiness.ts, which the workshop
+  // ── Helper: evaluate every READY condition, both halves ──────────────────
+  // The conditions themselves live in workshop-readiness.ts (the five big ones,
+  // §4.3) and workshop-minor-tasks.ts (משימות נוספות, §4.3.1), which the workshop
   // table's readiness alert and the Detail page checklist also read — so the
-  // gate and the screens that explain it can never drift apart. §4.3.
+  // gate and the screens that explain it can never drift apart.
+  //
+  // Both halves block identically. The split exists only so the banners can list
+  // every big blocker while naming just the next few minor tasks.
   function readyConditionsMet(): boolean {
-    return unmetReadyConditions({
+    const bigUnmet = unmetReadyConditions({
       castingSentAt:         w!.castingSentAt,
       directorRequested:     w!.directorRequested,
       feedbackFormAdded:     w!.feedbackFormAdded,
@@ -104,6 +118,17 @@ export async function checkAndAdvanceStatus(workshopId: string): Promise<string 
       rooms:     w!.rooms,
       scenarios: w!.scenarios,
       castings:  w!.castings,
+    })
+    if (bigUnmet.length > 0) return false
+
+    return unmetMinorTasks({
+      locationType:     w!.locationType,
+      tiktakOrdered:    w!.tiktakOrdered,
+      namesReceived:    w!.namesReceived,
+      scheduleSent:     w!.scheduleSent,
+      scenariosPrinted: w!.scenariosPrinted,
+      summariesPrinted: w!.summariesPrinted,
+      propsPrepared:    w!.propsPrepared,
     }).length === 0
   }
 
