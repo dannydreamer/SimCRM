@@ -75,8 +75,10 @@ export async function PATCH(
       const effectiveFacilitatorId = facilitatorId !== undefined ? (facilitatorId || null) : room.facilitatorId
       if (!effectiveFacilitatorId)
         return NextResponse.json({ error: "יש לשבץ מתחקר/ת לפני סימון מצגת" }, { status: 400 })
-      // Date and written-scenarios checks don't apply in CLOSING (workshop already ran)
-      if (workshop.status !== "CLOSING") {
+      // Date and written-scenarios checks don't apply once the workshop has run.
+      // CLOSED is included because a workshop now closes the moment the last
+      // מכתב is ticked, so late entry can land after the close. §4.5/§4.6
+      if (workshop.status !== "CLOSING" && workshop.status !== "CLOSED") {
         const today = dayOnly(new Date())
         const wDate = dayOnly(new Date(workshop.date))
         if (today > wDate)

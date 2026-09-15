@@ -153,20 +153,9 @@ function SortTh({ col, label, sortCol, sortDir, onSort, className = "" }: {
   )
 }
 
-// A workshop in בתהליך סגירה whose letters are all in is waiting on nothing but the
-// feedback documenter — there is no move left for the Tech to make on it. Letters
-// still outstanding means it stays visible. Mirrors the CLOSING → CLOSED condition
-// in workshop-status.ts.
-function onlyFeedbackLeft(w: WorkshopRow) {
-  return w.status === "CLOSING" &&
-         w.letterTotal > 0 && w.letterFilled === w.letterTotal &&
-         w.feedbackMissing > 0
-}
-
 const LS_DISMISSED_CANCELLATIONS  = (userId: string) => `simcrm:dismissed-cancellations:${userId}`
 const LS_DISMISSED_POSTPONEMENTS  = (userId: string) => `simcrm:dismissed-postponements:${userId}`
 const LS_DISMISSED_ROOM_CANCELLED = (userId: string) => `simcrm:dismissed-room-cancelled:${userId}`
-const LS_HIDE_FEEDBACK_ONLY       = (userId: string) => `simcrm:hide-feedback-only:${userId}`
 
 // ── Main component ─────────────────────────────────────────────────────────────
 
@@ -192,9 +181,6 @@ export default function SadnaotPage() {
   const [castingPending,    setCastingPending]    = useState(false)
   const [feedbackPending,   setFeedbackPending]   = useState(false)
   const [notReadyOnly,      setNotReadyOnly]      = useState(false)
-  // Starts false and is filled in from localStorage after mount — reading storage
-  // during render would break hydration.
-  const [hideFeedbackOnly,  setHideFeedbackOnly]  = useState(false)
   const [sortCol,           setSortCol]           = useState<SortCol>("date")
   const [sortDir,           setSortDir]           = useState<"asc" | "desc">("asc")
 
@@ -213,7 +199,6 @@ export default function SadnaotPage() {
       setDismissedCancelIds(load(LS_DISMISSED_CANCELLATIONS(user.id)))
       setDismissedPostponedIds(load(LS_DISMISSED_POSTPONEMENTS(user.id)))
       setDismissedRoomCancelledIds(load(LS_DISMISSED_ROOM_CANCELLED(user.id)))
-      setHideFeedbackOnly(localStorage.getItem(LS_HIDE_FEEDBACK_ONLY(user.id)) === "1")
     } catch { /* ignore */ }
   }, [user.id])
 
@@ -264,10 +249,15 @@ export default function SadnaotPage() {
     try { localStorage.setItem(LS_DISMISSED_ROOM_CANCELLED(user.id), JSON.stringify([...next])) } catch { /* ignore */ }
   }
 
-  function toggleHideFeedbackOnly() {
-    const next = !hideFeedbackOnly
-    setHideFeedbackOnly(next)
-    try { localStorage.setItem(LS_HIDE_FEEDBACK_ONLY(user.id), next ? "1" : "0") } catch { /* ignore */ }
+  // Everything this filter matches is now סגור — feedback stopped holding a
+  // workshop open (§4.5) — and the default view hides סגור, so switching it on
+  // from there would silently match nothing. It moves the view to הכל instead:
+  // the segmented control visibly changes, rather than the filter quietly
+  // overriding it.
+  function toggleFeedbackPending() {
+    const next = !feedbackPending
+    setFeedbackPending(next)
+    if (next && viewFilter === "open") setViewFilter("all")
   }
 
   function handleSort(col: SortCol) {
@@ -309,7 +299,6 @@ export default function SadnaotPage() {
       if (castingPending  && !(w.castingTotal > 0 && w.castingFilled < w.castingTotal)) return false
       if (feedbackPending && w.feedbackMissing === 0) return false
       if (notReadyOnly    && !w.readiness) return false
-      if (hideFeedbackOnly && onlyFeedbackLeft(w)) return false
       return true
     }
 
@@ -327,7 +316,7 @@ export default function SadnaotPage() {
       active:    sorted.filter((w) => !w.cancelled),
       cancelled: viewFilter === "all" ? sorted.filter((w) => w.cancelled) : [],
     }
-  }, [workshops, viewFilter, facilitatorFilter, topicFilter, dateFrom, dateTo, castingPending, feedbackPending, notReadyOnly, hideFeedbackOnly, sortCol, sortDir])
+  }, [workshops, viewFilter, facilitatorFilter, topicFilter, dateFrom, dateTo, castingPending, feedbackPending, notReadyOnly, sortCol, sortDir])
 
   return (
     <div className="flex flex-col h-full">
@@ -477,19 +466,12 @@ export default function SadnaotPage() {
           ⏳ ממתין לליהוק לחדרים
         </button>
         <button
-          onClick={() => setFeedbackPending((v) => !v)}
+          onClick={toggleFeedbackPending}
+          title="סדנאות שטרם הוזן להן פידבק על כל השחקנים — כולל סדנאות שכבר נסגרו"
           className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${
             feedbackPending ? "bg-amber-500 text-white" : "bg-gray-100 text-gray-600 hover:bg-gray-200"
           }`}>
           ⏳ פידבק חסר
-        </button>
-        <button
-          onClick={toggleHideFeedbackOnly}
-          title="סדנאות שכל המכתבים שלהן התקבלו וממתינות רק להזנת פידבק"
-          className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${
-            hideFeedbackOnly ? "bg-navy text-white" : "bg-gray-100 text-gray-600 hover:bg-gray-200"
-          }`}>
-          הסתר סדנאות שממתינות רק לפידבק
         </button>
       </div>
 
