@@ -1,13 +1,14 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { useParams } from "next/navigation"
+import { useParams, useRouter } from "next/navigation"
 import Link from "next/link"
 import { useUser } from "@/app/(app)/user-context"
 import { StatusPill } from "@/components/StatusPill"
 import { PEDAGOGI_LABELS, PEDAGOGI_VALUES, TAKZIVI_LABELS, TAKZIVI_VALUES } from "@/lib/shiyuch"
-import { CAN_CREATE_WORKSHOP, CAN_MANAGE_ORGS, hasAny } from "@/lib/roles"
+import { CAN_CREATE_WORKSHOP, CAN_DELETE_ORG, CAN_MANAGE_ORGS, hasAny } from "@/lib/roles"
 import DuplicateOrgWarning from "@/components/DuplicateOrgWarning"
+import DeleteOrgDialog from "@/components/DeleteOrgDialog"
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -54,9 +55,11 @@ function fmtDate(iso: string) {
 
 export default function OrgDetailPage() {
   const { id }    = useParams<{ id: string }>()
+  const router            = useRouter()
   const user              = useUser()
   const canManageOrg      = hasAny(user.roles, CAN_MANAGE_ORGS)
   const canCreateWorkshop = hasAny(user.roles, CAN_CREATE_WORKSHOP)
+  const canDeleteOrg      = hasAny(user.roles, CAN_DELETE_ORG)
 
   const [org, setOrg]           = useState<OrgDetail | null>(null)
   const [loading, setLoading]   = useState(true)
@@ -71,6 +74,8 @@ export default function OrgDetailPage() {
   const [notesValue, setNotesValue]   = useState<string | null>(null)
   const [notesDirty, setNotesDirty]   = useState(false)
   const [notesSaving, setNotesSaving] = useState(false)
+
+  const [deleting, setDeleting] = useState(false)
 
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set())
   const [newGroupName, setNewGroupName]     = useState("")
@@ -404,7 +409,40 @@ export default function OrgDetailPage() {
             {groupError && <p className="text-xs text-red-500 mt-1">{groupError}</p>}
           </div>
         )}
+
+        {/* Deleting an organization — Manager only, and kept well away from
+            עריכה at the top of the page: it is rare, irreversible, and the
+            neighbouring buttons are ones people press every day. */}
+        {canDeleteOrg && (
+          <div className="mt-10 border-t border-gray-100 pt-4">
+            <button
+              onClick={() => setDeleting(true)}
+              className="text-sm text-gray-400 hover:text-red-600 transition-colors"
+            >
+              מחיקת ארגון
+            </button>
+            <p className="text-xs text-gray-400 mt-1">
+              {org.groups.length > 0
+                ? "לארגון יש היסטוריה — המחיקה תדרוש לבחור ארגון שיקבל אותה."
+                : "לארגון אין קבוצות, ואפשר למחוק אותו לגמרי."}
+            </p>
+          </div>
+        )}
       </div>
+
+      {deleting && (
+        <DeleteOrgDialog
+          org={org}
+          onClose={() => setDeleting(false)}
+          onDeleted={() => {
+            // The organizations list is cached by the router, and it is the
+            // page we are about to land on. Without the refresh the deleted
+            // organization is still sitting in it.
+            router.push("/irgunnim")
+            router.refresh()
+          }}
+        />
+      )}
     </div>
   )
 }

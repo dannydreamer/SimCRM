@@ -13,7 +13,7 @@
 
 import {
   expandRoles, displayRoles, impliedRoles, hasAny,
-  CAN_MANAGE_ORGS, CAN_CREATE_WORKSHOP, CAN_CANCEL_WORKSHOP,
+  CAN_MANAGE_ORGS, CAN_CREATE_WORKSHOP, CAN_CANCEL_WORKSHOP, CAN_DELETE_ORG,
   NAV_ITEMS, LOGIN_ROLES, ROLE_LABELS, homePathFor,
 } from "../src/lib/roles"
 
@@ -62,6 +62,18 @@ for (const [label, capability] of [
   check(`${label}: plain Tech no`,    hasAny(tech, capability),        false)
   check(`${label}: Caster no`,        hasAny(["CASTER"], capability),  false)
 }
+
+console.log("\n── the one org right a Senior Tech does not get ──────────────────")
+
+// CAN_DELETE_ORG is the exception to the block above: a Senior Tech creates
+// organizations, so she is the one who creates the duplicates, but deleting one
+// rewrites which organization past workshops belong to and stays with the
+// Manager. If this ever starts passing, the separate capability is pointless.
+check("deletion: Manager yes",     hasAny(["MANAGER"], CAN_DELETE_ORG), true)
+check("deletion: Senior Tech no",  hasAny(senior, CAN_DELETE_ORG),      false)
+check("deletion: plain Tech no",   hasAny(tech, CAN_DELETE_ORG),        false)
+check("deletion is stricter than managing, never the same list",
+  CAN_MANAGE_ORGS.some((r) => !CAN_DELETE_ORG.includes(r)), true)
 
 console.log("\n── how she is described back to the user ─────────────────────────")
 
