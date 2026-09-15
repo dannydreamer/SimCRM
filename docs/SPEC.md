@@ -243,6 +243,8 @@ The earlier assumption — recorded in §13 until now — that Prisma-created ta
 
 > **Resolved conflict:** The original spec (§2.1) had a single `shiyuch` field with 9 values. The v1.2 changelog split it into two mandatory fields. **The split is correct and is what was built.**
 
+**Deletion is a hard delete, and only possible once the organization is empty.** An organization with no participant groups is removed outright. One that has groups holds history that cannot be discarded, so it can only be deleted by naming the organization that inherits it — the groups move across, and the emptied record is then deleted. Nothing but `ParticipantGroup.organizationId` references an organization, so past and future workshops alike travel with their group and nothing else has to be rewritten. Manager only. See §8.9. `[code]`
+
 ### 3.4 ParticipantGroup
 
 | Field | Type | Notes |
@@ -253,6 +255,8 @@ The earlier assumption — recorded in §13 until now — that Prisma-created ta
 | notes | String? | |
 
 Multiple groups with the same name under one organization are permitted — no deduplication warning.
+
+**The one exception is a merge.** When an organization is deleted into another (§3.3, §8.9), groups whose names match under `orgSearchKey` are folded into one: the arriving group's workshops move to the group already carrying that name, and the emptied group is deleted. Otherwise the delete would hand the survivor the very duplication it was meant to resolve. Where several candidates share the name, the one with the most workshops receives. This is the only path that deletes a participant group. `[code]`
 
 ### 3.5 Workshop
 
@@ -611,6 +615,7 @@ A workshop still `בוצע איתור צרכים` with **nothing** outstanding r
 | Organizations — view | ✓ | ✓ | ✓ | — | — | — |
 | Organizations — **create/edit** | ✓ | — | ✓ | — | — | — |
 | Organizations — **add participant group** | ✓ | — | ✓ | — | — | — |
+| Organizations — **delete / merge** | ✓ | — | — | — | — | — |
 | Workshops — view | ✓ | ✓ | ✓ | via ליהוק | ✓ | Own only |
 | Workshops — **create** | ✓ | — | ✓ | — | — | — |
 | Workshops — edit | ✓ | ✓ | ✓ | — | — | — |
@@ -643,6 +648,8 @@ A workshop still `בוצע איתור צרכים` with **nothing** outstanding r
 | Facilitator Load, Goals, Users, Settings | ✓ | — | — | — | — | — |
 
 > The Senior Tech column differs from the Tech column in exactly four rows, all bolded above. Everywhere else the two are identical **by construction, not by coincidence** — no code grants those rows to SENIOR_TECH by name (§5.4).
+
+> **Organizations — delete / merge is deliberately narrower than create/edit.** A Senior Tech creates organizations, and is therefore the person who creates the duplicates, but deleting one rewrites which organization past workshops belong to and can move already-counted rooms between budget categories (§8.9). It stays with the Manager, as the softer room and scenario cancellations do (§4.7). `CAN_DELETE_ORG` in `src/lib/roles.ts`, checked by `npm run check:roles`.
 
 > **Rooms are cancelled only by lowering מספר חדרים** — there is no per-room cancel control on the Workshop Detail page. Lowering the count cancels the highest-numbered active rooms, deletes their Step 2 casting assignments, and logs `ROOM_CANCELLED` for the Caster if casting was already sent. Workshop **cancellation** remains Manager-only and is a separate action from anything in the edit form. `[code]`
 
@@ -1055,6 +1062,24 @@ Matching folds away the punctuation staff type inconsistently (`ביס` = `בי"
 > Workshop counts and last-workshop-date **exclude cancelled and future workshops** (`0746270`). `[code]`
 
 **New Organization:** name*, city*, both שיוך fields* (mandatory), POC name/phone/email, notes. Reachable inline from the new-workshop form without losing entered data.
+
+#### Deleting an organization — `DELETE /api/irgunnim/[id]`
+
+**There is one action, מחיקת ארגון, and merging is what it does when the organization is not empty.** `[code]` Manager only (§5.2). The control sits at the foot of the detail page, away from עריכה — it is rare and irreversible, and the buttons at the top are pressed daily.
+
+- **No participant groups** → a confirmation dialog naming the organization and city, then the record is deleted.
+- **Has groups** → the request is refused with `409` and `needsMergeTarget`, carrying the group count, the live workshop count and the group names. The dialog then requires a destination organization, picked with the same `OrgCombobox` the new-workshop form uses, and re-sends with `mergeIntoId`. This is the same 409-then-resend shape as the duplicate-name warning above.
+
+The merge runs in one transaction (`mergeOrganizationInto` in `src/lib/org-merge-tx.ts`), which re-reads both organizations inside the transaction so a group added meanwhile is not stranded:
+
+1. Groups whose names match one on the destination are folded into it (§3.4); the emptied group is deleted.
+2. The remaining groups have their `organizationId` repointed.
+3. A trace is appended to the destination's notes — date, the deleted organization's name and city, and who did it — along with its notes and any point of contact the destination lacks. **There is no audit log, so this line is the only record that the deleted organization existed**, and the POC is otherwise the one field a merge would destroy outright.
+4. The emptied organization is deleted. Both FKs are `ON DELETE RESTRICT`, so a group missed by steps 1–2 rolls the whole transaction back rather than stranding history.
+
+> **The destination's שיוך תקציבי governs every workshop that moves**, including ones already delivered, so rooms can change column in טבלאות פיבוט (§8.12). The dialog names both values and says which wins when they differ. The annual **grand total** never changes — rows are per-workshop and a merge creates or destroys none.
+
+Fold rules are pure functions in `src/lib/org-merge.ts`, checked by `npm run check:orgmerge`; the whole path is exercised against the test database by `npx tsx --env-file=.env scripts/verify-org-merge-e2e.ts`, which refuses to run against production and removes what it creates.
 
 ### 8.10 System Lists — `/nosim`
 
@@ -1660,6 +1685,8 @@ Sessions 1–19 as built. Branch naming `session-N-*`, merged to `develop` then 
 
 | **15 Sep 2026** | — | **Actor feedback is no longer a closing condition** (branch `feedback_not_required`, §4.5, §4.4, §4.6, §8.2, §8.8, §11). `CLOSING → CLOSED` is now gated on the מכתבים alone, and `CLOSED → CLOSING` on a letter being unchecked; entering, editing or deleting feedback no longer moves the status, and the two `checkAndAdvanceStatus()` calls in the feedback routes were removed with the conditions they served. Feedback stays fully editable in `סגור`, and the הזנת פידבק column, the counter on Workshop Detail and the `⏳ פידבק חסר` filter still measure completeness exactly as before — it is tracked, just never blocking. Since the workshops it matches are now `סגור` and the default view hides those, `⏳ פידבק חסר` switches the view to `הכל` when turned on; the `הסתר סדנאות שממתינות רק לפידבק` toggle was removed, its state having become unreachable. The Workshop Detail closing checklist needed no change — it had listed only the מכתבים for some time, so the gate now matches what the screen already said. The PPT late-entry exception (§4.6) was widened from CLOSING to CLOSED, since workshops now close while that entry is still plausible. No schema change, no migration. Existing rows in `בתהליך סגירה` that already meet the new condition close on their next visit — `GET /api/sadnaot/[id]` re-evaluates on load. |
 | **15 Sep 2026** | — | **Organizations list alphabetical, and duplicate names warned about** (branch `org_dedupe`, §8.9). The list defaulted to סדנה אחרונה — an order nobody can predict when looking for a known organization — and nothing stopped the same organization being entered twice, which a new Manager promptly did. `/irgunnim` now defaults to **א״ב**; alphabetical is also the stable tie-break under the other two sorts, and the group pills inside a card are sorted too. On the name field of all three organization forms, a new `DuplicateOrgWarning` panel names the matches already on file while the name is still being typed, and `POST /api/irgunnim` / `PATCH /api/irgunnim/[id]` refuse an exact match once with `409` before accepting the resend with `allowDuplicate: true`. **Advisory, not a uniqueness constraint** — two schools can legitimately share a name in two cities, so no unique index was added and nothing existing had to be cleaned up first; organizations already sharing a name instead show a **שם כפול** badge on the list, computed across every organization so a filter cannot hide it. Matching reuses `orgSearchKey()` from the `org_search` work — `ביס` matches `בי"ס` — and adds a softer `contains` tier on whole words, which warns in the forms but never triggers the `409`. New `findDuplicateOrgs()` in `src/lib/org-search.ts`, with 15 further checks under `npm run check:orgsearch`. **No schema change, no migration.** |
+
+| **15 Sep 2026** | — | **An organization can be deleted, and a duplicate merged away** (branch `org_delete`, §3.3, §3.4, §5.2, §8.9). The `org_dedupe` work a day earlier added detection but no cleanup, so the duplicates it flags sat in the data permanently. Hiding one would not have helped: a duplicate's workshops stay attached to it, which splits the school's per-organization room counts in half, prints it twice under two spellings in the pivot export, and — the real damage — lets the two copies carry **different שיוך תקציבי**, so one school's rooms count against two budget lines with nothing on screen to show it. Note that יעדים totals were never wrong; `getPivotRows()` emits one row per workshop and `buildAnnualGrid()` buckets by שיוך, so nothing was ever double-counted. There is now **one action, מחיקת ארגון, and merging is what it does when the organization is not empty** — an empty organization is deleted outright, one with groups is refused with `409` until a destination is named, mirroring the `ON DELETE RESTRICT` the database already enforces. Structurally this is cheap: nothing but `ParticipantGroup.organizationId` references an organization, so repointing one column carries every workshop, room, casting and feedback with it, past and future alike, and no date logic is needed. Groups whose names match under `orgSearchKey` fold into one rather than arriving as twins, the destination's notes gain the only surviving record that the deleted organization existed, and a point of contact held only by the deleted copy is carried over — otherwise the single field a merge would destroy. **The destination's שיוך תקציבי then governs every moved workshop, including delivered ones, so the dialog warns when the two differ**; the annual grand total cannot move, and the end-to-end check asserts exactly that. Manager only via a new `CAN_DELETE_ORG`, deliberately narrower than `CAN_MANAGE_ORGS` — a Senior Tech creates the duplicates but does not resolve them. New `src/lib/org-merge.ts` (pure, 23 checks under `npm run check:orgmerge`), `src/lib/org-merge-tx.ts` (the transaction, shared by the route and the test), `src/components/DeleteOrgDialog.tsx`, and `scripts/verify-org-merge-e2e.ts`, which runs the shipped merge against the test database and refuses to run anywhere else. **No schema change, no migration.** |
 
 ---
 
