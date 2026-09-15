@@ -13,6 +13,7 @@ interface OrgCard {
   shiyuchPedagogi: string
   shiyuchTakzivi: string
   pocName: string | null
+  duplicateName: boolean
   workshopCount: number
   lastWorkshopDate: string | null
   groups: { id: string; name: string }[]
@@ -34,7 +35,7 @@ export default function IrgunnimPage() {
   const [q, setQ]               = useState("")
   const [pedagogi, setPedagogi] = useState("")
   const [takzivi, setTakzivi]   = useState("")
-  const [sort, setSort]         = useState<Sort>("lastWorkshop")
+  const [sort, setSort]         = useState<Sort>("name")
 
   useEffect(() => {
     setLoading(true)
@@ -103,8 +104,8 @@ export default function IrgunnimPage() {
           onChange={(e) => setSort(e.target.value as Sort)}
           className="border border-gray-200 rounded px-3 py-1.5 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-navy/30"
         >
+          <option value="name">מיון: א״ב</option>
           <option value="lastWorkshop">מיון: סדנה אחרונה</option>
-          <option value="name">מיון: שם</option>
           <option value="workshopCount">מיון: מספר סדנאות</option>
         </select>
       </div>
@@ -137,6 +138,14 @@ function OrgCardView({ org }: { org: OrgCard }) {
         <div className="flex-1 min-w-0">
           <h2 className="text-base font-semibold text-gray-900 mb-1.5">{org.name}</h2>
           <div className="flex flex-wrap items-center gap-2 mb-3">
+            {org.duplicateName && (
+              <span
+                className="px-2 py-0.5 rounded-full text-xs font-medium bg-amber-50 text-amber-700 border border-amber-200"
+                title="קיים ארגון נוסף באותו שם — ייתכן שזו כפילות"
+              >
+                שם כפול
+              </span>
+            )}
             <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-navy-light text-navy">
               {PEDAGOGI_LABELS[org.shiyuchPedagogi] ?? org.shiyuchPedagogi}
             </span>

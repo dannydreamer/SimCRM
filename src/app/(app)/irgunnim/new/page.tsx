@@ -4,6 +4,7 @@ import { useState, Suspense } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import Link from "next/link"
 import { PEDAGOGI_LABELS, PEDAGOGI_VALUES, TAKZIVI_LABELS, TAKZIVI_VALUES } from "@/lib/shiyuch"
+import DuplicateOrgWarning from "@/components/DuplicateOrgWarning"
 
 const EMPTY = {
   name:            "",
@@ -23,8 +24,11 @@ function NewOrgForm() {
   const [form, setForm]     = useState({ ...EMPTY })
   const [saving, setSaving] = useState(false)
   const [error, setError]   = useState("")
+  // Set by the server's duplicate-name refusal; the next submit goes through.
+  const [confirmDup, setConfirmDup] = useState(false)
 
   function set(field: keyof typeof EMPTY, value: string) {
+    if (field === "name") setConfirmDup(false)
     setForm((f) => ({ ...f, [field]: value }))
   }
 
@@ -37,9 +41,10 @@ function NewOrgForm() {
     const res  = await fetch("/api/irgunnim", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(form),
+      body: JSON.stringify({ ...form, allowDuplicate: confirmDup }),
     })
     const data = await res.json()
+    if (res.status === 409) { setError(data.error); setConfirmDup(true); setSaving(false); return }
     if (!res.ok) { setError(data.error ?? "שגיאה בשמירה"); setSaving(false); return }
     if (returnTo) {
       router.push(`${returnTo}?orgId=${data.id}`)
@@ -76,6 +81,7 @@ function NewOrgForm() {
                 placeholder="שם הארגון"
                 required
               />
+              <DuplicateOrgWarning name={form.name} />
             </div>
             <div>
               <label className="block text-sm text-gray-700 mb-1">עיר *</label>
@@ -177,7 +183,7 @@ function NewOrgForm() {
               disabled={saving || !canSubmit}
               className="px-5 py-2 bg-navy text-white text-sm font-medium rounded hover:bg-navy-dark disabled:opacity-40 transition-colors"
             >
-              {saving ? "שומר..." : "יצירת ארגון"}
+              {saving ? "שומר..." : confirmDup ? "יצירה בכל זאת" : "יצירת ארגון"}
             </button>
             <Link href={returnTo ?? "/irgunnim"} className="text-sm text-gray-500 hover:text-gray-800">
               ביטול
