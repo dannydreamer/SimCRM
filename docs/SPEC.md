@@ -491,10 +491,10 @@ NEW ──(Tech marks needs assessment)──▶ SPECIFIED
         │                                 ▼
         │                            SPECIFIED
         │
-  (all letters ✓ AND feedback complete)
+  (all letters ✓)
         │
         ▼
-      CLOSED ──(letter unchecked OR feedback incomplete)──▶ CLOSING
+      CLOSED ──(letter unchecked)──▶ CLOSING
 ```
 
 ### 4.3 The five READY conditions
@@ -533,17 +533,26 @@ The date check is `workshopHasEnded(date, endTime)`, exported from `src/lib/work
 
 **READY can regress to SPECIFIED** if any of the five conditions becomes unmet before the date passes — e.g. an actor is removed from Step 1 casting, a scenario is un-written (which auto-unchecks PPT on all active rooms), מספר משתתפים משוער is cleared, or חדר אחר is selected on a workshop where it has not been approved.
 
-**CLOSED can regress to CLOSING** if a letter is unchecked or feedback becomes incomplete — including when a Manager **deletes** a feedback record (§8.7). The delete action calls `checkAndAdvanceStatus()` explicitly; the regression is not a side effect of the delete itself. `[code]`
+**CLOSED can regress to CLOSING** if a letter is unchecked — the only condition, so the only way back. Entering, editing or **deleting** a feedback record (§8.7) does not move the status in either direction. `[code]`
 
 ### 4.5 Feedback completeness
 
-A feedback record counts as complete only when **at least one aspect has free text**. A record left at default green with no text does not count. `[code]` — this is what gates CLOSING → CLOSED.
+**Actor feedback is not a closing condition.** `CLOSING → CLOSED` is gated on the מכתבים alone: every active room has `letterReceived`. A workshop closes the moment the last one is ticked, whether or not any feedback has been written. `[code]`
 
-Expected feedback = one record per `(roomId, actorId)` for every active casting, **including the director** (whose `roomId` is null).
+It used to be a condition. The documenter works on their own schedule, often long after the Tech has nothing left to do, so workshops sat in בתהליך סגירה for weeks with no outstanding action by anyone who was looking at them — and the Workshop Detail checklist had already drifted to listing only the מכתבים. Feedback is now **optional**: wanted, tracked, never blocking.
+
+What this does **not** change:
+
+- **Feedback entry stays open in CLOSED.** The הזנת פידבק button is enabled for both בתהליך סגירה and סגור, and `POST /api/feedback` has no status guard. Closing a workshop never closes the door on documenting it. `[code]`
+- **Completeness is still measured and shown.** A record counts as complete only when **at least one aspect has free text**; a record left at default green with no text does not count. Expected feedback = one record per `(roomId, actorId)` for every active casting, **including the director** (whose `roomId` is null). This drives the הזנת פידבק column (§8.2), the `⏳ פידבק חסר` filter, and the counter on Workshop Detail (§8.4). `[code]`
+
+Because closed workshops are hidden from the default עתידיות + פתוחות view, the `⏳ פידבק חסר` filter **switches the view to הכל** when it is turned on from there — otherwise it would match only rows the view was already hiding. The segmented control visibly moves, rather than the filter silently overriding it. `[code]`
 
 ### 4.6 PPT prerequisites
 
-`pptReceived` can only be checked when the room has a facilitator assigned **and** all scenarios are written — **except** when the workshop is in CLOSING, where both restrictions are lifted so late data entry is possible. `[code]`
+`pptReceived` can only be checked when the room has a facilitator assigned **and** all scenarios are written — **except** once the workshop has run (CLOSING **or** CLOSED), where both restrictions are lifted so late data entry is possible. CLOSED is included because a workshop now closes as soon as the last מכתב is ticked (§4.5), so the late entry can land after the close. `[code]`
+
+> Note the API is more permissive here than the screen: `pptBlockReason` on Workshop Detail disables the מצגת checkbox for **any** past-dated workshop, on the date alone, without consulting the status. The lifted window is therefore reachable through the UI only on the workshop's own day, after its end time. `[code]`
 
 Un-writing a scenario auto-unchecks `pptReceived` on all active rooms in that workshop. `[code]`
 
@@ -921,7 +930,9 @@ Primary landing page for Manager, Tech, Feedback Documenter, and Facilitator.
 
 The first badge filters on **Step 2** completeness (`castingFilled < castingTotal`) — deliberately a different measure from the column beside it, hence the explicit לחדרים in the label. Without it the filter would appear to contradict the badge: a row can be returned as "pending" while its ליהוק column reads `2/2`.
 
-A third toggle, **`הסתר סדנאות שממתינות רק לפידבק`**, removes rows that are in `בתהליך סגירה` with **all מכתבים received** and `feedbackMissing > 0` — the exact set whose only outstanding item is feedback entry, which is the Feedback Documenter's job and not the Tech's. Letters still outstanding keeps the row visible. Off by default, set per user, and remembered in `localStorage` under `simcrm:hide-feedback-only:<userId>`. `[code]`
+The **`⏳ פידבק חסר`** toggle narrows the table to workshops with at least one expected feedback record still unwritten. Since feedback stopped holding a workshop open (§4.5) that set is mostly `סגור`, which the default view hides — so turning the toggle on from `עתידיות + פתוחות` moves the view to `הכל`. `[code]`
+
+> A fourth toggle, `הסתר סדנאות שממתינות רק לפידבק`, was removed with that change. It hid rows in `בתהליך סגירה` whose מכתבים were all in and whose feedback was outstanding — a state that no longer exists, because such a workshop is now `סגור`. Its `localStorage` key `simcrm:hide-feedback-only:<userId>` is dead and may still sit in users' browsers; nothing reads it.
 
 Cancelled workshops: strikethrough, dimmed, collapsed at the bottom, visible only under `הכל`. Sort and filter controls added in session 18. `[code]`
 
@@ -1009,7 +1020,7 @@ Feedback history and the development log render **only for Manager and Feedback 
 
 ### 8.8 Feedback Entry — `/feedback`
 
-Accessed from the Workshop Detail sidebar button, or from an actor profile. Enabled for workshops in CLOSING and CLOSED. `[code]`
+Accessed from the Workshop Detail sidebar button, or from an actor profile. Enabled for workshops in CLOSING and CLOSED. A closed workshop is still fully open to feedback entry — closing has never gated it, and since §4.5 it is the normal case rather than the exception. `[code]`
 
 Sequential dependent selection: **סדנה** → **מתחקר/ת** → **שחקן**. The room is always presented as the **facilitator's name**, never the room label — the room is an implementation detail.
 
@@ -1304,7 +1315,7 @@ Phase 1 notifications are **in-system visual flags only** — badges, banners, h
 | Room added | Manager, Tech | Blue banner — *"יש לשלוח מחדש לליהוק"*, raised only once `castingSentAt` is set |
 | Date passed, still סדנה חדשה | Manager, Tech | Red badge in workshop table |
 | Date passed, casting incomplete | Manager, Tech | `⏳ ממתין לליהוק` |
-| Date passed, feedback missing | Feedback Doc, Manager | `⏳ פידבק חסר` |
+| Date passed, feedback missing | Feedback Doc, Manager | `⏳ פידבק חסר` — a filter and a column, never a block: the workshop closes without it (§4.5) |
 | Backup env vars missing | Manager | Persistent amber banner |
 
 ---
@@ -1637,6 +1648,8 @@ Sessions 1–19 as built. Branch naming `session-N-*`, merged to `develop` then 
 | **9 Sep 2026** | — | **מפעילה טכנית בכירה — a senior Tech rank** (branch `senior_tech`, new §5.4, §1.1, §5.2, §5.3 item 5). One of the techs needed to open organizations and workshops without becoming a Manager. Implemented as a sixth `Role` enum value, `SENIOR_TECH`, that **implies** `TECH` rather than replacing or duplicating it: `expandRoles()` runs the stored roles through the implication once, inside `authorize()`, so the token carries both and all ~30 existing `TECH` string tests keep working untouched. The alternative — teaching every guard a second role name — fails silently the first time one is missed, and a missed guard removes a right she uses daily rather than raising an error. Only the four rights that separate her from a Tech name the new role, and they do it through capability lists (`CAN_MANAGE_ORGS`, `CAN_CREATE_WORKSHOP`, `CAN_CANCEL_WORKSHOP`) rather than bare literals: organization create/edit, participant-group creation, workshop creation, workshop cancellation. Cancellation carries the postponement-warning dismissal with it, since she is now the one whose date change raises it. **Two corrections made in passing.** §5.2 had claimed since v1.0 that Tech could create and edit organizations; the code never allowed it, and the table now matches reality — that right went to Senior Tech, not to every Tech. And the new-workshop form fetched its facilitator list from `GET /api/users`, which is Manager-only, so a Senior Tech would have received a 403 body where an array was expected and crashed the form; it now uses `GET /api/facilitators`, which is open to any signed-in user and returns the same people. Also: `/irgunnim/new` gains a middleware rule, `displayRoles()` keeps the header badge from reading both labels, the users screen shows the implied מפעילה טכנית checkbox ticked and locked, and `npm run check:roles` adds 31 pure-function checks over the implication and the capability lists. **Migration `20260909120000_add_senior_tech_role` is one `ALTER TYPE` and is additive** — no backfill, nobody holds the role until the Manager grants it. **A role change takes effect only at her next login**, roles being baked into the JWT; true of every role change, worth saying out loud here. |
 
 | **10 Sep 2026** | — | **The organization field on the new-workshop form is searchable** (branch `org_search`, §8.3). The plain `<select>` listed every organization in the order `GET /api/irgunnim` happens to return — most recent workshop first — which is right for the organizations table and useless in a picker: with the list about to grow past what fits on a screen, finding an org meant scrolling an order nobody can predict. It is now a combobox (`src/components/OrgCombobox.tsx`), **alphabetical by Hebrew collation** and filtered by **substring rather than prefix** — typing `אב` keeps `מכללת אבן ספיר` as readily as `אבן גבירול`, because staff know an organization by a word in its name, not by its first letter. Name and city are both searched, punctuation is folded away on both sides so `ביס` finds `בי"ס`, the matched run is highlighted, and the list caps at 100 rendered rows. The ordering and matching are pure functions in `src/lib/org-search.ts` with 16 checks behind `npm run check:orgsearch`, kept out of the component so they can be verified without a browser. The field loses its native `required` attribute — the submit button's existing `canSubmit` already demands an organization, so the form cannot be submitted without one. **No schema change, no migration, no API change.** |
+
+| **15 Sep 2026** | — | **Actor feedback is no longer a closing condition** (branch `feedback_not_required`, §4.5, §4.4, §4.6, §8.2, §8.8, §11). `CLOSING → CLOSED` is now gated on the מכתבים alone, and `CLOSED → CLOSING` on a letter being unchecked; entering, editing or deleting feedback no longer moves the status, and the two `checkAndAdvanceStatus()` calls in the feedback routes were removed with the conditions they served. Feedback stays fully editable in `סגור`, and the הזנת פידבק column, the counter on Workshop Detail and the `⏳ פידבק חסר` filter still measure completeness exactly as before — it is tracked, just never blocking. Since the workshops it matches are now `סגור` and the default view hides those, `⏳ פידבק חסר` switches the view to `הכל` when turned on; the `הסתר סדנאות שממתינות רק לפידבק` toggle was removed, its state having become unreachable. The Workshop Detail closing checklist needed no change — it had listed only the מכתבים for some time, so the gate now matches what the screen already said. The PPT late-entry exception (§4.6) was widened from CLOSING to CLOSED, since workshops now close while that entry is still plausible. No schema change, no migration. Existing rows in `בתהליך סגירה` that already meet the new condition close on their next visit — `GET /api/sadnaot/[id]` re-evaluates on load. |
 
 ---
 

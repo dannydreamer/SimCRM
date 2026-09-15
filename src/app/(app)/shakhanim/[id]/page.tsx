@@ -151,7 +151,8 @@ export default function ActorProfilePage() {
     if (!res.ok) { setDeleteError(data.error ?? "שגיאה במחיקה"); return }
     setExpanded((prev) => { const next = new Set(prev); next.delete(f.id); return next })
     await fetchActor()
-    // Deleting feedback can regress the workshop CLOSED → CLOSING
+    // Keeps any server-rendered view of this actor in step. Feedback no longer
+    // affects workshop status (§4.5), so nothing else needs re-reading.
     router.refresh()
   }
 
