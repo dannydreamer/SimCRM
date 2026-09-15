@@ -69,6 +69,12 @@ export function impliedRoles(roles: string[]): Set<string> {
 // Create an organization, edit its details, add a participant group to it.
 export const CAN_MANAGE_ORGS = ["MANAGER", "SENIOR_TECH"]
 
+// Delete an organization, and with it hand its whole history to another one.
+// Deliberately narrower than CAN_MANAGE_ORGS: this is the only action in the
+// system that destroys a record outright *and* rewrites where past workshops
+// belong, and §4.7 already reserves the softer cancellations for the Manager.
+export const CAN_DELETE_ORG = ["MANAGER"]
+
 // Open a new workshop (/sadnaot/new and POST /api/sadnaot).
 export const CAN_CREATE_WORKSHOP = ["MANAGER", "SENIOR_TECH"]
 

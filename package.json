@@ -10,7 +10,8 @@
     "seed": "tsx prisma/seed.ts",
     "check:casting": "tsx scripts/check-casting-logic.ts",
     "check:roles": "tsx scripts/check-roles-logic.ts",
-    "check:orgsearch": "tsx scripts/check-orgsearch-logic.ts"
+    "check:orgsearch": "tsx scripts/check-orgsearch-logic.ts",
+    "check:orgmerge": "tsx scripts/check-org-merge-logic.ts"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"

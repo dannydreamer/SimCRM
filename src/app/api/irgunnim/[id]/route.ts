@@ -2,8 +2,9 @@ import { NextRequest, NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
-import { CAN_MANAGE_ORGS, hasAny } from "@/lib/roles"
+import { CAN_MANAGE_ORGS, CAN_DELETE_ORG, hasAny } from "@/lib/roles"
 import { findDuplicateOrgs } from "@/lib/org-search"
+import { mergeOrganizationInto, MergeError } from "@/lib/org-merge-tx"
 
 export async function GET(
   _req: NextRequest,
@@ -125,4 +126,92 @@ export async function PATCH(
   })
 
   return NextResponse.json(org)
+}
+
+// Selects an organization with enough of its groups to plan a merge: every
+// group, and each group's workshops reduced to whether they were cancelled.
+// `workshops.length` is the whole history, which is what decides the receiving
+// group; the non-cancelled subset is what the dialog quotes back to the user.
+const withGroups = {
+  participantGroups: {
+    select: {
+      id: true,
+      name: true,
+      workshops: { select: { cancelled: true } },
+    },
+  },
+} as const
+
+/**
+ * Deleting an organization.
+ *
+ * An organization with no groups is simply removed. One that has groups holds
+ * history that cannot be discarded — past workshops, their rooms, casting and
+ * feedback all hang off its groups — so it can only be deleted by naming the
+ * organization that inherits them, `mergeIntoId`. Without one the request comes
+ * back 409 with the counts, and the client re-sends it with a destination,
+ * exactly as the duplicate-name warning above works.
+ *
+ * Nothing but ParticipantGroup.organizationId points at an organization, so the
+ * whole history — past workshops and future ones alike — moves with the groups.
+ */
+export async function DELETE(
+  req: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  const session = await getServerSession(authOptions)
+  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+  if (!hasAny(session.user.roles, CAN_DELETE_ORG)) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 })
+  }
+
+  const { id } = await params
+  const body = await req.json().catch(() => ({}))
+  const mergeIntoId: string | undefined = body?.mergeIntoId ?? undefined
+
+  const source = await prisma.organization.findUnique({
+    where: { id },
+    include: withGroups,
+  })
+  if (!source) return NextResponse.json({ error: "Not found" }, { status: 404 })
+
+  const groups = source.participantGroups
+  const liveWorkshops = groups.reduce(
+    (n, g) => n + g.workshops.filter((w) => !w.cancelled).length, 0
+  )
+
+  // The empty case: nothing to inherit, so it just goes.
+  if (groups.length === 0) {
+    await prisma.organization.delete({ where: { id } })
+    return NextResponse.json({ deleted: true, merged: false })
+  }
+
+  if (!mergeIntoId) {
+    return NextResponse.json({
+      error: `לארגון «${source.name}» יש היסטוריה שאי אפשר למחוק. יש לבחור ארגון שיקבל אותה.`,
+      needsMergeTarget: true,
+      groupCount:    groups.length,
+      workshopCount: liveWorkshops,
+      groupNames:    groups.map((g) => g.name),
+    }, { status: 409 })
+  }
+
+  if (mergeIntoId === id) {
+    return NextResponse.json(
+      { error: "אי אפשר להעביר ארגון אל עצמו." }, { status: 409 })
+  }
+
+  try {
+    const result = await mergeOrganizationInto(
+      id, mergeIntoId, session.user.name?.trim() || "משתמש לא ידוע"
+    )
+    return NextResponse.json({ deleted: true, merged: true, ...result })
+  } catch (e) {
+    if (e instanceof MergeError) {
+      return e.reason === "target-missing"
+        ? NextResponse.json({ error: "הארגון המקבל לא נמצא." }, { status: 404 })
+        : NextResponse.json({ error: "הארגון כבר נמחק." }, { status: 404 })
+    }
+    throw e
+  }
 }
