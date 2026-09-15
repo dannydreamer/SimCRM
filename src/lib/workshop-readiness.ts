@@ -123,9 +123,14 @@ export interface ReadinessAlert {
  * Silent for: cancelled workshops, anything already READY or past its date
  * (CLOSING/CLOSED have their own flags, §11), and anything more than a week out.
  *
- * A סדנה חדשה reports only איתור צרכים — and no משימות נוספות either. Everything
- * downstream is genuinely unmet as well, but nothing downstream can be done
- * until the needs assessment is, so listing the rest is noise.
+ * A סדנה חדשה reports only איתור צרכים out of the five big conditions: everything
+ * downstream of the needs assessment is genuinely unmet as well, but none of it
+ * can be done until the assessment is, so listing it is noise.
+ *
+ * **The משימות נוספות are reported in full even for a סדנה חדשה**, because that
+ * reasoning does not extend to them — תיקתק is booked and names are chased while
+ * the workshop is still `סדנה חדשה`, so they are real work outstanding rather
+ * than work blocked behind something else.
  */
 export function readinessAlert(
   w: ReadinessInput & MinorTaskInput & { status: string; cancelled: boolean; date: Date | string },
@@ -139,8 +144,8 @@ export function readinessAlert(
 
   const unmet: ReadyConditionKey[] =
     w.status === "NEW" ? ["needsAssessment"] : unmetReadyConditions(w)
-  const minorUnmet: MinorTaskKey[] =
-    w.status === "NEW" ? [] : unmetMinorTasks(w)
+  // Not gated on status: these are doable from the day the workshop exists.
+  const minorUnmet: MinorTaskKey[] = unmetMinorTasks(w)
 
   // Still SPECIFIED with nothing outstanding on either list: the conditions are
   // met and the status simply has not been re-checked yet (checkAndAdvanceStatus

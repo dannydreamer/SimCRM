@@ -174,9 +174,20 @@ check("minor tasks alone are enough to raise it — this is the new behaviour",
 check("everything ticked → silent, nothing left to shout about",
   readinessAlert({ ...bigConditionsMet(), ...allTicked(), status: "SPECIFIED", cancelled: false, date: "2026-09-18" }, NOW),
   null)
-check("סדנה חדשה reports only איתור צרכים, never minor tasks",
+// A סדנה חדשה still reports only איתור צרכים out of the big five — but its
+// minor tasks are listed in full. תיקתק is booked and names are chased long
+// before the needs assessment is marked, so they are outstanding work rather
+// than work blocked behind something else.
+check("סדנה חדשה reports איתור צרכים AND its minor tasks",
   alertFor("NEW", "2026-09-18"),
+  { daysUntil: 3, unmet: ["needsAssessment"], minorUnmet: ALL_KEYS.slice(0, 5) })
+check("סדנה חדשה still hides the four downstream big conditions",
+  alertFor("NEW", "2026-09-18")!.unmet, ["needsAssessment"])
+check("a סדנה חדשה with every minor task ticked reports only איתור צרכים",
+  readinessAlert({ ...bigConditionsMet(), ...allTicked(), status: "NEW", cancelled: false, date: "2026-09-18" }, NOW),
   { daysUntil: 3, unmet: ["needsAssessment"], minorUnmet: [] })
+check("an EXTERNAL סדנה חדשה reports all six",
+  alertFor("NEW", "2026-09-18", { locationType: "EXTERNAL" })!.minorUnmet, ALL_KEYS)
 
 // A big blocker and minor tasks together — the shape the Detail banner renders
 // in two rows, and the one the table renders as chips plus a count.
