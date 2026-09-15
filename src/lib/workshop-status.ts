@@ -37,8 +37,13 @@ export function workshopHasEnded(
  *                         + estimated participants set + physical room approved
  *  READY     → SPECIFIED: any of the five READY conditions becomes unmet (before date)
  *  READY     → CLOSING  : workshop date has passed
- *  CLOSING   → CLOSED   : all rooms have letterReceived AND feedback complete
- *  CLOSED    → CLOSING  : any room loses letterReceived OR feedback becomes incomplete
+ *  CLOSING   → CLOSED   : all rooms have letterReceived
+ *  CLOSED    → CLOSING  : any room loses letterReceived
+ *
+ * Actor feedback is deliberately **not** a closing condition. It is documented
+ * when the documenter gets to it, which is often long after the Tech has nothing
+ * left to do, and holding the workshop open for it left rows sitting in
+ * בתהליך סגירה indefinitely. Feedback entry stays available in CLOSED. §4.5
  *
  * Returns the new status string if a change occurred, otherwise null.
  */
@@ -72,14 +77,7 @@ export async function checkAndAdvanceStatus(workshopId: string): Promise<string 
             { room: { cancelled: false } },
           ],
         },
-        select: { isDirector: true, roomId: true, actorId: true },
-      },
-      feedbacks: {
-        select: {
-          actorId: true, roomId: true,
-          aspect1PrepText: true, aspect2SimText: true,
-          aspect3ReflectionText: true, aspect4ProfessionalText: true,
-        },
+        select: { isDirector: true, roomId: true },
       },
     },
   })
@@ -109,29 +107,6 @@ export async function checkAndAdvanceStatus(workshopId: string): Promise<string 
     }).length === 0
   }
 
-  // ── Helper: all expected feedback records have been entered with text ────
-  // A feedback record only counts as complete when at least one aspect has
-  // free text written — default green with no text is considered incomplete.
-  function feedbackComplete(): boolean {
-    const activeRoomIds = new Set(w!.rooms.map((r) => r.id))
-    const expected = new Set(
-      w!.castings
-        .filter((c) => c.isDirector || (c.roomId && activeRoomIds.has(c.roomId!)))
-        .map((c) => `${c.roomId}:${c.actorId}`)
-    )
-    if (expected.size === 0) return true // no actors cast → nothing required
-    const entered = new Set(
-      w!.feedbacks
-        .filter((f) =>
-          (f.roomId === null || activeRoomIds.has(f.roomId)) &&
-          (f.aspect1PrepText?.trim() || f.aspect2SimText?.trim() ||
-           f.aspect3ReflectionText?.trim() || f.aspect4ProfessionalText?.trim())
-        )
-        .map((f) => `${f.roomId}:${f.actorId}`)
-    )
-    return [...expected].every((k) => entered.has(k))
-  }
-
   let newStatus: string | null = null
 
   if (w.status === "SPECIFIED") {
@@ -152,13 +127,13 @@ export async function checkAndAdvanceStatus(workshopId: string): Promise<string 
   } else if (w.status === "CLOSING") {
     const hasRooms   = w.rooms.length > 0
     const allLetters = hasRooms && w.rooms.every((r) => r.letterReceived)
-    if (allLetters && feedbackComplete()) newStatus = "CLOSED"
+    if (allLetters) newStatus = "CLOSED"
 
   } else if (w.status === "CLOSED") {
-    // Regression: a letter was unchecked or feedback became incomplete
+    // Regression: a letter was unchecked
     const hasRooms   = w.rooms.length > 0
     const allLetters = hasRooms && w.rooms.every((r) => r.letterReceived)
-    if (!allLetters || !feedbackComplete()) newStatus = "CLOSING"
+    if (!allLetters) newStatus = "CLOSING"
   }
 
   if (newStatus) {
