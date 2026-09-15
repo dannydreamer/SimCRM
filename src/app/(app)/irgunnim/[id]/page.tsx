@@ -7,6 +7,7 @@ import { useUser } from "@/app/(app)/user-context"
 import { StatusPill } from "@/components/StatusPill"
 import { PEDAGOGI_LABELS, PEDAGOGI_VALUES, TAKZIVI_LABELS, TAKZIVI_VALUES } from "@/lib/shiyuch"
 import { CAN_CREATE_WORKSHOP, CAN_MANAGE_ORGS, hasAny } from "@/lib/roles"
+import DuplicateOrgWarning from "@/components/DuplicateOrgWarning"
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -63,6 +64,8 @@ export default function OrgDetailPage() {
   const [editForm, setEditForm] = useState<Partial<OrgDetail>>({})
   const [saving, setSaving]     = useState(false)
   const [editError, setEditError] = useState("")
+  // Set by the server's duplicate-name refusal; the next save goes through.
+  const [confirmDup, setConfirmDup] = useState(false)
 
   // Inline notes editing (Manager only, auto-save on blur)
   const [notesValue, setNotesValue]   = useState<string | null>(null)
@@ -109,6 +112,7 @@ export default function OrgDetailPage() {
       pocEmail:        org.pocEmail ?? "",
     })
     setEditError("")
+    setConfirmDup(false)
     setEditing(true)
   }
 
@@ -118,9 +122,10 @@ export default function OrgDetailPage() {
     const res  = await fetch(`/api/irgunnim/${id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(editForm),
+      body: JSON.stringify({ ...editForm, allowDuplicate: confirmDup }),
     })
     const data = await res.json()
+    if (res.status === 409) { setEditError(data.error); setConfirmDup(true); setSaving(false); return }
     if (!res.ok) { setEditError(data.error ?? "שגיאה בשמירה"); setSaving(false); return }
     await fetchOrg()
     setEditing(false)
@@ -220,9 +225,13 @@ export default function OrgDetailPage() {
                 <input
                   type="text"
                   value={editForm.name ?? ""}
-                  onChange={(e) => setEditForm((f) => ({ ...f, name: e.target.value }))}
+                  onChange={(e) => {
+                    setConfirmDup(false)
+                    setEditForm((f) => ({ ...f, name: e.target.value }))
+                  }}
                   className="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-navy/30"
                 />
+                <DuplicateOrgWarning name={editForm.name ?? ""} excludeId={id} />
               </div>
               <div>
                 <label className="block text-xs text-gray-600 mb-1">עיר</label>
@@ -298,7 +307,7 @@ export default function OrgDetailPage() {
                 disabled={saving}
                 className="px-4 py-2 bg-navy text-white text-sm font-medium rounded hover:bg-navy-dark disabled:opacity-50 transition-colors"
               >
-                {saving ? "שומר..." : "שמירה"}
+                {saving ? "שומר..." : confirmDup ? "שמירה בכל זאת" : "שמירה"}
               </button>
               <button
                 onClick={() => setEditing(false)}

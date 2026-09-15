@@ -2,6 +2,7 @@
 
 import { useState } from "react"
 import { PEDAGOGI_LABELS, PEDAGOGI_VALUES, TAKZIVI_LABELS, TAKZIVI_VALUES } from "@/lib/shiyuch"
+import DuplicateOrgWarning from "@/components/DuplicateOrgWarning"
 
 export interface CreatedOrg {
   id:              string
@@ -31,8 +32,11 @@ export function NewOrgModal({ onCreated, onClose }: Props) {
   const [form, setForm]     = useState({ ...EMPTY })
   const [saving, setSaving] = useState(false)
   const [error, setError]   = useState("")
+  // Set by the server's duplicate-name refusal; the next submit goes through.
+  const [confirmDup, setConfirmDup] = useState(false)
 
   function set(field: keyof typeof EMPTY, value: string) {
+    if (field === "name") setConfirmDup(false)
     setForm((f) => ({ ...f, [field]: value }))
   }
 
@@ -45,9 +49,10 @@ export function NewOrgModal({ onCreated, onClose }: Props) {
     const res  = await fetch("/api/irgunnim", {
       method:  "POST",
       headers: { "Content-Type": "application/json" },
-      body:    JSON.stringify(form),
+      body:    JSON.stringify({ ...form, allowDuplicate: confirmDup }),
     })
     const data = await res.json()
+    if (res.status === 409) { setError(data.error); setConfirmDup(true); setSaving(false); return }
     if (!res.ok) { setError(data.error ?? "שגיאה בשמירה"); setSaving(false); return }
     onCreated({
       id:              data.id,
@@ -90,6 +95,9 @@ export function NewOrgModal({ onCreated, onClose }: Props) {
                 type="text" value={form.city} onChange={(e) => set("city", e.target.value)}
                 className={inputCls} placeholder="עיר" required
               />
+            </div>
+            <div className="col-span-2">
+              <DuplicateOrgWarning name={form.name} />
             </div>
           </div>
 
@@ -134,7 +142,7 @@ export function NewOrgModal({ onCreated, onClose }: Props) {
               type="submit" disabled={saving || !canSubmit}
               className="px-5 py-2 bg-navy text-white text-sm font-medium rounded hover:bg-navy-dark disabled:opacity-40 transition-colors"
             >
-              {saving ? "שומר..." : "יצירת ארגון"}
+              {saving ? "שומר..." : confirmDup ? "יצירה בכל זאת" : "יצירת ארגון"}
             </button>
             <button type="button" onClick={onClose} className="text-sm text-gray-500 hover:text-gray-800">
               ביטול

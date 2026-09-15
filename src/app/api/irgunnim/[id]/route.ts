@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
 import { CAN_MANAGE_ORGS, hasAny } from "@/lib/roles"
+import { findDuplicateOrgs } from "@/lib/org-search"
 
 export async function GET(
   _req: NextRequest,
@@ -95,6 +96,19 @@ export async function PATCH(
 
   if (name !== undefined && !name.trim())
     return NextResponse.json({ error: "שם ארגון לא יכול להיות ריק" }, { status: 400 })
+
+  // Renaming onto an existing name is warned about exactly as creating one is,
+  // and goes through on the resend with allowDuplicate. See POST /api/irgunnim.
+  if (name !== undefined && body.allowDuplicate !== true) {
+    const all  = await prisma.organization.findMany({ select: { id: true, name: true, city: true } })
+    const dups = findDuplicateOrgs(name, all, id).filter((d) => d.kind === "exact")
+    if (dups.length > 0) {
+      return NextResponse.json({
+        error: `ארגון בשם זה כבר קיים במערכת (${dups[0].org.city}). לבדוק שאין כאן כפילות לפני השמירה.`,
+        duplicates: dups.map((d) => ({ ...d.org, kind: d.kind })),
+      }, { status: 409 })
+    }
+  }
 
   const org = await prisma.organization.update({
     where: { id },
