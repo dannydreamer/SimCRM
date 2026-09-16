@@ -1504,15 +1504,22 @@ export default function WorkshopDetailPage() {
                       </span>
                     </div>
 
-                    {/* Condition 5: room approval — only meaningful when חדר אחר is selected */}
-                    <div className="flex items-center gap-2 text-xs">
-                      <span className={`font-bold ${roomApproved ? "text-brand-green" : markTodo}`}>{roomApproved ? "✓" : "○"}</span>
-                      <span className={roomApproved ? "text-gray-700" : labelTodo}>
-                        {usesOtherRoom ? "חדרים חיצוניים אושרו"
-                          : w.locationType === "CENTER" ? "חדר אינו טעון אישור"
-                          : "הסדנה אינה במרכז — אין חדר לאישור"}
-                      </span>
-                    </div>
+                    {/* Condition 5: room approval. Shown only when חדר אחר is
+                        actually selected, i.e. only when approval is something
+                        that can be outstanding. Rooms 1–3, חיצוני and זום have
+                        nothing to approve, and a row saying so was noise: a
+                        satisfied condition is never the reason a workshop failed
+                        to reach מוכן, so it cannot help anyone diagnose one.
+                        Absent rather than pre-ticked, like the EXTERNAL-only
+                        משימות נוספות task. */}
+                    {usesOtherRoom && (
+                      <div className="flex items-center gap-2 text-xs">
+                        <span className={`font-bold ${roomApproved ? "text-brand-green" : markTodo}`}>{roomApproved ? "✓" : "○"}</span>
+                        <span className={roomApproved ? "text-gray-700" : labelTodo}>
+                          חדרים חיצוניים אושרו
+                        </span>
+                      </div>
+                    )}
 
                     {/* Condition 6: משימות נוספות — the row is the button, so the
                         checklist stays the complete list of what blocks מוכן
@@ -1526,9 +1533,10 @@ export default function WorkshopDetailPage() {
                         }`}>
                         משימות נוספות (<span className="font-mono" dir="ltr">{minorProgress.done}/{minorProgress.total}</span>)
                       </button>
-                      {!minorDone && (
-                        <span className="text-gray-400">← {MINOR_TASK_LABEL[minorProgress.unmet[0]]}</span>
-                      )}
+                      {/* No preview of the next task here. Naming one when four
+                          are outstanding read as though that were the only one
+                          left; the x/y already carries how much is left, and the
+                          overlay is one click away for what. */}
                     </div>
 
                     {allDone && (
@@ -2084,13 +2092,10 @@ export default function WorkshopDetailPage() {
                   </label>
                 )
               })}
-              {/* The EXTERNAL-only task is absent rather than greyed out, so the
-                  x/y counts only what this workshop actually owes. */}
-              {w.locationType !== "EXTERNAL" && (
-                <p className="text-xs text-gray-400 mt-2 pt-2 border-t border-gray-100">
-                  הסדנה אינה מחוץ למרכז — אין תיקיות ואביזרי תפאורה להכין
-                </p>
-              )}
+              {/* The EXTERNAL-only task is simply absent for a workshop at the
+                  centre or on Zoom — no explanatory line. A task that does not
+                  apply is not news, and the x/y already counts only what this
+                  workshop owes. */}
               {!canEditMinorTasks && (
                 <p className="text-xs text-amber-600 mt-2">
                   {w.cancelled ? "הסדנה מבוטלת — לצפייה בלבד"
