@@ -177,6 +177,21 @@ model Workshop {
   estimatedParticipants Int?
   otherRoomNotes        String?
   otherRoomApproved     Boolean      @default(false)
+  // ─── משימות נוספות (spec §4.3.1) ───
+  // The Tech's pre-workshop checklist. Every one of these is a blocking READY
+  // condition alongside the five in §4.3, but they are deliberately kept off the
+  // workshop page itself — they live behind the משימות נוספות overlay, because
+  // seven more checkboxes inline drowned everything else out.
+  // Order, labels and applicability live in src/lib/workshop-minor-tasks.ts;
+  // that catalogue is the only place that decides which of these gate READY.
+  tiktakOrdered         Boolean      @default(false)
+  namesReceived         Boolean      @default(false)
+  scheduleSent          Boolean      @default(false)
+  scenariosPrinted      Boolean      @default(false)
+  summariesPrinted      Boolean      @default(false)
+  // EXTERNAL workshops only — a workshop at the centre or on Zoom has no
+  // folders or props to pack, so this one is not evaluated for them.
+  propsPrepared         Boolean      @default(false)
   // ─── טבלאות פיבוט (spec §8.12) ───
   // Free text on the pivot row. Deliberately separate from `notes`, which is the
   // workshop's own operational note — these two are read by different people for
