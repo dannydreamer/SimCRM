@@ -286,6 +286,12 @@ Multiple groups with the same name under one organization are permitted — no d
 | **estimatedParticipants** | Int? | מספר משתתפים משוער. Nullable in the database so existing rows need no backfill, but **required by the business rules** — a precondition for READY (§4.3) |
 | **otherRoomNotes** | String? | Free text, only meaningful while `OTHER` is among the selected room locations |
 | **otherRoomApproved** | Boolean | Default false. Only consulted when `OTHER` is selected |
+| **tiktakOrdered** | Boolean | משימות נוספות 1 — הוזמן בתיקתק. Default false. All six below are blocking READY conditions; see §4.3.1 |
+| **namesReceived** | Boolean | משימות נוספות 2 — שמות התקבלו |
+| **scheduleSent** | Boolean | משימות נוספות 3 — לוח זמנים + נשלח בקבוצה |
+| **scenariosPrinted** | Boolean | משימות נוספות 4 — תרחישים הודפסו + נשלחו בקבוצה |
+| **summariesPrinted** | Boolean | משימות נוספות 5 — תקצירים הודפסו |
+| **propsPrepared** | Boolean | משימות נוספות 6 — הוכנו תיקיות ואביזרי תפאורה. **Only consulted when `locationType = EXTERNAL`** |
 | **scenarioOrderFlexible** | Boolean | Default false. Ticked = the scenarios may be run in any order; unticked = they run in `orderIndex` order. Tech-facing bookkeeping only — see §8.4 |
 | **pivotNotes** | String? | Free text on the טבלאות פיבוט row (§8.12). Manager + Tech. Deliberately separate from `notes` — the two are read by different people for different reasons |
 | **countedRoomsOverride** | Int? | חדרים לספירה override (§8.12). Null = use the computed default. A set value wins **everywhere** capacity is measured against the annual allocation |
@@ -501,9 +507,15 @@ NEW ──(Tech marks needs assessment)──▶ SPECIFIED
       CLOSED ──(letter unchecked)──▶ CLOSING
 ```
 
-### 4.3 The five READY conditions
+### 4.3 The five big READY conditions
 
-A workshop advances SPECIFIED → READY only when **all five** hold:
+READY has two halves. The five conditions below are the big ones — each is a
+substantial piece of work, and every screen that reports readiness names all five.
+The second half is the משימות נוספות checklist in §4.3.1, which blocks just as
+hard but is reported in summary. **A workshop reaches READY only when both halves
+are satisfied.**
+
+A workshop clears this half only when **all five** hold:
 
 1. **All active (non-cancelled) rooms have `pptReceived = true`** — and there is at least one room.
 2. **Casting is fully complete** — `castingSentAt` is set, and filled slots equal total slots, where
@@ -515,11 +527,46 @@ A workshop advances SPECIFIED → READY only when **all five** hold:
 
 > **Selecting a room is never itself required.** Only *approval* of חדר אחר is. A מרכז workshop with no room selected still reaches READY.
 
+> **Condition 5 is the one condition the checklist hides when it does not apply** `[code]` — the row appears only when `OTHER` is selected, i.e. only when approval is something that can actually be outstanding. It used to render `חדר אינו טעון אישור` for rooms 1–3 and `הסדנה אינה במרכז — אין חדר לאישור` for חיצוני/זום; both are gone. A satisfied condition is never the reason a workshop failed to reach מוכן, so a row saying "nothing to do here" cannot help anyone diagnose one — and showing it while the EXTERNAL-only משימות נוספות task (§4.3.1) is hidden outright was inconsistent. The **gate** is unchanged: the condition is still evaluated for every workshop, and still auto-satisfied where it does not apply.
+
 All five regress identically: if any becomes unmet before the date passes, READY → SPECIFIED.
 
 **One implementation owns all five.** `src/lib/workshop-readiness.ts` exports `unmetReadyConditions()`, which returns the conditions a workshop fails, in checklist order. The status gate (`checkAndAdvanceStatus`), the readiness alert (§4.8), and the Workshop Detail checklist all read it, so no screen can name a different set of blockers than the one actually holding READY back. `[code]`
 
 > **Resolved conflict:** the original spec (§3.1 stage 5) said READY = "casting complete AND all rooms have PPT ✓" — two conditions. The design spec added the משוב עודכן blocker as a third. Conditions 4 and 5 were added later, with the physical-room feature.
+
+### 4.3.1 משימות נוספות — the Tech's pre-workshop checklist `[code]`
+
+The five conditions above are the big pieces of work. Alongside them the Techs run
+a longer list of small logistical jobs, none of which the system knew about — so a
+workshop could sit in `מוכן` with no participant names in, no תקצירים printed and
+nothing booked in תיקתק. These are now **blocking READY conditions in their own
+right**, in this order:
+
+| # | Task | Applies to |
+|---|---|---|
+| 1 | הוזמן בתיקתק | every workshop |
+| 2 | שמות התקבלו | every workshop |
+| 3 | לוח זמנים + נשלח בקבוצה | every workshop |
+| 4 | תרחישים הודפסו + נשלחו בקבוצה | every workshop |
+| 5 | תקצירים הודפסו | every workshop |
+| 6 | הוכנו תיקיות ואביזרי תפאורה | **`locationType = EXTERNAL` only** |
+
+תיקתק is the building's own external booking system, outside this CRM.
+
+**Task 6 is absent, not merely satisfied, for a workshop at the centre or on Zoom** — it is hidden from the overlay and excluded from the `x/y` count, so such a workshop shows `x/5` and an חיצוני one shows `x/6`. Its stored boolean is never cleared when the location changes, so moving EXTERNAL → CENTER → EXTERNAL does not lose the tick. Changing a `מוכן` workshop's location to חיצוני adds an unticked task and therefore **regresses it to `בוצע איתור צרכים`** — correct, and already wired, since the workshop PATCH route calls `checkAndAdvanceStatus()`.
+
+**The order is load-bearing.** It is the order the Techs work through, and the readiness alert (§4.8) names only the *first few* outstanding tasks — so "the next thing to do" and "the first unticked box" have to be the same thing.
+
+**All six block today, but `blocking` is a per-task flag.** `MINOR_TASKS` in `src/lib/workshop-minor-tasks.ts` carries `{ key, label, blocking, scope }` for each. Demoting a task to advisory is flipping `blocking` to false: it stays visible in the overlay and drops out of the gate. Adding a task means a column, a catalogue row, and nothing else — the PATCH route saves whatever the catalogue lists.
+
+**They are live from the moment the workshop exists**, not from `בוצע איתור צרכים`. תיקתק is booked and names are chased while the workshop is still `סדנה חדשה`, so the overlay is reachable at every status (§8.4) and the readiness alert lists these tasks for a `סדנה חדשה` too — unlike the four big conditions downstream of the needs assessment, which it suppresses (§4.8).
+
+**Why they are not on the workshop page.** Seven checkboxes inline buried the five conditions the page is organised around. They live behind a single `משימות נוספות` chip that opens an overlay; where they surface is §8.4.
+
+**Where the gate lives.** `unmetMinorTasks()` is the counterpart to `unmetReadyConditions()`, and `checkAndAdvanceStatus()` requires **both** to be empty. Regression is identical: unticking any applicable blocking task before the date takes READY → SPECIFIED.
+
+**No backfill was needed for this feature, and none was done.** The obvious fear is that six `false` columns regress every historical `מוכן` workshop. They cannot: the `CLOSING` and `CLOSED` branches of `checkAndAdvanceStatus()` never evaluate the READY conditions at all, and `readinessAlert()` returns null for any status other than NEW/SPECIFIED and for any past date. Future-dated workshops *are* affected, deliberately — that is the feature. `npm run check:minor-tasks` asserts both halves of this.
 
 ### 4.4 Critical rules
 
@@ -535,7 +582,7 @@ The date check is `workshopHasEnded(date, endTime)`, exported from `src/lib/work
 
 **When the date check runs.** `checkAndAdvanceStatus()` is pull-based — it fires on a mutation, or when a workshop's own page is opened (`GET /api/sadnaot/[id]`). Nothing runs it on a clock, so a finished workshop that nobody opens or edits would keep showing its old status. To close that hole, **`GET /api/sadnaot` — the workshops table — sweeps the date-based leg for every row before responding**: any non-cancelled workshop in SPECIFIED or READY whose end time has passed is moved to CLOSING in a single `updateMany`, and the new status is served in that same response. This is the only transition that can be settled in bulk, because it depends on the date alone; READY, CLOSED and both regressions need per-workshop evaluation and stay with `checkAndAdvanceStatus()`. Both callers share `workshopHasEnded()`, so the table and the workshop page can never disagree about whether a workshop is over. `[code]`
 
-**READY can regress to SPECIFIED** if any of the five conditions becomes unmet before the date passes — e.g. an actor is removed from Step 1 casting, a scenario is un-written (which auto-unchecks PPT on all active rooms), מספר משתתפים משוער is cleared, or חדר אחר is selected on a workshop where it has not been approved.
+**READY can regress to SPECIFIED** if any READY condition becomes unmet before the date passes, from either half of the gate — e.g. an actor is removed from Step 1 casting, a scenario is un-written (which auto-unchecks PPT on all active rooms), מספר משתתפים משוער is cleared, חדר אחר is selected on a workshop where it has not been approved, a משימות נוספות box is unticked (§4.3.1), or the location is changed to חיצוני, which adds task 6 unticked.
 
 **CLOSED can regress to CLOSING** if a letter is unchecked — the only condition, so the only way back. Entering, editing or **deleting** a feedback record (§8.7) does not move the status in either direction. `[code]`
 
@@ -575,7 +622,13 @@ Nothing in the system used to warn *before* a date; every flag fired only once t
 - not cancelled
 - the date is **today or up to 7 days away** (`READINESS_ALERT_DAYS`) — past dates raise nothing here
 
-The alert carries the day count and the unmet conditions from §4.3. A `סדנה חדשה` reports **only איתור צרכים**: everything downstream is genuinely unmet too, but none of it can be done before the needs assessment is, so listing the rest is noise.
+The alert carries the day count and **both** halves of the gate: the unmet conditions from §4.3 and the outstanding משימות נוספות from §4.3.1, as two separate lists. A `סדנה חדשה` reports **only איתור צרכים** out of the big five: everything downstream is genuinely unmet too, but none of it can be done before the needs assessment is, so listing the rest is noise.
+
+**Its משימות נוספות, however, are reported in full.** That reasoning does not extend to them — תיקתק is booked and names are chased while the workshop is still `סדנה חדשה`, so they are outstanding work rather than work blocked behind something else. A `סדנה חדשה` therefore shows `חסר: איתור צרכים` above its minor-task row.
+
+**The two lists are shown differently, on purpose.** Every big blocker is named; the minor tasks are capped at **three** (`MINOR_TASKS_SHOWN_IN_ALERT`), taken from the front of the catalogue order so they are the next three to do, with the remainder shown as `+N נוספות` — a button that opens the overlay. A missing ליהוק and an unprinted תקציר must not read as the same size of problem, so the two chip styles are deliberately unalike. On the workshops table the minor tasks are reduced further, to a count alone (§8.2): that banner renders a row per workshop, and three named tasks each turned it into a wall of chips.
+
+**Minor tasks alone are enough to raise the alert.** A workshop whose five big conditions all pass but which still has boxes unticked is genuinely not `מוכן`, and says so.
 
 A workshop still `בוצע איתור צרכים` with **nothing** outstanding raises no alert. Its conditions are met and only the re-check is pending — `checkAndAdvanceStatus()` runs after mutations, not on a clock — so it advances to `מוכן` at the next one. Alerting there would show an empty חסר list.
 
@@ -620,6 +673,7 @@ A workshop still `בוצע איתור צרכים` with **nothing** outstanding r
 | Workshops — **create** | ✓ | — | ✓ | — | — | — |
 | Workshops — edit | ✓ | ✓ | ✓ | — | — | — |
 | Workshops — **cancel** | ✓ | — | ✓ | — | — | — |
+| Workshops — tick **משימות נוספות** (§4.3.1) | ✓ | ✓ | ✓ | — | — | — |
 | Rooms — assign facilitator | ✓ | ✓ | ✓ | — | — | — |
 | Rooms — mark PPT / letter | ✓ | ✓ | ✓ | — | — | — |
 | Scenarios — create/edit | ✓ | ✓ | ✓ | — | — | — |
@@ -931,7 +985,7 @@ Primary landing page for Manager, Tech, Feedback Documenter, and Facilitator.
 
 **Readiness alert (§4.8).** A workshop a week or less away and not yet מוכן gets three marks on this page, each impossible to miss: `[code]`
 
-1. **A red panel above the table**, listing every such workshop — day count (`היום` / `מחר` / `בעוד יומיים` / `בעוד N ימים`), date, org — group, and a white chip per unmet condition (`מצגות`, `ליהוק`, `טופס משוב`, `מספר משתתפים`, `אישור חדר חיצוני`, or `איתור צרכים` for a סדנה חדשה). Each row clicks through to the workshop. Sorted most urgent first. **Manager and Tech only** — they are the ones who can act. The panel ignores the view/date filters: it is an alarm, not a view of the table.
+1. **A red panel above the table**, listing every such workshop — day count (`היום` / `מחר` / `בעוד יומיים` / `בעוד N ימים`), date, org — group, and a white chip per unmet condition (`מצגות`, `ליהוק`, `טופס משוב`, `מספר משתתפים`, `אישור חדר חיצוני`, or `איתור צרכים` for a סדנה חדשה). Outstanding משימות נוספות (§4.3.1) are added as a **single count chip** — `ועוד N משימות נוספות` — never as individual task names: this panel renders a row per workshop, and three named tasks per row turned it into a wall of chips. The Workshop Detail banner is where the next few are named (§8.4). Each row clicks through to the workshop. Sorted most urgent first. **Manager and Tech only** — they are the ones who can act. The panel ignores the view/date filters: it is an alarm, not a view of the table.
 2. **The row itself is tinted red**, and carries a solid-red badge under the status pill: `🚨 בעוד N ימים — לא מוכן` (`— טרם בוצע איתור צרכים` for a סדנה חדשה). Shown to **all roles**, since it is a property of the row rather than a call to action.
 3. **A filter pill**, `🚨 לא מוכנות לשבוע הקרוב`, narrowing the table to exactly that set. Not persisted between visits.
 
@@ -962,9 +1016,19 @@ Two-column layout: right (~65%) content sections, left (~35%) checklist sidebar.
 
 **Readiness alert (§4.8).** When the workshop is a week or less away and not yet מוכן, a red banner sits at the **top of the banner stack**, above the postponement, room-cancelled and room-added banners: `[code]`
 
-> 🚨 הסדנה בעוד N ימים ואינה מוכנה — חסר: `מצגות` `ליהוק`
+> 🚨 הסדנה בעוד N ימים ואינה מוכנה
+> חסר: `מצגות` `ליהוק`
+> משימות נוספות: `הוזמן בתיקתק` `שמות התקבלו` `לוח זמנים + נשלח בקבוצה` `+2 נוספות`
 
-Visible to **everyone who can open the workshop**, Manager and Tech included — like every other banner on this page, it is not role-gated. It has no × button (§4.8). The **readiness checklist** in the header card turns red to match, so the banner's chips and the checklist's `○` items are the same list read two ways. Both are computed from live page state, so ticking the last missing condition clears the alarm immediately, without a reload.
+Visible to **everyone who can open the workshop**, Manager and Tech included — like every other banner on this page, it is not role-gated. It has no × button (§4.8). The two rows are independent: either may be absent when that half of the gate is satisfied. The minor-task row names at most three, in catalogue order, and the trailing `+N נוספות` (or `פתח` when nothing is hidden) opens the משימות נוספות overlay. The **readiness checklist** in the header card turns red to match, so the banner's chips and the checklist's `○` items are the same list read two ways. Both are computed from live page state, so ticking the last missing condition clears the alarm immediately, without a reload.
+
+**משימות נוספות overlay (§4.3.1).** `[code]` The checklist's sixth line is `משימות נוספות (x/y)` and nothing else — **no preview of the next task.** Naming one while four were outstanding read as though that were the only one left; the `x/y` already says how much remains and the overlay is one click away for what. The line is a button; so is a standalone chip shown for the statuses that have no checklist (`סדנה חדשה`, `בתהליך סגירה`, `סגור`) — a Tech books תיקתק long before איתור צרכים is marked, so the list must not be reachable only from `בוצע איתור צרכים` / `מוכן`.
+
+Inside the overlay, a task that does not apply is **absent with no explanation** — a מרכז or זום workshop shows five rows and no line about תיקיות ואביזרי תפאורה. A task that does not apply is not news.
+
+The chip's colour is **graduated by date**, not flat red: green when complete, red inside 7 days (the same `READINESS_ALERT_DAYS` boundary as the alert, so the chip reddens exactly when the banner appears), amber from 8 to 14 days, and grey beyond that or once the date has passed. Every task here blocks READY, but a workshop three months out with nothing ticked is normal, and colouring that red teaches the Tech to ignore red. A past-dated workshop therefore shows a quiet grey `0/5` rather than a permanent alarm.
+
+The overlay lists the applicable tasks numbered in catalogue order with a checkbox each. **Each box saves on the tick** — no שמור — but the write is awaited and the checkbox renders the server's value, because ticking the last one flips the workshop to `מוכן` and an optimistic box would race the status change. Manager and Tech may tick; a frozen or cancelled workshop shows the list read-only with the reason. For a non-EXTERNAL workshop the sixth task is replaced by a grey note explaining there is nothing to prepare.
 
 **Right column:**
 - **תרחישים** — columns: נושא · **מודל סימולציה** · דרישות שחקנים (with per-scenario male/female counts) · נכתב · actions. Actor requirements are **required** when adding a scenario (`7b59553`). An author must be set before scenarios can be added (`b628323`).
@@ -1341,7 +1405,7 @@ Phase 1 notifications are **in-system visual flags only** — badges, banners, h
 
 | Trigger | Who sees it | How |
 |---|---|---|
-| **≤ 7 days to the date, still not מוכן** | Manager, Tech (roll-up) · all roles (row + detail banner) | Red panel above the workshop table listing every unmet condition, red-tinted row with a `🚨 בעוד N ימים — לא מוכן` badge, a `🚨 לא מוכנות לשבוע הקרוב` filter pill, and a red banner on Workshop Detail. **The only alert that fires before the date.** Live condition — no dismiss. §4.8 |
+| **≤ 7 days to the date, still not מוכן** | Manager, Tech (roll-up) · all roles (row + detail banner) | Red panel above the workshop table listing every unmet condition plus a `ועוד N משימות נוספות` count, red-tinted row with a `🚨 בעוד N ימים — לא מוכן` badge, a `🚨 לא מוכנות לשבוע הקרוב` filter pill, and a red banner on Workshop Detail naming every big blocker and the next three משימות נוספות. **The only alert that fires before the date.** Live condition — no dismiss. §4.8, §4.3.1 |
 | Workshop sent to casting | Caster | Pending count + change banner on ליהוק |
 | Scenario/room/counts changed after send | Caster | Change-log banner (amber / red) |
 | Workshop postponed after casting | Manager, Tech, Caster | Amber banner + `DATE_CHANGED` log |
@@ -1687,6 +1751,8 @@ Sessions 1–19 as built. Branch naming `session-N-*`, merged to `develop` then 
 | **15 Sep 2026** | — | **Organizations list alphabetical, and duplicate names warned about** (branch `org_dedupe`, §8.9). The list defaulted to סדנה אחרונה — an order nobody can predict when looking for a known organization — and nothing stopped the same organization being entered twice, which a new Manager promptly did. `/irgunnim` now defaults to **א״ב**; alphabetical is also the stable tie-break under the other two sorts, and the group pills inside a card are sorted too. On the name field of all three organization forms, a new `DuplicateOrgWarning` panel names the matches already on file while the name is still being typed, and `POST /api/irgunnim` / `PATCH /api/irgunnim/[id]` refuse an exact match once with `409` before accepting the resend with `allowDuplicate: true`. **Advisory, not a uniqueness constraint** — two schools can legitimately share a name in two cities, so no unique index was added and nothing existing had to be cleaned up first; organizations already sharing a name instead show a **שם כפול** badge on the list, computed across every organization so a filter cannot hide it. Matching reuses `orgSearchKey()` from the `org_search` work — `ביס` matches `בי"ס` — and adds a softer `contains` tier on whole words, which warns in the forms but never triggers the `409`. New `findDuplicateOrgs()` in `src/lib/org-search.ts`, with 15 further checks under `npm run check:orgsearch`. **No schema change, no migration.** |
 
 | **15 Sep 2026** | — | **An organization can be deleted, and a duplicate merged away** (branch `org_delete`, §3.3, §3.4, §5.2, §8.9). The `org_dedupe` work a day earlier added detection but no cleanup, so the duplicates it flags sat in the data permanently. Hiding one would not have helped: a duplicate's workshops stay attached to it, which splits the school's per-organization room counts in half, prints it twice under two spellings in the pivot export, and — the real damage — lets the two copies carry **different שיוך תקציבי**, so one school's rooms count against two budget lines with nothing on screen to show it. Note that יעדים totals were never wrong; `getPivotRows()` emits one row per workshop and `buildAnnualGrid()` buckets by שיוך, so nothing was ever double-counted. There is now **one action, מחיקת ארגון, and merging is what it does when the organization is not empty** — an empty organization is deleted outright, one with groups is refused with `409` until a destination is named, mirroring the `ON DELETE RESTRICT` the database already enforces. Structurally this is cheap: nothing but `ParticipantGroup.organizationId` references an organization, so repointing one column carries every workshop, room, casting and feedback with it, past and future alike, and no date logic is needed. Groups whose names match under `orgSearchKey` fold into one rather than arriving as twins, the destination's notes gain the only surviving record that the deleted organization existed, and a point of contact held only by the deleted copy is carried over — otherwise the single field a merge would destroy. **The destination's שיוך תקציבי then governs every moved workshop, including delivered ones, so the dialog warns when the two differ**; the annual grand total cannot move, and the end-to-end check asserts exactly that. Manager only via a new `CAN_DELETE_ORG`, deliberately narrower than `CAN_MANAGE_ORGS` — a Senior Tech creates the duplicates but does not resolve them. New `src/lib/org-merge.ts` (pure, 23 checks under `npm run check:orgmerge`), `src/lib/org-merge-tx.ts` (the transaction, shared by the route and the test), `src/components/DeleteOrgDialog.tsx`, and `scripts/verify-org-merge-e2e.ts`, which runs the shipped merge against the test database and refuses to run anywhere else. **No schema change, no migration.** |
+| **15 Sep 2026** | — | **משימות נוספות — the Tech's pre-workshop checklist now blocks מוכן** (branch `minor_tasks`, new §4.3.1, §3.5, §4.3, §4.4, §4.8, §8.2, §8.4, §11). The five READY conditions covered the big pieces of work and nothing else, so a workshop could sit in `מוכן` with nothing booked in תיקתק, no names in, no תקצירים printed. Six further tasks are now blocking conditions in their own right — הוזמן בתיקתק · שמות התקבלו · לוח זמנים + נשלח בקבוצה · תרחישים הודפסו + נשלחו בקבוצה · תקצירים הודפסו, plus **הוכנו תיקיות ואביזרי תפאורה for `EXTERNAL` workshops only**, which is absent rather than pre-satisfied elsewhere, so a workshop shows `x/5` or `x/6`. Changing a `מוכן` workshop's location to חיצוני therefore regresses it, which the existing `checkAndAdvanceStatus()` call on the workshop PATCH route already handles. **They are deliberately not on the workshop page**: seven checkboxes inline buried the five conditions the page is built around, so they live behind one `משימות נוספות (x/y)` chip that opens an overlay, reachable from the readiness checklist and — for the statuses without one — from a standalone chip, since תיקתק is booked long before איתור צרכים is marked. The chip's colour is **graduated by date** (green complete · red inside 7 days, sharing `READINESS_ALERT_DAYS` with the alert · amber to 14 days · grey beyond, and grey once past), because every task blocks but a workshop three months out with nothing ticked is normal and red there teaches people to ignore red. In the §4.8 alert the two halves are reported separately and styled unalike: every big blocker named, at most **three** minor tasks named from the front of the catalogue order with the rest as `+N נוספות`, and on the workshops table a **count only** — that banner is one row per workshop and three named tasks each made a wall of chips. **A `סדנה חדשה` lists its minor tasks too**, unlike the four big conditions downstream of איתור צרכים which the alert suppresses: תיקתק is booked and names are chased before the needs assessment is marked, so those are outstanding work, not work blocked behind something else. `MINOR_TASKS` in new `src/lib/workshop-minor-tasks.ts` carries `{ key, label, blocking, scope }` per task and is the only place the list, its order and its applicability are decided; the PATCH route saves whatever it lists, so adding a task is a column and a catalogue row. `blocking` is per-task by design — the Techs may yet demote one, and flipping that flag keeps it in the overlay while dropping it from the gate. 45 checks under `npm run check:minor-tasks`. **Migration `20260915120000_add_minor_tasks` adds six `BOOLEAN NOT NULL DEFAULT false` columns — and needs no backfill**, which is worth stating because the obvious fear is that it regresses every historical `מוכן` workshop: it cannot, since the `CLOSING`/`CLOSED` branches of `checkAndAdvanceStatus()` never evaluate the READY conditions and `readinessAlert()` is silent for any past date or non-NEW/SPECIFIED status. Future-dated workshops *are* affected, deliberately — so the Techs meet a batch of unticked boxes on near-term workshops the first time they open them after the deploy. |
+| **16 Sep 2026** | — | **Three pieces of checklist noise removed** (branch `minor_tasks`, §4.3, §4.3.1, §8.4). (1) The `משימות נוספות` checklist line no longer previews the next outstanding task: naming one while four were outstanding read as though that were the only one left, and the `x/y` already carries how much remains. (2) The overlay no longer explains itself to מרכז/זום workshops — the EXTERNAL-only תיקיות ואביזרי תפאורה task is simply absent, because a task that does not apply is not news. (3) **READY condition 5's checklist row is now hidden unless `OTHER` is selected**, dropping `חדר אינו טעון אישור` and `הסדנה אינה במרכז — אין חדר לאישור`. A satisfied condition is never the reason a workshop failed to reach מוכן, so a "nothing to do here" row cannot help anyone diagnose one — and showing it while the EXTERNAL-only minor task is hidden outright was inconsistent. All three are display-only: the gate in `unmetReadyConditions()` / `unmetMinorTasks()` is untouched, and the 45 checks pass unchanged. |
 
 ---
 

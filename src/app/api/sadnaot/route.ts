@@ -148,8 +148,10 @@ export async function GET() {
         .map((r) => ({ id: r.facilitator!.id, name: r.facilitator!.name }))
 
       // Computed here rather than on the client: the day boundary is Israel's,
-      // not the browser's, and the five conditions must match the status gate
-      // exactly. Null for anything ready, cancelled, past, or over a week out.
+      // not the browser's, and the conditions must match the status gate exactly.
+      // Null for anything ready, cancelled, past, or over a week out. Carries
+      // both halves of the gate — the five big blockers and the outstanding
+      // משימות נוספות (§4.3.1), which the table renders as a count only.
       const readiness = readinessAlert({
         status:                w.status,
         cancelled:             w.cancelled,
@@ -164,6 +166,12 @@ export async function GET() {
         rooms:      w.rooms,
         scenarios:  w.scenarios,
         castings:   w.castings,
+        tiktakOrdered:    w.tiktakOrdered,
+        namesReceived:    w.namesReceived,
+        scheduleSent:     w.scheduleSent,
+        scenariosPrinted: w.scenariosPrinted,
+        summariesPrinted: w.summariesPrinted,
+        propsPrepared:    w.propsPrepared,
       }, now)
 
       return {

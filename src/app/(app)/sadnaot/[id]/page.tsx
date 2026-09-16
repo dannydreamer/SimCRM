@@ -5,7 +5,11 @@ import { useParams } from "next/navigation"
 import Link from "next/link"
 import { useSession } from "next-auth/react"
 import { ROOM_LOCATION_LABELS, ROOM_LOCATION_VALUES, sortRoomLocations } from "@/lib/room-locations"
-import { READY_CONDITION_LABEL, daysUntilPhrase, readinessAlert } from "@/lib/workshop-readiness"
+import { READY_CONDITION_LABEL, daysUntilPhrase, daysUntilWorkshop, readinessAlert } from "@/lib/workshop-readiness"
+import {
+  MINOR_TASK_LABEL, applicableMinorTasks, minorTaskProgress, minorTaskTone,
+  splitAlertMinorTasks, type MinorTaskKey, type MinorTaskTone,
+} from "@/lib/workshop-minor-tasks"
 import { CASTING_STATE_LABEL, castingState } from "@/lib/casting-progress"
 import { genderCount, genderFieldClass, genderTextClass, genderWord } from "@/lib/gender"
 import { CAN_CANCEL_WORKSHOP, hasAny } from "@/lib/roles"
@@ -78,6 +82,13 @@ interface Workshop {
   roomLocations: string[]
   otherRoomNotes: string | null
   otherRoomApproved: boolean
+  /** משימות נוספות — §4.3.1. Each box's own state; the x/y is derived. */
+  tiktakOrdered: boolean
+  namesReceived: boolean
+  scheduleSent: boolean
+  scenariosPrinted: boolean
+  summariesPrinted: boolean
+  propsPrepared: boolean
   frozen: boolean
   groupName: string
   orgId: string
@@ -133,6 +144,14 @@ const STATUS_COLORS: Record<string, string> = {
   CLOSING: "bg-amber-100 text-amber-700",
   CLOSED: "bg-navy-light text-navy",
   CANCELLED: "bg-red-100 text-red-600",
+}
+
+// How loudly the משימות נוספות chip shouts, per tone from minorTaskTone(). §4.3.1
+const MINOR_TONE_CLASS: Record<MinorTaskTone, string> = {
+  done:    "bg-green-50 border-brand-green/40 text-brand-green hover:bg-green-100",
+  urgent:  "bg-red-50 border-red-400 text-red-700 hover:bg-red-100",
+  warn:    "bg-amber-50 border-amber-400 text-amber-800 hover:bg-amber-100",
+  neutral: "bg-gray-50 border-gray-300 text-gray-600 hover:bg-gray-100",
 }
 
 const SHIYUCH_LABELS: Record<string, string> = {
@@ -534,6 +553,11 @@ export default function WorkshopDetailPage() {
   // Casting actor summary collapsible
   const [castingOpen, setCastingOpen] = useState(false)
 
+  // משימות נוספות overlay (§4.3.1). `savingMinor` holds the key being written so
+  // one in-flight tick disables only its own row, not the whole list.
+  const [showMinorOverlay, setShowMinorOverlay] = useState(false)
+  const [savingMinor, setSavingMinor] = useState<MinorTaskKey | null>(null)
+
   // Send to casting overlay
   const [showCastingOverlay, setShowCastingOverlay] = useState(false)
   // The re-send prompt, and whether it has already been shown this visit.
@@ -870,6 +894,16 @@ export default function WorkshopDetailPage() {
     return res
   }
 
+  // One משימות נוספות box. Each is an independent boolean, so it saves on the
+  // tick rather than behind a שמור — but the write is awaited and the checkbox
+  // stays on the server's value, because ticking the last one flips the workshop
+  // to מוכן and an optimistic box would race the status change.
+  async function toggleMinorTask(key: MinorTaskKey, value: boolean) {
+    setSavingMinor(key)
+    await patchWorkshop({ [key]: value })
+    setSavingMinor(null)
+  }
+
   async function cancelWorkshop() {
     if (!w || !confirm("לבטל סדנה זו? פעולה זו בלתי הפיכה.")) return
     await patchWorkshop({ cancelled: true })
@@ -962,9 +996,19 @@ export default function WorkshopDetailPage() {
   const hd = headerDraft
 
   // Computed from live page state rather than fetched, so ticking the last
-  // missing condition clears the alarm on the spot. Same five conditions as the
+  // missing condition clears the alarm on the spot. Same conditions as the
   // checklist below and as the status gate itself. §11
   const readiness = readinessAlert(w)
+
+  // משימות נוספות (§4.3.1). Derived here from the same helpers the server uses,
+  // so the chip, the overlay and the gate cannot disagree.
+  const minorTasks    = applicableMinorTasks(w)
+  const minorProgress = minorTaskProgress(w)
+  const minorTone     = minorTaskTone(minorProgress.unmet.length, daysUntilWorkshop(w.date))
+
+  // Ticking is Manager + Tech on a live workshop — the same gate as every other
+  // preparation field. A frozen or cancelled workshop shows the list read-only.
+  const canEditMinorTasks = (isManager || isTech) && !w.frozen && !w.cancelled
 
   return (
     <div className="flex flex-col h-full overflow-auto">
@@ -978,22 +1022,48 @@ export default function WorkshopDetailPage() {
       <div className="px-8 pb-10 flex flex-col gap-6 max-w-4xl w-full">
 
         {/* Banners */}
-        {readiness && (
-          <div className="bg-red-50 border-2 border-red-400 rounded-lg px-5 py-4 flex flex-col gap-2">
-            <p className="text-base font-bold text-red-800">
-              🚨 הסדנה {daysUntilPhrase(readiness.daysUntil)} ואינה מוכנה
-            </p>
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="text-sm text-red-700 font-medium">חסר:</span>
-              {readiness.unmet.map((k) => (
-                <span key={k}
-                  className="px-2 py-0.5 rounded bg-white border border-red-300 text-red-700 text-xs font-semibold">
-                  {READY_CONDITION_LABEL[k]}
-                </span>
-              ))}
+        {readiness && (() => {
+          // The big §4.3 blockers are listed in full; the משימות נוספות are
+          // capped at three and the remainder counted, so a workshop missing
+          // everything still produces a banner the Tech can read at a glance.
+          // Two chip styles, deliberately unalike: a missing ליהוק and an
+          // unprinted תקציר must not look like the same size of problem. §4.8
+          const { shown, hidden } = splitAlertMinorTasks(readiness.minorUnmet)
+          return (
+            <div className="bg-red-50 border-2 border-red-400 rounded-lg px-5 py-4 flex flex-col gap-2">
+              <p className="text-base font-bold text-red-800">
+                🚨 הסדנה {daysUntilPhrase(readiness.daysUntil)} ואינה מוכנה
+              </p>
+              {readiness.unmet.length > 0 && (
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="text-sm text-red-700 font-medium">חסר:</span>
+                  {readiness.unmet.map((k) => (
+                    <span key={k}
+                      className="px-2 py-0.5 rounded bg-white border border-red-300 text-red-700 text-xs font-semibold">
+                      {READY_CONDITION_LABEL[k]}
+                    </span>
+                  ))}
+                </div>
+              )}
+              {readiness.minorUnmet.length > 0 && (
+                <div className="flex flex-wrap items-center gap-1.5">
+                  <span className="text-xs text-red-600">משימות נוספות:</span>
+                  {shown.map((k) => (
+                    <span key={k}
+                      className="px-1.5 py-0.5 rounded bg-red-100/60 border border-red-200 text-red-700 text-xs">
+                      {MINOR_TASK_LABEL[k]}
+                    </span>
+                  ))}
+                  <button
+                    onClick={() => setShowMinorOverlay(true)}
+                    className="px-1.5 py-0.5 rounded border border-red-300 text-red-700 text-xs font-semibold hover:bg-red-100 transition-colors">
+                    {hidden > 0 ? `+${hidden} נוספות` : "פתח"}
+                  </button>
+                </div>
+              )}
             </div>
-          </div>
-        )}
+          )
+        })()}
         {w.postponedWarning && !postponedDismissed && (
           <div className="bg-amber-100 border border-amber-400 rounded-lg px-4 py-3 text-sm text-amber-800 font-semibold flex items-center justify-between gap-3">
             <span>⚠️ הסדנה נדחתה — יש להודיע למתחקרים ולמלהקת</span>
@@ -1360,7 +1430,11 @@ export default function WorkshopDetailPage() {
                 const usesOtherRoom = w.locationType === "CENTER" && w.roomLocations.includes("OTHER")
                 const roomApproved  = !usesOtherRoom || w.otherRoomApproved
 
-                const allDone = allPpt && castingComplete && feedbackDone && participantsSet && roomApproved
+                // Condition 6: משימות נוספות — §4.3.1. Blocks exactly as hard as
+                // the five above; the list itself lives behind the overlay.
+                const minorDone = minorProgress.unmet.length === 0
+
+                const allDone = allPpt && castingComplete && feedbackDone && participantsSet && roomApproved && minorDone
 
                 // With the date inside a week the checklist stops being a quiet
                 // progress note and becomes the to-do list for the banner above.
@@ -1430,14 +1504,39 @@ export default function WorkshopDetailPage() {
                       </span>
                     </div>
 
-                    {/* Condition 5: room approval — only meaningful when חדר אחר is selected */}
+                    {/* Condition 5: room approval. Shown only when חדר אחר is
+                        actually selected, i.e. only when approval is something
+                        that can be outstanding. Rooms 1–3, חיצוני and זום have
+                        nothing to approve, and a row saying so was noise: a
+                        satisfied condition is never the reason a workshop failed
+                        to reach מוכן, so it cannot help anyone diagnose one.
+                        Absent rather than pre-ticked, like the EXTERNAL-only
+                        משימות נוספות task. */}
+                    {usesOtherRoom && (
+                      <div className="flex items-center gap-2 text-xs">
+                        <span className={`font-bold ${roomApproved ? "text-brand-green" : markTodo}`}>{roomApproved ? "✓" : "○"}</span>
+                        <span className={roomApproved ? "text-gray-700" : labelTodo}>
+                          חדרים חיצוניים אושרו
+                        </span>
+                      </div>
+                    )}
+
+                    {/* Condition 6: משימות נוספות — the row is the button, so the
+                        checklist stays the complete list of what blocks מוכן
+                        without spilling seven more checkboxes onto the page. */}
                     <div className="flex items-center gap-2 text-xs">
-                      <span className={`font-bold ${roomApproved ? "text-brand-green" : markTodo}`}>{roomApproved ? "✓" : "○"}</span>
-                      <span className={roomApproved ? "text-gray-700" : labelTodo}>
-                        {usesOtherRoom ? "חדרים חיצוניים אושרו"
-                          : w.locationType === "CENTER" ? "חדר אינו טעון אישור"
-                          : "הסדנה אינה במרכז — אין חדר לאישור"}
-                      </span>
+                      <span className={`font-bold ${minorDone ? "text-brand-green" : markTodo}`}>{minorDone ? "✓" : "○"}</span>
+                      <button
+                        onClick={() => setShowMinorOverlay(true)}
+                        className={`underline decoration-dotted underline-offset-2 hover:opacity-70 transition-opacity ${
+                          minorDone ? "text-gray-700" : labelTodo
+                        }`}>
+                        משימות נוספות (<span className="font-mono" dir="ltr">{minorProgress.done}/{minorProgress.total}</span>)
+                      </button>
+                      {/* No preview of the next task here. Naming one when four
+                          are outstanding read as though that were the only one
+                          left; the x/y already carries how much is left, and the
+                          overlay is one click away for what. */}
                     </div>
 
                     {allDone && (
@@ -1446,6 +1545,22 @@ export default function WorkshopDetailPage() {
                   </div>
                 )
               })()}
+
+              {/* משימות נוספות for the statuses with no readiness checklist —
+                  סדנה חדשה, and the frozen ones where the list is read-only
+                  history. Without this the Tech could not open the list until
+                  איתור צרכים was marked, which is after תיקתק is booked. */}
+              {w.status !== "SPECIFIED" && w.status !== "READY" && !w.cancelled && (
+                <div>
+                  <button
+                    onClick={() => setShowMinorOverlay(true)}
+                    className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-lg border text-xs font-semibold transition-colors ${MINOR_TONE_CLASS[minorTone]}`}>
+                    <span>{minorProgress.unmet.length === 0 ? "✓" : "○"}</span>
+                    <span>משימות נוספות</span>
+                    <span className="font-mono" dir="ltr">{minorProgress.done}/{minorProgress.total}</span>
+                  </button>
+                </div>
+              )}
 
               {/* System-status explanations */}
               {w.status === "READY" && !w.cancelled && (
@@ -1918,6 +2033,92 @@ export default function WorkshopDetailPage() {
                 onClick={() => { setShowResendAsk(false); openCastingOverlay() }}
                 className="px-4 py-2 bg-navy text-white text-sm font-semibold rounded-lg hover:bg-navy/90">
                 כן, פתח טופס שליחה
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* משימות נוספות overlay — §4.3.1. Kept off the workshop page proper and
+          behind this one click: every box here blocks מוכן, but inline they
+          buried the five conditions that the whole page is organised around. */}
+      {showMinorOverlay && w && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+          <div className="bg-white rounded-xl shadow-2xl max-w-md w-full mx-4 flex flex-col max-h-[90vh]" dir="rtl">
+
+            {/* Header */}
+            <div className="px-6 pt-6 pb-4 border-b border-gray-100 shrink-0">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <h2 className="text-base font-bold text-gray-900">משימות נוספות</h2>
+                  <p className="text-xs text-gray-400 mt-0.5">{w.groupName} — {fmtDate(w.date)}</p>
+                </div>
+                <span className={`px-2 py-0.5 rounded text-xs font-bold shrink-0 ${
+                  minorProgress.unmet.length === 0
+                    ? "bg-green-100 text-brand-green"
+                    : minorTone === "urgent" ? "bg-red-100 text-red-700"
+                    : minorTone === "warn"   ? "bg-amber-100 text-amber-800"
+                    : "bg-gray-100 text-gray-600"
+                }`}>
+                  <span className="font-mono" dir="ltr">{minorProgress.done}/{minorProgress.total}</span>
+                </span>
+              </div>
+              <p className="text-xs text-gray-500 mt-2">
+                כל המשימות נדרשות למעבר ל״מוכן״
+              </p>
+            </div>
+
+            {/* Tasks — numbered, in the order they are worked through */}
+            <div className="px-6 py-4 overflow-y-auto flex flex-col gap-1">
+              {minorTasks.map((t, i) => {
+                const done   = w[t.key]
+                const saving = savingMinor === t.key
+                return (
+                  <label key={t.key}
+                    className={`flex items-center gap-3 px-2 py-2 rounded-lg transition-colors ${
+                      canEditMinorTasks ? "cursor-pointer hover:bg-gray-50" : "cursor-default"
+                    } ${saving ? "opacity-50" : ""}`}>
+                    <span className="text-xs text-gray-300 font-mono w-3 shrink-0" dir="ltr">{i + 1}</span>
+                    <input
+                      type="checkbox"
+                      checked={done}
+                      disabled={!canEditMinorTasks || saving}
+                      onChange={(e) => toggleMinorTask(t.key, e.target.checked)}
+                      className="w-4 h-4 accent-brand-green shrink-0 disabled:opacity-60"
+                    />
+                    <span className={`text-sm ${done ? "text-gray-700" : "text-gray-500"}`}>
+                      {t.label}
+                    </span>
+                  </label>
+                )
+              })}
+              {/* The EXTERNAL-only task is simply absent for a workshop at the
+                  centre or on Zoom — no explanatory line. A task that does not
+                  apply is not news, and the x/y already counts only what this
+                  workshop owes. */}
+              {!canEditMinorTasks && (
+                <p className="text-xs text-amber-600 mt-2">
+                  {w.cancelled ? "הסדנה מבוטלת — לצפייה בלבד"
+                    : w.frozen ? "הסדנה אינה פעילה — לצפייה בלבד"
+                    : "אין לך הרשאה לעדכן משימות אלו"}
+                </p>
+              )}
+              {actionError && <p className="text-xs text-red-600 mt-2">{actionError}</p>}
+            </div>
+
+            {/* Footer */}
+            <div className="px-6 py-4 border-t border-gray-100 shrink-0 flex items-center justify-between gap-3">
+              {minorProgress.unmet.length === 0 ? (
+                <span className="text-xs text-brand-green font-medium">✓ כל המשימות הושלמו</span>
+              ) : (
+                <span className="text-xs text-gray-500">
+                  נותרו <span className="font-mono" dir="ltr">{minorProgress.unmet.length}</span> משימות
+                </span>
+              )}
+              <button
+                onClick={() => setShowMinorOverlay(false)}
+                className="px-4 py-1.5 text-sm rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50 transition-colors">
+                סגור
               </button>
             </div>
           </div>

@@ -1,12 +1,18 @@
-// Which of the five READY conditions a workshop still fails, and whether that
+// Which of the five big READY conditions a workshop still fails, and whether that
 // failure is now urgent because the date is nearly here. See spec §4.3 and §11.
 //
-// This is the single source of truth for "is it ready". `checkAndAdvanceStatus`
-// gates SPECIFIED → READY on it, the workshop table raises its alert from it, and
-// the Workshop Detail checklist names the same conditions — so no two screens can
-// disagree about what is missing.
+// READY has a second half: the משימות נוספות checklist in workshop-minor-tasks.ts
+// (§4.3.1), which blocks just as hard but is reported separately everywhere,
+// because the banners show every big blocker and only the next few minor ones.
+// `readinessAlert` below is what joins them; `checkAndAdvanceStatus` requires
+// both to be empty.
+//
+// Between them these two modules are the single source of truth for "is it
+// ready". The status gate, the workshop table's alert, and the Workshop Detail
+// checklist all read them — so no two screens can disagree about what is missing.
 
 import { castingProgress } from "./casting-progress"
+import { unmetMinorTasks, type MinorTaskInput, type MinorTaskKey } from "./workshop-minor-tasks"
 
 /** A workshop this many days out or fewer, and not yet מוכן, raises the alert. */
 export const READINESS_ALERT_DAYS = 7
@@ -100,7 +106,14 @@ export function daysUntilWorkshop(date: Date | string, now: Date = new Date()): 
 export interface ReadinessAlert {
   /** 0 = today. Never negative — a past workshop raises no readiness alert. */
   daysUntil: number
+  /** The big §4.3 blockers. Banners list these in full. */
   unmet: ReadyConditionKey[]
+  /**
+   * The outstanding משימות נוספות (§4.3.1), in catalogue order — the whole list,
+   * not a slice. Callers cap it themselves: the Detail banner names the first
+   * few and counts the rest, the table shows a count only. §4.8.
+   */
+  minorUnmet: MinorTaskKey[]
 }
 
 /**
@@ -110,12 +123,17 @@ export interface ReadinessAlert {
  * Silent for: cancelled workshops, anything already READY or past its date
  * (CLOSING/CLOSED have their own flags, §11), and anything more than a week out.
  *
- * A סדנה חדשה reports only איתור צרכים. Everything downstream is genuinely
- * unmet as well, but nothing downstream can be done until the needs assessment
- * is, so listing the rest is noise.
+ * A סדנה חדשה reports only איתור צרכים out of the five big conditions: everything
+ * downstream of the needs assessment is genuinely unmet as well, but none of it
+ * can be done until the assessment is, so listing it is noise.
+ *
+ * **The משימות נוספות are reported in full even for a סדנה חדשה**, because that
+ * reasoning does not extend to them — תיקתק is booked and names are chased while
+ * the workshop is still `סדנה חדשה`, so they are real work outstanding rather
+ * than work blocked behind something else.
  */
 export function readinessAlert(
-  w: ReadinessInput & { status: string; cancelled: boolean; date: Date | string },
+  w: ReadinessInput & MinorTaskInput & { status: string; cancelled: boolean; date: Date | string },
   now: Date = new Date()
 ): ReadinessAlert | null {
   if (w.cancelled) return null
@@ -126,14 +144,16 @@ export function readinessAlert(
 
   const unmet: ReadyConditionKey[] =
     w.status === "NEW" ? ["needsAssessment"] : unmetReadyConditions(w)
+  // Not gated on status: these are doable from the day the workshop exists.
+  const minorUnmet: MinorTaskKey[] = unmetMinorTasks(w)
 
-  // Still SPECIFIED with nothing outstanding: the conditions are met and the
-  // status simply has not been re-checked yet (checkAndAdvanceStatus runs after
-  // mutations, not on a clock). It will flip to READY on the next one — so there
-  // is nothing to raise, and certainly no empty חסר list to show.
-  if (unmet.length === 0) return null
+  // Still SPECIFIED with nothing outstanding on either list: the conditions are
+  // met and the status simply has not been re-checked yet (checkAndAdvanceStatus
+  // runs after mutations, not on a clock). It will flip to READY on the next one
+  // — so there is nothing to raise, and certainly no empty חסר list to show.
+  if (unmet.length === 0 && minorUnmet.length === 0) return null
 
-  return { daysUntil, unmet }
+  return { daysUntil, unmet, minorUnmet }
 }
 
 /** "היום" / "מחר" / "בעוד יומיים" / "בעוד 5 ימים" */
