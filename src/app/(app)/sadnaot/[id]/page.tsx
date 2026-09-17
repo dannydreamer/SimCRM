@@ -60,7 +60,7 @@ interface Workshop {
   castingMaleNeeded: number | null
   castingFemaleNeeded: number | null
   castingNotes: string | null
-  casting: { started: boolean; complete: boolean }
+  casting: { started: boolean; complete: boolean; required: boolean }
   status: string
   cancelled: boolean
   tentative: boolean
@@ -841,7 +841,11 @@ export default function WorkshopDetailPage() {
       }),
     })
     if (res.ok) {
-      const s = await res.json()
+      // workshopStatus rides along only when the add moved the status — a first
+      // actor-requiring scenario regresses מוכן. It is workshop state, not part of
+      // the scenario, so it is destructured out before the row is appended, and a
+      // move means reloading rather than patching locally (as toggleWritten does).
+      const { workshopStatus, ...s } = await res.json()
       setW((prev) => prev ? { ...prev, scenarios: [...prev.scenarios, s] } : prev)
       setShowAddScenario(false)
       setNewTopicId("")
@@ -851,6 +855,7 @@ export default function WorkshopDetailPage() {
       setNewScenarioFemale("0")
       // A new scenario adds a slot in every room — the Caster's grid is short.
       void noteCastingChange()
+      if (workshopStatus) load()
     }
     setAddingScenario(false)
   }
@@ -1416,6 +1421,9 @@ export default function WorkshopDetailPage() {
                 // Condition 2: Casting. The gate is full Step 2 completion, which
                 // w.casting.complete mirrors exactly — the same value the ליהוק section
                 // reads, so the two halves of this page cannot disagree. Spec §7.7.
+                // `required` is false where no scenario asks for an actor and no
+                // director was requested; the row then disappears, like condition 5.
+                const castingRequired = w.casting.required
                 const castingSent     = !!w.castingSentAt
                 const castingComplete = castingSent && w.casting.complete
                 const castingBlocked  = castingSent && !!w.castingPool?.blocked
@@ -1434,7 +1442,7 @@ export default function WorkshopDetailPage() {
                 // the five above; the list itself lives behind the overlay.
                 const minorDone = minorProgress.unmet.length === 0
 
-                const allDone = allPpt && castingComplete && feedbackDone && participantsSet && roomApproved && minorDone
+                const allDone = allPpt && (!castingRequired || castingComplete) && feedbackDone && participantsSet && roomApproved && minorDone
 
                 // With the date inside a week the checklist stops being a quiet
                 // progress note and becomes the to-do list for the banner above.
@@ -1468,7 +1476,12 @@ export default function WorkshopDetailPage() {
                       </div>
                     </div>
 
-                    {/* Condition 2: Casting */}
+                    {/* Condition 2: Casting. Hidden, not pre-ticked, when nobody
+                        needs casting — same reasoning as condition 5 below: a
+                        satisfied condition is never why a workshop failed to
+                        reach מוכן, so a row saying "nothing to cast here" cannot
+                        help anyone diagnose one. */}
+                    {castingRequired && (
                     <div className="flex items-start gap-2 text-xs">
                       <span className={`mt-px font-bold ${castingComplete && !castingBlocked ? "text-brand-green" : castingBlocked ? "text-red-600" : markTodo}`}>{castingBlocked ? "!" : castingComplete ? "✓" : "○"}</span>
                       <div>
@@ -1489,6 +1502,7 @@ export default function WorkshopDetailPage() {
                         )}
                       </div>
                     </div>
+                    )}
 
                     {/* Condition 3: Feedback form */}
                     <div className="flex items-center gap-2 text-xs">

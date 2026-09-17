@@ -28,6 +28,18 @@ export interface CastingProgress {
   started: boolean
   /** Every Step 2 slot filled — the only thing that earns a ✓. Mirrors §4.3 cond. 2. */
   complete: boolean
+  /**
+   * Does this workshop need anyone cast at all? False when no active scenario
+   * asks for an actor and no director was requested — a workshop run entirely by
+   * its מתחקרים. Nothing can ever be sent or filled there, so casting stops being
+   * a READY condition rather than becoming a permanent one (§4.3 cond. 2).
+   *
+   * Deliberately not gated on active rooms, unlike `complete`. A workshop that
+   * declares actors but has no rooms yet still *needs* casting; saying otherwise
+   * would tick condition 2 on the strength of a missing room, which is condition
+   * 1's job to report.
+   */
+  required: boolean
 }
 
 /**
@@ -44,17 +56,32 @@ export interface CastingProgress {
  * **BLOCKED beats COMPLETE.** A workshop can be slot-complete on the old casting
  * while the pool no longer covers the current scenarios; a green ✓ there says
  * there is nothing left to do, to the one person who can fix it.
+ *
+ * The fifth, NOT_NEEDED, is the quiet one: nobody has to be cast. It reads the
+ * same as NOT_SENT on screen — a grey dash, nothing to act on — but it is a
+ * different fact, and the two must not share a tooltip. "טרם נשלח לליהוק" on a
+ * workshop that will never be sent is exactly the sentence that made this look
+ * like an outstanding task for as long as the workshop existed.
  */
-export type CastingState = "NOT_SENT" | "BLOCKED" | "COMPLETE" | "IN_PROGRESS"
+export type CastingState = "NOT_NEEDED" | "NOT_SENT" | "BLOCKED" | "COMPLETE" | "IN_PROGRESS"
 
-export function castingState(p: { started: boolean; complete: boolean; blocked: boolean }): CastingState {
-  if (!p.started) return "NOT_SENT"
-  if (p.blocked)  return "BLOCKED"
-  if (p.complete) return "COMPLETE"
+/**
+ * NOT_NEEDED outranks everything, `started` included. A workshop whose actor
+ * counts were later zeroed out keeps its `castingSentAt`, and the send it no
+ * longer needs should not leave it reading as in progress forever.
+ */
+export function castingState(
+  p: { started: boolean; complete: boolean; blocked: boolean; required: boolean }
+): CastingState {
+  if (!p.required) return "NOT_NEEDED"
+  if (!p.started)  return "NOT_SENT"
+  if (p.blocked)   return "BLOCKED"
+  if (p.complete)  return "COMPLETE"
   return "IN_PROGRESS"
 }
 
 export const CASTING_STATE_LABEL: Record<CastingState, string> = {
+  NOT_NEEDED:  "אין צורך בליהוק",
   NOT_SENT:    "טרם נשלח לליהוק",
   BLOCKED:     "הליהוק חסום — חסרים שחקנים מאושרים",
   COMPLETE:    "הליהוק הושלם",
@@ -79,5 +106,6 @@ export function castingProgress(w: CastingProgressInput): CastingProgress {
     // workshop with no active rooms — so this cannot claim complete where the
     // readiness checklist would disagree.
     complete: activeRooms.length > 0 && slotTotal > 0 && slotFilled === slotTotal,
+    required: slotsPerRoom > 0 || w.directorRequested,
   }
 }

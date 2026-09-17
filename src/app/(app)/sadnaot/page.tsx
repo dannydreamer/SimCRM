@@ -34,7 +34,7 @@ interface WorkshopRow {
   roomFacilitators: Facilitator[]
   slottingFilled: number; slottingTotal: number; slottingTentative: boolean
   castingFilled: number; castingTotal: number
-  casting: { started: boolean; complete: boolean }
+  casting: { started: boolean; complete: boolean; required: boolean }
   castingState: CastingState
   scenarioWritten: boolean
   feedbackFormAdded: boolean
@@ -106,7 +106,13 @@ function FractionBadge({ filled, total, href, alwaysFraction }: { filled: number
 // BLOCKED reads ⏳! rather than a plain ⏳ — in progress, and stuck. A bare
 // hourglass says "someone else is working on it", which is the wrong thing to say
 // to the only person who can unstick it.
+// NOT_NEEDED draws the same grey dash as NOT_SENT — there is nothing to act on in
+// either case — but carries its own tooltip. A workshop that needs no actors is
+// not waiting to be sent, and saying it was made the column read as an
+// outstanding task that no one could ever clear.
 function CastingBadge({ state, href }: { state: CastingState; href?: string }) {
+  if (state === "NOT_NEEDED")
+    return <span title={CASTING_STATE_LABEL.NOT_NEEDED} className="text-gray-300 text-xs">—</span>
   if (state === "NOT_SENT")
     return <span title={CASTING_STATE_LABEL.NOT_SENT} className="text-gray-300 text-xs">—</span>
   if (state === "COMPLETE")
