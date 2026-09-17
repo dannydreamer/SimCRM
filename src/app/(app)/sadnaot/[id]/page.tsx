@@ -822,8 +822,12 @@ export default function WorkshopDetailPage() {
     if (!confirm("לבטל תרחיש זה?")) return
     const res = await fetch(`/api/sadnaot/${id}/scenarios/${sid}`, { method: "DELETE" })
     if (res.ok) {
+      const { workshopStatus } = await res.json()
       setW((prev) => prev ? { ...prev, scenarios: prev.scenarios.map((s) => s.id === sid ? { ...s, cancelled: true } : s) } : prev)
       void noteCastingChange()
+      // Cancelling the last actor-requiring scenario can carry the workshop to
+      // מוכן on the spot. Reload rather than patch: the status is not this row's.
+      if (workshopStatus) load()
     }
   }
 
@@ -1793,7 +1797,12 @@ export default function WorkshopDetailPage() {
         {(isManager || isTech) && !w.cancelled && (w.status !== "NEW") && (() => {
           const scenariosWithReq = w.scenarios.filter((s) => !s.cancelled && s.actorRequirements?.trim())
           const scenariosWithoutModel = w.scenarios.filter((s) => !s.cancelled && !s.modelId)
-          const canSend = scenariosWithReq.length > 0 && scenariosWithoutModel.length === 0
+          // The button used to turn on for דרישות שחקנים *text* alone, which the
+          // add-scenario form requires of every scenario — so a workshop needing
+          // nobody offered a live שלח לליהוק with nothing in it to cast. The
+          // server refuses the same case; this is only what stops it being asked.
+          const needsCasting = w.casting.required
+          const canSend = needsCasting && scenariosWithReq.length > 0 && scenariosWithoutModel.length === 0
           const wasSent = !!w.castingSentAt
 
           // Casting state, computed server-side so this section and the readiness
@@ -1827,12 +1836,19 @@ export default function WorkshopDetailPage() {
                       {CASTING_STATE_LABEL[state]}
                     </p>
                   )}
-                  {scenariosWithReq.length === 0 && (
-                    <p className="text-xs text-gray-400 mt-0.5">יש להזין דרישות שחקנים לפחות לתרחיש אחד</p>
-                  )}
-                  {scenariosWithoutModel.length > 0 && (
-                    <p className="text-xs text-gray-400 mt-0.5">יש לבחור מודל סימולציה לכל התרחישים הפעילים</p>
-                  )}
+                  {/* One reason, not three. The other two hints send the Tech to
+                      fix a scenario, which is the wrong instruction when the
+                      workshop simply needs nobody. */}
+                  {!needsCasting ? (
+                    <p className="text-xs text-gray-400 mt-0.5">אין צורך בליהוק — אף תרחיש אינו דורש שחקנים</p>
+                  ) : <>
+                    {scenariosWithReq.length === 0 && (
+                      <p className="text-xs text-gray-400 mt-0.5">יש להזין דרישות שחקנים לפחות לתרחיש אחד</p>
+                    )}
+                    {scenariosWithoutModel.length > 0 && (
+                      <p className="text-xs text-gray-400 mt-0.5">יש לבחור מודל סימולציה לכל התרחישים הפעילים</p>
+                    )}
+                  </>}
                 </div>
                 <button
                   onClick={openCastingOverlay}

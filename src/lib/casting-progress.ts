@@ -88,6 +88,26 @@ export const CASTING_STATE_LABEL: Record<CastingState, string> = {
   IN_PROGRESS: "הליהוק בתהליך",
 }
 
+/**
+ * Does anyone have to be cast for this workshop at all?
+ *
+ * Its own export because three places need the answer and must not each decide
+ * it: the READY gate (§4.3 cond. 2), the שלח לליהוק button, and the send route
+ * behind it. The button was the one that got away — it is enabled by דרישות
+ * שחקנים *text*, which the add-scenario form requires of every scenario, so a
+ * workshop needing nobody still offered a live hand-over with nothing in it.
+ *
+ * Takes the whole scenario list and filters it here, so no caller has to
+ * remember that cancelled scenarios ask for nobody.
+ */
+export function castingRequired(w: {
+  directorRequested: boolean
+  scenarios: { cancelled?: boolean; maleActorsNeeded: number; femaleActorsNeeded: number }[]
+}): boolean {
+  if (w.directorRequested) return true
+  return w.scenarios.some((s) => !s.cancelled && s.maleActorsNeeded + s.femaleActorsNeeded > 0)
+}
+
 export function castingProgress(w: CastingProgressInput): CastingProgress {
   const activeRooms     = w.rooms.filter((r) => !r.cancelled)
   const activeScenarios = w.scenarios.filter((s) => !s.cancelled)
@@ -106,6 +126,6 @@ export function castingProgress(w: CastingProgressInput): CastingProgress {
     // workshop with no active rooms — so this cannot claim complete where the
     // readiness checklist would disagree.
     complete: activeRooms.length > 0 && slotTotal > 0 && slotFilled === slotTotal,
-    required: slotsPerRoom > 0 || w.directorRequested,
+    required: castingRequired(w),
   }
 }

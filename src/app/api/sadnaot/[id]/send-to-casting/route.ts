@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
 import { checkAndAdvanceStatus } from "@/lib/workshop-status"
+import { castingRequired } from "@/lib/casting-progress"
 
 export async function POST(
   req: NextRequest,
@@ -20,7 +21,13 @@ export async function POST(
   const workshop = await prisma.workshop.findUnique({
     where: { id },
     include: {
-      scenarios: { where: { cancelled: false }, select: { id: true, actorRequirements: true, modelId: true } },
+      scenarios: {
+        where: { cancelled: false },
+        select: {
+          id: true, actorRequirements: true, modelId: true,
+          maleActorsNeeded: true, femaleActorsNeeded: true,
+        },
+      },
     },
   })
   if (!workshop) return NextResponse.json({ error: "Not found" }, { status: 404 })
@@ -28,6 +35,13 @@ export async function POST(
   // Must be at least SPECIFIED
   if (workshop.status === "NEW" || workshop.status === "CANCELLED")
     return NextResponse.json({ error: "יש לבצע איתור צרכים לפני שליחה לליהוק" }, { status: 400 })
+
+  // Nobody to cast — checked before the two content guards below, whose messages
+  // ("enter actor requirements", "choose a model") would send the Tech off to fix
+  // a scenario that is not the problem. The button is disabled for this case too;
+  // this is the half that holds when it is not the button doing the asking.
+  if (!castingRequired({ directorRequested: workshop.directorRequested, scenarios: workshop.scenarios }))
+    return NextResponse.json({ error: "אין צורך בליהוק — אף תרחיש אינו דורש שחקנים" }, { status: 400 })
 
   // Must have at least one scenario with requirements
   const hasRequirements = workshop.scenarios.some((s) => s.actorRequirements?.trim())

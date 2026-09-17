@@ -11,7 +11,7 @@
 // change than the feature; this runs on `tsx`, already a dependency for the seed.
 
 import { castingPool } from "../src/lib/casting-pool"
-import { castingProgress, castingState } from "../src/lib/casting-progress"
+import { castingProgress, castingRequired, castingState } from "../src/lib/casting-progress"
 import { unmetReadyConditions } from "../src/lib/workshop-readiness"
 
 let failures = 0
@@ -118,6 +118,11 @@ const progress = (scenarios: ReturnType<typeof sc>[], directorRequested = false)
     scenarios,
     castings:  [],
   })
+
+// The button and the send route ask castingRequired() directly — the button
+// having previously decided for itself, on דרישות שחקנים text, and got it wrong.
+check("castingRequired agrees with castingProgress",
+  castingRequired({ directorRequested: false, scenarios: [sc(0, 0)] }), progress([sc(0, 0)]).required)
 
 check("a scenario asking for an actor needs casting", progress([sc(1, 0)]).required, true)
 check("every active scenario at 0/0 needs nobody",    progress([sc(0, 0), sc(0, 0)]).required, false)
