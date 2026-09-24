@@ -10,7 +10,7 @@ import {
   MINOR_TASK_LABEL, applicableMinorTasks, minorTaskProgress, minorTaskTone,
   splitAlertMinorTasks, type MinorTaskKey, type MinorTaskTone,
 } from "@/lib/workshop-minor-tasks"
-import { CASTING_STATE_LABEL, castingState } from "@/lib/casting-progress"
+import { CASTING_STATE_LABEL, castingRequired, castingState } from "@/lib/casting-progress"
 import { genderCount, genderFieldClass, genderTextClass, genderWord } from "@/lib/gender"
 import { CAN_CANCEL_WORKSHOP, hasAny } from "@/lib/roles"
 
@@ -1009,6 +1009,17 @@ export default function WorkshopDetailPage() {
   // checklist below and as the status gate itself. §11
   const readiness = readinessAlert(w)
 
+  // Likewise computed from live page state, not from `w.casting.required`, which
+  // is a server snapshot taken at load. Editing a scenario's actor counts patches
+  // `w.scenarios` locally and leaves `w.casting` untouched, so reading the
+  // snapshot left שלח לליהוק greyed out after a scenario was given an actor —
+  // until something happened to reload the page. Same helper the gate and the
+  // send route use, so all three still answer alike. §4.3 cond. 2
+  const needsCasting = castingRequired({
+    directorRequested: w.directorRequested,
+    scenarios:         w.scenarios,
+  })
+
   // משימות נוספות (§4.3.1). Derived here from the same helpers the server uses,
   // so the chip, the overlay and the gate cannot disagree.
   const minorTasks    = applicableMinorTasks(w)
@@ -1425,9 +1436,9 @@ export default function WorkshopDetailPage() {
                 // Condition 2: Casting. The gate is full Step 2 completion, which
                 // w.casting.complete mirrors exactly — the same value the ליהוק section
                 // reads, so the two halves of this page cannot disagree. Spec §7.7.
-                // `required` is false where no scenario asks for an actor and no
-                // director was requested; the row then disappears, like condition 5.
-                const castingRequired = w.casting.required
+                // `needsCasting` is false where no scenario asks for an actor and
+                // no director was requested; the row then disappears, like
+                // condition 5. Derived above from live state, not from w.casting.
                 const castingSent     = !!w.castingSentAt
                 const castingComplete = castingSent && w.casting.complete
                 const castingBlocked  = castingSent && !!w.castingPool?.blocked
@@ -1446,7 +1457,7 @@ export default function WorkshopDetailPage() {
                 // the five above; the list itself lives behind the overlay.
                 const minorDone = minorProgress.unmet.length === 0
 
-                const allDone = allPpt && (!castingRequired || castingComplete) && feedbackDone && participantsSet && roomApproved && minorDone
+                const allDone = allPpt && (!needsCasting || castingComplete) && feedbackDone && participantsSet && roomApproved && minorDone
 
                 // With the date inside a week the checklist stops being a quiet
                 // progress note and becomes the to-do list for the banner above.
@@ -1485,7 +1496,7 @@ export default function WorkshopDetailPage() {
                         satisfied condition is never why a workshop failed to
                         reach מוכן, so a row saying "nothing to cast here" cannot
                         help anyone diagnose one. */}
-                    {castingRequired && (
+                    {needsCasting && (
                     <div className="flex items-start gap-2 text-xs">
                       <span className={`mt-px font-bold ${castingComplete && !castingBlocked ? "text-brand-green" : castingBlocked ? "text-red-600" : markTodo}`}>{castingBlocked ? "!" : castingComplete ? "✓" : "○"}</span>
                       <div>
@@ -1801,7 +1812,8 @@ export default function WorkshopDetailPage() {
           // add-scenario form requires of every scenario — so a workshop needing
           // nobody offered a live שלח לליהוק with nothing in it to cast. The
           // server refuses the same case; this is only what stops it being asked.
-          const needsCasting = w.casting.required
+          // `needsCasting` comes from live page state (see above), so giving a
+          // scenario an actor lights the button without a reload.
           const canSend = needsCasting && scenariosWithReq.length > 0 && scenariosWithoutModel.length === 0
           const wasSent = !!w.castingSentAt
 
