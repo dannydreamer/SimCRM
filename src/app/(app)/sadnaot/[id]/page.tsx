@@ -231,9 +231,17 @@ function ScenarioRow({
       }),
     })
     if (res.ok) {
-      const updated = await res.json()
+      // The route re-checks the status whenever the actor counts move, and says
+      // so in `workshopStatus` — which this handler used to drop on the floor,
+      // spreading it into the scenario row instead. So an edit that regressed
+      // מוכן left the page still showing מוכן until something reloaded it. The
+      // other direction usually looked fine by luck: `noteCastingChange()`
+      // refetches the whole workshop, but only once casting has been sent, so on
+      // a workshop never handed over neither direction was reliable.
+      const { workshopStatus, ...updated } = await res.json()
       onUpdate(s.id, updated)
       setEditing(false)
+      if (workshopStatus) onReload()
     }
     setSaving(false)
   }
