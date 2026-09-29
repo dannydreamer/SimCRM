@@ -356,27 +356,30 @@ export default function LuachPage() {
         ) : (<>
           {/* Phone and portrait tablet: the same range as a list of days.
               Below lg, seven columns cut the group and facilitator names
-              short. Days with no workshops are left out. Spec §8.6 */}
-          <div className="lg:hidden flex flex-col gap-4">
-            {days.every((d) => !workshopsByDay.has(localDateKey(d))) && (
-              <p className="text-sm text-gray-400 py-8 text-center">אין סדנאות בטווח זה</p>
-            )}
+              short. Every day is listed, empty ones as one muted line — a
+              skipped day reads as though the next heading were the day after.
+              Spec §8.6 */}
+          <div className="lg:hidden flex flex-col divide-y divide-gray-100">
             {days.map((day) => {
-              const blocks = workshopsByDay.get(localDateKey(day))
-              if (!blocks) return null
+              const blocks  = workshopsByDay.get(localDateKey(day)) ?? []
               const isToday = isSameDay(day, today)
               return (
-                <div key={localDateKey(day)}>
-                  <div className={`text-sm font-semibold mb-1.5 ${isToday ? "text-navy" : "text-gray-600"}`}>
-                    {DAY_NAMES[day.getDay()]} {fmtShortDate(day)}
-                    {isToday && <span className="mr-2 px-1.5 py-0.5 rounded bg-navy text-white text-xs font-medium">היום</span>}
+                <div key={localDateKey(day)} className={blocks.length ? "py-3" : "py-1.5"}>
+                  <div className={`flex items-center gap-2 text-sm ${
+                    isToday ? "text-navy font-semibold" : blocks.length ? "text-gray-700 font-semibold" : "text-gray-400"
+                  }`}>
+                    <span>{DAY_NAMES[day.getDay()]} {fmtShortDate(day)}</span>
+                    {isToday && <span className="px-1.5 py-0.5 rounded bg-navy text-white text-xs font-medium">היום</span>}
+                    {blocks.length === 0 && <span className="text-xs text-gray-300 font-normal">אין סדנאות</span>}
                   </div>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-2">
-                    {blocks.map((w) => (
-                      <Block key={w.id} w={w} clashingRooms={roomClashes.get(w.id)}
-                        onClick={() => router.push(`/sadnaot/${w.id}`)} />
-                    ))}
-                  </div>
+                  {blocks.length > 0 && (
+                    <div className="mt-1.5 grid grid-cols-1 sm:grid-cols-2 gap-x-2">
+                      {blocks.map((w) => (
+                        <Block key={w.id} w={w} clashingRooms={roomClashes.get(w.id)}
+                          onClick={() => router.push(`/sadnaot/${w.id}`)} />
+                      ))}
+                    </div>
+                  )}
                 </div>
               )
             })}
