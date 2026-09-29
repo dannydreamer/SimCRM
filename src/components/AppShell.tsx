@@ -33,7 +33,7 @@ export function AppShell({ user, version, backupWarning, children }: AppShellPro
   return (
     <div className="min-h-screen flex flex-col bg-white" dir="rtl">
       {/* Header */}
-      <header className="h-14 bg-white border-b border-gray-200 flex items-center px-6 shrink-0">
+      <header className="h-14 bg-white border-b border-gray-200 flex items-center px-4 md:px-6 shrink-0">
         {/* Right: logo + system name */}
         <div className="flex items-center gap-3 flex-1">
           <Image
@@ -43,39 +43,39 @@ export function AppShell({ user, version, backupWarning, children }: AppShellPro
             height={36}
             className="object-contain"
           />
-          <span className="text-sm font-semibold text-gray-500 tracking-wide">
+          <span className="hidden sm:inline text-sm font-semibold text-gray-500 tracking-wide">
             מערכת ניהול
           </span>
         </div>
 
         {/* Left: user info + logout */}
-        <div className="flex items-center gap-4">
-          <div className="flex items-center gap-2 text-sm text-gray-700">
-            <span className="font-medium">{user.name}</span>
+        <div className="flex items-center gap-3 md:gap-4 min-w-0">
+          <div className="flex items-center gap-2 text-sm text-gray-700 min-w-0">
+            <span className="font-medium truncate">{user.name}</span>
             {roleLabels && (
-              <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-navy-light text-navy">
+              <span className="hidden md:inline px-2 py-0.5 rounded-full text-xs font-medium bg-navy-light text-navy">
                 {roleLabels}
               </span>
             )}
           </div>
           <button
             onClick={() => signOut({ callbackUrl: "/login" })}
-            className="text-sm text-gray-400 hover:text-gray-700 transition-colors"
+            className="shrink-0 text-sm text-gray-400 hover:text-gray-700 transition-colors"
           >
             יציאה
           </button>
         </div>
       </header>
 
-      {/* Nav */}
-      <nav className="bg-white border-b border-gray-100 px-6 flex items-center gap-1 h-10 shrink-0">
+      {/* Nav — scrolls sideways on a phone rather than wrapping */}
+      <nav className="bg-white border-b border-gray-100 px-4 md:px-6 flex items-center gap-1 h-10 shrink-0 overflow-x-auto">
         {visibleNav.map((item) => {
           const active = pathname.startsWith(item.href)
           return (
             <Link
               key={item.href}
               href={item.href}
-              className={`px-3 py-1 rounded text-sm font-medium transition-colors ${
+              className={`shrink-0 whitespace-nowrap px-3 py-1 rounded text-sm font-medium transition-colors ${
                 active
                   ? "bg-navy-light text-navy"
                   : "text-gray-600 hover:text-gray-900 hover:bg-gray-50"

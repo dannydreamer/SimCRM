@@ -275,7 +275,7 @@ function ScenarioRow({
 
   // Rendered identically whether or not the row is in edit mode
   const modelCell = (
-    <td className="py-2 px-3">
+    <td className="py-2 px-3 max-md:w-full max-md:py-1">
       {canEdit && !s.cancelled ? (
         <select
           value={s.modelId ?? ""}
@@ -302,10 +302,13 @@ function ScenarioRow({
   )
 
   return (
-    <tr className={`border-b border-gray-100 text-sm ${rowClass}`}>
+    // Below md the row stacks into a card: topic, model and requirements
+    // full width, then נכתב and the actions on one line. The header row is
+    // hidden there, so נכתב carries its own label.
+    <tr className={`border-b border-gray-100 text-sm ${rowClass} max-md:flex max-md:flex-wrap max-md:items-center max-md:py-1`}>
       {editing ? (
         <>
-          <td className="py-2 px-3">
+          <td className="py-2 px-3 max-md:w-full max-md:py-1">
             <select value={topicId} onChange={(e) => setTopicId(e.target.value)}
               className="border border-gray-300 rounded px-2 py-1 text-sm w-full">
               {topics.filter((t) => t.active).map((t) => (
@@ -314,7 +317,7 @@ function ScenarioRow({
             </select>
           </td>
           {modelCell}
-          <td className="py-2 px-3">
+          <td className="py-2 px-3 max-md:w-full max-md:py-1">
             <textarea value={req} onChange={(e) => setReq(e.target.value)} rows={2}
               className="border border-gray-300 rounded px-2 py-1 text-sm w-full" placeholder="דרישות שחקנים" />
             <div className="flex items-center gap-3 mt-1.5">
@@ -332,8 +335,11 @@ function ScenarioRow({
               </label>
             </div>
           </td>
-          <td className="py-2 px-3 text-center"><Check on={s.written} /></td>
-          <td className="py-2 px-3">
+          <td className="py-2 px-3 text-center max-md:py-1">
+            <span className="md:hidden text-xs text-gray-400 ml-1.5">נכתב</span>
+            <Check on={s.written} />
+          </td>
+          <td className="py-2 px-3 max-md:py-1 max-md:mr-auto">
             <div className="flex gap-2">
               <button onClick={save} disabled={saving}
                 className="px-2 py-1 bg-navy text-white rounded text-xs disabled:opacity-50">שמור</button>
@@ -344,9 +350,9 @@ function ScenarioRow({
         </>
       ) : (
         <>
-          <td className="py-2 px-3 font-medium">{s.topicName}</td>
+          <td className="py-2 px-3 font-medium max-md:w-full max-md:pb-1">{s.topicName}</td>
           {modelCell}
-          <td className="py-2 px-3 text-gray-600 whitespace-pre-wrap">
+          <td className="py-2 px-3 text-gray-600 whitespace-pre-wrap max-md:w-full max-md:py-1">
             {s.actorRequirements ?? <span className="text-gray-300">—</span>}
             {(s.maleActorsNeeded > 0 || s.femaleActorsNeeded > 0) && (
               <div className="mt-1 flex gap-3 text-xs font-medium">
@@ -359,7 +365,8 @@ function ScenarioRow({
               </div>
             )}
           </td>
-          <td className="py-2 px-3 text-center">
+          <td className="py-2 px-3 text-center max-md:py-1">
+            <span className="md:hidden text-xs text-gray-400 ml-1.5 align-middle">נכתב</span>
             {canEdit && !s.cancelled ? (
               <input type="checkbox" checked={s.written}
                 disabled={writtenSaving}
@@ -368,7 +375,7 @@ function ScenarioRow({
                 className={`w-4 h-4 accent-navy ${writtenSaving ? "opacity-40 cursor-not-allowed" : "cursor-pointer"}`} />
             ) : <Check on={s.written} />}
           </td>
-          <td className="py-2 px-3">
+          <td className="py-2 px-3 max-md:py-1 max-md:mr-auto">
             <div className="flex gap-2">
               {canEdit && !s.cancelled && (
                 <button onClick={() => setEditing(true)} className="text-xs text-navy hover:underline">עריכה</button>
@@ -1013,13 +1020,13 @@ export default function WorkshopDetailPage() {
   return (
     <div className="flex flex-col h-full overflow-auto">
       {/* Breadcrumb */}
-      <div className="px-8 pt-5 pb-2 text-sm text-gray-400 shrink-0">
+      <div className="px-4 md:px-8 pt-4 md:pt-5 pb-2 text-sm text-gray-400 shrink-0">
         <Link href="/sadnaot" className="hover:text-gray-700">סדנאות</Link>
         {" / "}
         <span className="text-gray-700">{w.groupName} — {fmtDate(w.date)}</span>
       </div>
 
-      <div className="px-8 pb-10 flex flex-col gap-6 max-w-4xl w-full">
+      <div className="px-4 md:px-8 pb-10 flex flex-col gap-5 md:gap-6 max-w-4xl w-full">
 
         {/* Banners */}
         {readiness && (() => {
@@ -1086,7 +1093,7 @@ export default function WorkshopDetailPage() {
             Only a Step 1 shortfall gets a bar. Every other change costs the Caster
             nothing but re-casting, and she has her own banner for those. */}
         {w.castingSentAt && w.castingPool?.blocked && !w.frozen && !w.cancelled && (
-          <div className="bg-red-50 border-2 border-red-400 rounded-lg px-4 py-3 flex items-start justify-between gap-4">
+          <div className="bg-red-50 border-2 border-red-400 rounded-lg px-4 py-3 flex flex-wrap items-start justify-between gap-3 md:gap-4">
             <div className="min-w-0">
               <p className="text-sm font-bold text-red-800">⚠️ הליהוק חסום — אין מספיק שחקנים מאושרים</p>
               <ul className="mt-1 text-xs text-red-700 list-disc pr-4 space-y-0.5">
@@ -1119,7 +1126,7 @@ export default function WorkshopDetailPage() {
         )}
 
         {/* Header card */}
-        <div className="bg-white border border-gray-200 rounded-xl p-6 shadow-sm">
+        <div className="bg-white border border-gray-200 rounded-xl p-4 md:p-6 shadow-sm">
           {/* Title row */}
           <div className="flex items-start justify-between gap-4 flex-wrap mb-4">
             <div>
@@ -1237,7 +1244,7 @@ export default function WorkshopDetailPage() {
               </div>
             </div>
           ) : (
-            <div className="grid grid-cols-2 gap-x-8 gap-y-2 text-sm">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-2 text-sm">
               <div><span className="text-gray-400">תאריך:</span> <span className="font-medium">{fmtDate(w.date)}</span></div>
               <div><span className="text-gray-400">שעות:</span> <span className="font-medium">{w.startTime} — {w.endTime}</span></div>
               <div>
@@ -1276,7 +1283,7 @@ export default function WorkshopDetailPage() {
                   <span className="text-gray-300">—</span>
                 )}
               </div>
-              <div className="col-span-2">
+              <div className="sm:col-span-2">
                 {w.directorRequested ? (
                   <span>
                     <span className="px-2 py-0.5 rounded-full bg-purple-100 text-purple-700 text-xs font-medium">במאי/ת נדרש/ת</span>
@@ -1287,7 +1294,7 @@ export default function WorkshopDetailPage() {
                 )}
               </div>
               {(w.castingMaleNeeded !== null || w.castingFemaleNeeded !== null) && (
-                <div className="col-span-2 text-gray-500 flex flex-wrap gap-x-4">
+                <div className="sm:col-span-2 text-gray-500 flex flex-wrap gap-x-4">
                   <span className={genderTextClass("MALE")}>
                     {genderWord("MALE")}: <span className="font-semibold">{w.castingMaleNeeded ?? 0}</span>
                   </span>
@@ -1592,7 +1599,7 @@ export default function WorkshopDetailPage() {
           {w.rooms.length === 0 ? (
             <p className="text-sm text-gray-400">אין חדרים</p>
           ) : (
-            <div className="border border-gray-200 rounded-lg overflow-hidden">
+            <div className="border border-gray-200 rounded-lg overflow-x-auto">
               <table className="w-full text-right">
                 <thead className="bg-gray-50 text-xs text-gray-500 uppercase">
                   <tr>
@@ -1641,7 +1648,7 @@ export default function WorkshopDetailPage() {
           )}
 
           {/* Author — section-level */}
-          <div className="flex items-center gap-3 mb-3 text-sm">
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mb-3 text-sm">
             <span className="text-gray-400 shrink-0">כותב/ת התרחיש:</span>
             {canEdit ? (
               <select
@@ -1694,7 +1701,7 @@ export default function WorkshopDetailPage() {
                   className={`border rounded px-2 py-1.5 text-sm w-full ${
                     newScenarioReq.trim() ? "border-gray-300" : "border-red-300"
                   }`} />
-                <div className="flex items-center gap-4 mt-1.5">
+                <div className="flex flex-wrap items-center gap-x-4 gap-y-2 mt-1.5">
                   <label className={`flex items-center gap-1.5 text-xs font-medium ${genderTextClass("MALE")}`}>
                     {genderWord("MALE")} נדרשים לתרחיש
                     <input type="number" min={0} value={newScenarioMale}
@@ -1744,8 +1751,8 @@ export default function WorkshopDetailPage() {
             <p className="text-sm text-gray-400">אין תרחישים</p>
           ) : (
             <div className="border border-gray-200 rounded-lg overflow-hidden">
-              <table className="w-full text-right">
-                <thead className="bg-gray-50 text-xs text-gray-500 uppercase">
+              <table className="w-full text-right max-md:block">
+                <thead className="bg-gray-50 text-xs text-gray-500 uppercase max-md:hidden">
                   <tr>
                     <th className="py-2 px-3 font-medium">נושא</th>
                     <th className="py-2 px-3 font-medium">מודל סימולציה</th>
@@ -1754,7 +1761,7 @@ export default function WorkshopDetailPage() {
                     <th className="py-2 px-3"></th>
                   </tr>
                 </thead>
-                <tbody>
+                <tbody className="max-md:block">
                   {w.scenarios.map((s) => (
                     <ScenarioRow
                       key={s.id}
@@ -1788,8 +1795,8 @@ export default function WorkshopDetailPage() {
           const state = castingState({ ...c, blocked: !!w.castingPool?.blocked })
 
           return (
-            <section id="casting" className="border border-gray-200 rounded-xl p-5 bg-white shadow-sm">
-              <div className="flex items-center justify-between">
+            <section id="casting" className="border border-gray-200 rounded-xl p-4 md:p-5 bg-white shadow-sm">
+              <div className="flex flex-wrap items-center justify-between gap-3">
                 <div>
                   <h2 className="text-sm font-semibold text-gray-700 uppercase tracking-wide mb-0.5">ליהוק</h2>
                   {wasSent && (
@@ -1909,7 +1916,7 @@ export default function WorkshopDetailPage() {
         {(() => {
           const hasScenario = w.scenarios.some((s) => !s.cancelled && s.topicId)
           return (
-            <section className="border border-gray-200 rounded-xl p-5 bg-white shadow-sm flex flex-col gap-3">
+            <section className="border border-gray-200 rounded-xl p-4 md:p-5 bg-white shadow-sm flex flex-col gap-3">
               <h2 className="text-sm font-semibold text-gray-700 uppercase tracking-wide">משוב משתתפים</h2>
 
               <div>
@@ -1929,7 +1936,7 @@ export default function WorkshopDetailPage() {
                   </div>
                 </div>
                 {hasScenario ? (
-                  <div className="bg-gray-50 border border-gray-200 rounded px-3 py-2 text-sm text-gray-700 font-mono select-all">
+                  <div className="bg-gray-50 border border-gray-200 rounded px-3 py-2 text-sm text-gray-700 font-mono select-all break-words">
                     {buildFormString()}
                   </div>
                 ) : (
@@ -1958,7 +1965,7 @@ export default function WorkshopDetailPage() {
         })()}
 
         {/* Notes */}
-        <section className="border border-gray-200 rounded-xl p-5 bg-white shadow-sm">
+        <section className="border border-gray-200 rounded-xl p-4 md:p-5 bg-white shadow-sm">
           <div className="flex items-center justify-between mb-2">
             <h2 className="text-sm font-semibold text-gray-700 uppercase tracking-wide">הערות</h2>
             {canEdit && notesEdit === null && (
@@ -2017,7 +2024,7 @@ export default function WorkshopDetailPage() {
           invalidates the Caster's grid. §7.2.1. */}
       {showResendAsk && w && !showCastingOverlay && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-          <div className="bg-white rounded-xl shadow-2xl max-w-sm w-full mx-4 p-6" dir="rtl">
+          <div className="bg-white rounded-xl shadow-2xl max-w-sm w-full mx-4 p-5 sm:p-6" dir="rtl">
             <p className="text-base font-bold text-gray-900 mb-1">בוצע שינוי בהגדרות</p>
             <p className="text-sm text-gray-600 mb-5">
               כעת נדרשים שחקנים שטרם אושרו, והמלהקת לא תוכל להשלים את השיבוץ.
@@ -2047,7 +2054,7 @@ export default function WorkshopDetailPage() {
           <div className="bg-white rounded-xl shadow-2xl max-w-md w-full mx-4 flex flex-col max-h-[90vh]" dir="rtl">
 
             {/* Header */}
-            <div className="px-6 pt-6 pb-4 border-b border-gray-100 shrink-0">
+            <div className="px-4 sm:px-6 pt-5 sm:pt-6 pb-4 border-b border-gray-100 shrink-0">
               <div className="flex items-start justify-between gap-3">
                 <div>
                   <h2 className="text-base font-bold text-gray-900">משימות נוספות</h2>
@@ -2069,7 +2076,7 @@ export default function WorkshopDetailPage() {
             </div>
 
             {/* Tasks — numbered, in the order they are worked through */}
-            <div className="px-6 py-4 overflow-y-auto flex flex-col gap-1">
+            <div className="px-4 sm:px-6 py-4 overflow-y-auto flex flex-col gap-1">
               {minorTasks.map((t, i) => {
                 const done   = w[t.key]
                 const saving = savingMinor === t.key
@@ -2107,7 +2114,7 @@ export default function WorkshopDetailPage() {
             </div>
 
             {/* Footer */}
-            <div className="px-6 py-4 border-t border-gray-100 shrink-0 flex items-center justify-between gap-3">
+            <div className="px-4 sm:px-6 py-4 border-t border-gray-100 shrink-0 flex items-center justify-between gap-3">
               {minorProgress.unmet.length === 0 ? (
                 <span className="text-xs text-brand-green font-medium">✓ כל המשימות הושלמו</span>
               ) : (
@@ -2131,16 +2138,16 @@ export default function WorkshopDetailPage() {
           <div className="bg-white rounded-xl shadow-2xl max-w-lg w-full mx-4 flex flex-col max-h-[90vh]" dir="rtl">
 
             {/* Header */}
-            <div className="px-6 pt-6 pb-4 border-b border-gray-100 shrink-0">
+            <div className="px-4 sm:px-6 pt-5 sm:pt-6 pb-4 border-b border-gray-100 shrink-0">
               <h2 className="text-base font-bold text-gray-900 mb-3">שליחה לליהוק</h2>
-              <div className="flex gap-6 text-sm">
+              <div className="flex flex-wrap gap-x-6 gap-y-1 text-sm">
                 <span className="text-gray-500">מספר חדרים: <strong className="text-gray-800">{w.rooms.filter((r) => !r.cancelled).length}</strong></span>
                 <span className="text-gray-500">מספר תרחישים: <strong className="text-gray-800">{w.scenarios.filter((s) => !s.cancelled).length}</strong></span>
               </div>
             </div>
 
             {/* Scrollable body */}
-            <div className="flex-1 overflow-y-auto px-6 py-4 flex flex-col gap-5">
+            <div className="flex-1 overflow-y-auto px-4 sm:px-6 py-4 flex flex-col gap-5">
 
               {/* Scenario breakdown */}
               <div className="flex flex-col gap-3">
@@ -2172,8 +2179,8 @@ export default function WorkshopDetailPage() {
 
               {/* Director requested */}
               {w.directorRequested && (
-                <div className="flex items-center gap-2 bg-amber-50 border border-amber-200 rounded-lg px-4 py-2 text-sm text-amber-800">
-                  <span className="font-semibold">⚠️ נדרש/ת במאי/ת</span>
+                <div className="flex flex-wrap items-center gap-x-2 bg-amber-50 border border-amber-200 rounded-lg px-4 py-2 text-sm text-amber-800">
+                  <span className="font-semibold whitespace-nowrap">⚠️ נדרש/ת במאי/ת</span>
                   {w.directorNotes && <span className="text-amber-700">— {w.directorNotes}</span>}
                 </div>
               )}
@@ -2221,7 +2228,7 @@ export default function WorkshopDetailPage() {
             </div>
 
             {/* Footer actions */}
-            <div className="px-6 py-4 border-t border-gray-100 flex flex-col gap-3 items-end shrink-0">
+            <div className="px-4 sm:px-6 py-4 border-t border-gray-100 flex flex-col gap-3 items-end shrink-0">
 
             {castingError && (
               <p className="text-xs text-red-600 font-medium w-full text-right">{castingError}</p>

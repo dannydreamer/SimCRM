@@ -114,6 +114,11 @@ function localDateKey(d: Date) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`
 }
 
+/** D.M.YY — the house date format */
+function fmtShortDate(d: Date) {
+  return `${d.getDate()}.${d.getMonth() + 1}.${String(d.getFullYear()).slice(2)}`
+}
+
 function fmtMonthYear(d: Date) {
   return d.toLocaleDateString("he-IL", { month: "long", year: "numeric" })
 }
@@ -265,8 +270,7 @@ export default function LuachPage() {
   const rangeLabel = useMemo(() => {
     if (days.length === 0) return ""
     if (range === "month") return fmtMonthYear(days[0])
-    const fmt = (d: Date) => `${d.getDate()}.${d.getMonth() + 1}.${String(d.getFullYear()).slice(2)}`
-    return `${fmt(days[0])} – ${fmt(days[days.length - 1])}`
+    return `${fmtShortDate(days[0])} – ${fmtShortDate(days[days.length - 1])}`
   }, [days, range])
 
   const today = startOfDay(new Date())
@@ -299,8 +303,8 @@ export default function LuachPage() {
     <div className="flex flex-col h-full">
 
       {/* Toolbar */}
-      <div className="px-8 pt-6 pb-3 flex items-center justify-between gap-4 shrink-0 flex-wrap">
-        <h1 className="text-2xl font-bold text-gray-900">לוח שנה</h1>
+      <div className="px-4 md:px-8 pt-4 md:pt-6 pb-3 flex items-center justify-between gap-3 md:gap-4 shrink-0 flex-wrap">
+        <h1 className="text-xl md:text-2xl font-bold text-gray-900">לוח שנה</h1>
 
         <div className="flex items-center gap-3 flex-wrap">
           {/* Range selector */}
@@ -346,11 +350,39 @@ export default function LuachPage() {
       </div>
 
       {/* Grid */}
-      <div className="flex-1 overflow-auto px-8 pb-8">
+      <div className="flex-1 overflow-auto px-4 md:px-8 pb-8">
         {loading ? (
           <p className="text-sm text-gray-400 py-8 text-center">טוען...</p>
-        ) : (
-          <div className="border border-gray-200 rounded-lg overflow-hidden">
+        ) : (<>
+          {/* Phone and portrait tablet: the same range as a list of days.
+              Below lg, seven columns cut the group and facilitator names
+              short. Days with no workshops are left out. Spec §8.6 */}
+          <div className="lg:hidden flex flex-col gap-4">
+            {days.every((d) => !workshopsByDay.has(localDateKey(d))) && (
+              <p className="text-sm text-gray-400 py-8 text-center">אין סדנאות בטווח זה</p>
+            )}
+            {days.map((day) => {
+              const blocks = workshopsByDay.get(localDateKey(day))
+              if (!blocks) return null
+              const isToday = isSameDay(day, today)
+              return (
+                <div key={localDateKey(day)}>
+                  <div className={`text-sm font-semibold mb-1.5 ${isToday ? "text-navy" : "text-gray-600"}`}>
+                    {DAY_NAMES[day.getDay()]} {fmtShortDate(day)}
+                    {isToday && <span className="mr-2 px-1.5 py-0.5 rounded bg-navy text-white text-xs font-medium">היום</span>}
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-2">
+                    {blocks.map((w) => (
+                      <Block key={w.id} w={w} clashingRooms={roomClashes.get(w.id)}
+                        onClick={() => router.push(`/sadnaot/${w.id}`)} />
+                    ))}
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+
+          <div className="hidden lg:block border border-gray-200 rounded-lg overflow-hidden">
             {/* Day-name header row */}
             <div className="grid grid-cols-7 bg-gray-50 border-b border-gray-200">
               {DAY_NAMES.map((name) => (
@@ -388,7 +420,7 @@ export default function LuachPage() {
               </div>
             ))}
           </div>
-        )}
+        </>)}
       </div>
     </div>
   )
