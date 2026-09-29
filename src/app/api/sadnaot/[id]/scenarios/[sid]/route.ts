@@ -189,5 +189,12 @@ export async function DELETE(
   const label = sc.name ? `תרחיש "${sc.name}"` : `תרחיש ${sc.orderIndex + 1}`
   await logIfCastingSent(id, "SCENARIO_CANCELLED", `${label} בוטל`)
 
-  return NextResponse.json({ ok: true })
+  // Cancelling a scenario can move the status in either direction — it removes
+  // slots, so a workshop short one casting becomes complete, and cancelling the
+  // last actor-requiring scenario drops READY condition 2 altogether (§4.3). This
+  // route never re-checked, so the workshop sat in בוצע איתור צרכים until
+  // something else happened to touch it and only a reload showed מוכן.
+  const workshopStatus = await checkAndAdvanceStatus(id)
+
+  return NextResponse.json({ ok: true, ...(workshopStatus !== null && { workshopStatus }) })
 }

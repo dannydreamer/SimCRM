@@ -2,6 +2,7 @@
 import { prisma } from "@/lib/prisma"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
+import { checkAndAdvanceStatus } from "@/lib/workshop-status"
 
 const FROZEN_STATUSES = ["CLOSING", "CLOSED", "CANCELLED"]
 
@@ -59,11 +60,20 @@ export async function POST(
     })
   }
 
+  // Adding a scenario can move the status, which this route used to be the only
+  // scenario mutation not to check: the PATCH and the cancel both do. It matters
+  // now that casting stops being a READY condition for a workshop needing nobody
+  // (§4.3 cond. 2) — the first scenario that asks for an actor has to regress
+  // מוכן → בוצע איתור צרכים on the write, not whenever the page next happens to
+  // reload. A scenario needing 0/0 moves nothing, and the check is a no-op.
+  const workshopStatus = await checkAndAdvanceStatus(id)
+
   return NextResponse.json({
     id: s.id, name: s.name, topicId: s.topicId, topicName: s.topic.name,
     modelId: s.modelId, modelName: s.model?.name ?? null,
     actorRequirements: s.actorRequirements,
     maleActorsNeeded: s.maleActorsNeeded, femaleActorsNeeded: s.femaleActorsNeeded,
     written: s.written, cancelled: s.cancelled, orderIndex: s.orderIndex,
+    ...(workshopStatus !== null && { workshopStatus }),
   }, { status: 201 })
 }

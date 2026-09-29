@@ -62,8 +62,16 @@ export function unmetReadyConditions(w: ReadinessInput): ReadyConditionKey[] {
   //    not ready either — there is nothing to have received a presentation for.
   if (activeRooms.length === 0 || !activeRooms.every((r) => r.pptReceived)) unmet.push("ppt")
 
-  // 2. Handed to the Caster and every Step 2 slot filled. Delegated to
-  //    castingProgress so this and the ליהוק section report the same thing.
+  // 2. Handed to the Caster and every Step 2 slot filled — but only where anyone
+  //    needs casting at all. A workshop whose active scenarios ask for no actors
+  //    and wants no director has nothing to send and no slot to fill, so this
+  //    used to be an unmeetable condition: send-to-casting refuses it for want of
+  //    דרישות שחקנים, and `complete` requires slotTotal > 0. The workshop could
+  //    never reach מוכן by any action available to the Tech. It now auto-satisfies
+  //    the way condition 5 does when there is no חדר אחר to approve, and switches
+  //    back on the moment a scenario declares an actor or a director is requested.
+  //    Delegated to castingProgress so this and the ליהוק section report the same
+  //    thing.
   const casting = castingProgress({
     directorRequested: w.directorRequested,
     castingSentAt:     w.castingSentAt ? new Date(w.castingSentAt) : null,
@@ -71,7 +79,7 @@ export function unmetReadyConditions(w: ReadinessInput): ReadyConditionKey[] {
     scenarios: w.scenarios.map((s) => ({ ...s, cancelled: !!s.cancelled })),
     castings:  w.castings,
   })
-  if (!casting.started || !casting.complete) unmet.push("casting")
+  if (casting.required && (!casting.started || !casting.complete)) unmet.push("casting")
 
   // 3. Feedback form copied into the participants' Google Form.
   if (!w.feedbackFormAdded) unmet.push("feedbackForm")

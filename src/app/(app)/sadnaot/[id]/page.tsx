@@ -10,7 +10,7 @@ import {
   MINOR_TASK_LABEL, applicableMinorTasks, minorTaskProgress, minorTaskTone,
   splitAlertMinorTasks, type MinorTaskKey, type MinorTaskTone,
 } from "@/lib/workshop-minor-tasks"
-import { CASTING_STATE_LABEL, castingState } from "@/lib/casting-progress"
+import { CASTING_STATE_LABEL, castingRequired, castingState } from "@/lib/casting-progress"
 import { genderCount, genderFieldClass, genderTextClass, genderWord } from "@/lib/gender"
 import { CAN_CANCEL_WORKSHOP, hasAny } from "@/lib/roles"
 
@@ -60,7 +60,7 @@ interface Workshop {
   castingMaleNeeded: number | null
   castingFemaleNeeded: number | null
   castingNotes: string | null
-  casting: { started: boolean; complete: boolean }
+  casting: { started: boolean; complete: boolean; required: boolean }
   status: string
   cancelled: boolean
   tentative: boolean
@@ -231,9 +231,17 @@ function ScenarioRow({
       }),
     })
     if (res.ok) {
-      const updated = await res.json()
+      // The route re-checks the status whenever the actor counts move, and says
+      // so in `workshopStatus` — which this handler used to drop on the floor,
+      // spreading it into the scenario row instead. So an edit that regressed
+      // מוכן left the page still showing מוכן until something reloaded it. The
+      // other direction usually looked fine by luck: `noteCastingChange()`
+      // refetches the whole workshop, but only once casting has been sent, so on
+      // a workshop never handed over neither direction was reliable.
+      const { workshopStatus, ...updated } = await res.json()
       onUpdate(s.id, updated)
       setEditing(false)
+      if (workshopStatus) onReload()
     }
     setSaving(false)
   }
@@ -822,8 +830,12 @@ export default function WorkshopDetailPage() {
     if (!confirm("לבטל תרחיש זה?")) return
     const res = await fetch(`/api/sadnaot/${id}/scenarios/${sid}`, { method: "DELETE" })
     if (res.ok) {
+      const { workshopStatus } = await res.json()
       setW((prev) => prev ? { ...prev, scenarios: prev.scenarios.map((s) => s.id === sid ? { ...s, cancelled: true } : s) } : prev)
       void noteCastingChange()
+      // Cancelling the last actor-requiring scenario can carry the workshop to
+      // מוכן on the spot. Reload rather than patch: the status is not this row's.
+      if (workshopStatus) load()
     }
   }
 
@@ -841,7 +853,11 @@ export default function WorkshopDetailPage() {
       }),
     })
     if (res.ok) {
-      const s = await res.json()
+      // workshopStatus rides along only when the add moved the status — a first
+      // actor-requiring scenario regresses מוכן. It is workshop state, not part of
+      // the scenario, so it is destructured out before the row is appended, and a
+      // move means reloading rather than patching locally (as toggleWritten does).
+      const { workshopStatus, ...s } = await res.json()
       setW((prev) => prev ? { ...prev, scenarios: [...prev.scenarios, s] } : prev)
       setShowAddScenario(false)
       setNewTopicId("")
@@ -851,6 +867,7 @@ export default function WorkshopDetailPage() {
       setNewScenarioFemale("0")
       // A new scenario adds a slot in every room — the Caster's grid is short.
       void noteCastingChange()
+      if (workshopStatus) load()
     }
     setAddingScenario(false)
   }
@@ -999,6 +1016,17 @@ export default function WorkshopDetailPage() {
   // missing condition clears the alarm on the spot. Same conditions as the
   // checklist below and as the status gate itself. §11
   const readiness = readinessAlert(w)
+
+  // Likewise computed from live page state, not from `w.casting.required`, which
+  // is a server snapshot taken at load. Editing a scenario's actor counts patches
+  // `w.scenarios` locally and leaves `w.casting` untouched, so reading the
+  // snapshot left שלח לליהוק greyed out after a scenario was given an actor —
+  // until something happened to reload the page. Same helper the gate and the
+  // send route use, so all three still answer alike. §4.3 cond. 2
+  const needsCasting = castingRequired({
+    directorRequested: w.directorRequested,
+    scenarios:         w.scenarios,
+  })
 
   // משימות נוספות (§4.3.1). Derived here from the same helpers the server uses,
   // so the chip, the overlay and the gate cannot disagree.
@@ -1416,6 +1444,9 @@ export default function WorkshopDetailPage() {
                 // Condition 2: Casting. The gate is full Step 2 completion, which
                 // w.casting.complete mirrors exactly — the same value the ליהוק section
                 // reads, so the two halves of this page cannot disagree. Spec §7.7.
+                // `needsCasting` is false where no scenario asks for an actor and
+                // no director was requested; the row then disappears, like
+                // condition 5. Derived above from live state, not from w.casting.
                 const castingSent     = !!w.castingSentAt
                 const castingComplete = castingSent && w.casting.complete
                 const castingBlocked  = castingSent && !!w.castingPool?.blocked
@@ -1434,7 +1465,7 @@ export default function WorkshopDetailPage() {
                 // the five above; the list itself lives behind the overlay.
                 const minorDone = minorProgress.unmet.length === 0
 
-                const allDone = allPpt && castingComplete && feedbackDone && participantsSet && roomApproved && minorDone
+                const allDone = allPpt && (!needsCasting || castingComplete) && feedbackDone && participantsSet && roomApproved && minorDone
 
                 // With the date inside a week the checklist stops being a quiet
                 // progress note and becomes the to-do list for the banner above.
@@ -1468,7 +1499,12 @@ export default function WorkshopDetailPage() {
                       </div>
                     </div>
 
-                    {/* Condition 2: Casting */}
+                    {/* Condition 2: Casting. Hidden, not pre-ticked, when nobody
+                        needs casting — same reasoning as condition 5 below: a
+                        satisfied condition is never why a workshop failed to
+                        reach מוכן, so a row saying "nothing to cast here" cannot
+                        help anyone diagnose one. */}
+                    {needsCasting && (
                     <div className="flex items-start gap-2 text-xs">
                       <span className={`mt-px font-bold ${castingComplete && !castingBlocked ? "text-brand-green" : castingBlocked ? "text-red-600" : markTodo}`}>{castingBlocked ? "!" : castingComplete ? "✓" : "○"}</span>
                       <div>
@@ -1489,6 +1525,7 @@ export default function WorkshopDetailPage() {
                         )}
                       </div>
                     </div>
+                    )}
 
                     {/* Condition 3: Feedback form */}
                     <div className="flex items-center gap-2 text-xs">
@@ -1779,7 +1816,13 @@ export default function WorkshopDetailPage() {
         {(isManager || isTech) && !w.cancelled && (w.status !== "NEW") && (() => {
           const scenariosWithReq = w.scenarios.filter((s) => !s.cancelled && s.actorRequirements?.trim())
           const scenariosWithoutModel = w.scenarios.filter((s) => !s.cancelled && !s.modelId)
-          const canSend = scenariosWithReq.length > 0 && scenariosWithoutModel.length === 0
+          // The button used to turn on for דרישות שחקנים *text* alone, which the
+          // add-scenario form requires of every scenario — so a workshop needing
+          // nobody offered a live שלח לליהוק with nothing in it to cast. The
+          // server refuses the same case; this is only what stops it being asked.
+          // `needsCasting` comes from live page state (see above), so giving a
+          // scenario an actor lights the button without a reload.
+          const canSend = needsCasting && scenariosWithReq.length > 0 && scenariosWithoutModel.length === 0
           const wasSent = !!w.castingSentAt
 
           // Casting state, computed server-side so this section and the readiness
@@ -1813,12 +1856,19 @@ export default function WorkshopDetailPage() {
                       {CASTING_STATE_LABEL[state]}
                     </p>
                   )}
-                  {scenariosWithReq.length === 0 && (
-                    <p className="text-xs text-gray-400 mt-0.5">יש להזין דרישות שחקנים לפחות לתרחיש אחד</p>
-                  )}
-                  {scenariosWithoutModel.length > 0 && (
-                    <p className="text-xs text-gray-400 mt-0.5">יש לבחור מודל סימולציה לכל התרחישים הפעילים</p>
-                  )}
+                  {/* One reason, not three. The other two hints send the Tech to
+                      fix a scenario, which is the wrong instruction when the
+                      workshop simply needs nobody. */}
+                  {!needsCasting ? (
+                    <p className="text-xs text-gray-400 mt-0.5">אין צורך בליהוק — אף תרחיש אינו דורש שחקנים</p>
+                  ) : <>
+                    {scenariosWithReq.length === 0 && (
+                      <p className="text-xs text-gray-400 mt-0.5">יש להזין דרישות שחקנים לפחות לתרחיש אחד</p>
+                    )}
+                    {scenariosWithoutModel.length > 0 && (
+                      <p className="text-xs text-gray-400 mt-0.5">יש לבחור מודל סימולציה לכל התרחישים הפעילים</p>
+                    )}
+                  </>}
                 </div>
                 <button
                   onClick={openCastingOverlay}
