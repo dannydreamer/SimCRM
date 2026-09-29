@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState, useCallback, type ReactNode } from "react"
+import { useEffect, useState, useCallback, type FocusEvent, type ReactNode } from "react"
 import { useParams } from "next/navigation"
 import Link from "next/link"
 import { useSession } from "next-auth/react"
@@ -189,6 +189,17 @@ function toDateInput(iso: string) {
   return new Date(iso).toISOString().slice(0, 10)
 }
 
+/**
+ * Select a number field's contents on focus, so typing replaces the value
+ * instead of appending to it — tapping a "0" and typing 2 gave 20. Deferred
+ * because the mouseup / touchend that follows the focus would clear an
+ * immediate selection.
+ */
+function selectOnFocus(e: FocusEvent<HTMLInputElement>) {
+  const el = e.currentTarget
+  setTimeout(() => el.select(), 0)
+}
+
 function Check({ on }: { on: boolean }) {
   return on
     ? <span className="text-green-600 font-bold">✓</span>
@@ -323,13 +334,13 @@ function ScenarioRow({
             <div className="flex items-center gap-3 mt-1.5">
               <label className={`flex items-center gap-1 text-xs font-medium ${genderTextClass("MALE")}`}>
                 {genderWord("MALE")}
-                <input type="number" min={0} value={maleCount}
+                <input type="number" inputMode="numeric" onFocus={selectOnFocus} min={0} value={maleCount}
                   onChange={(e) => setMaleCount(e.target.value)}
                   className={`border rounded px-1.5 py-0.5 text-xs w-12 text-center ${genderFieldClass("MALE")}`} />
               </label>
               <label className={`flex items-center gap-1 text-xs font-medium ${genderTextClass("FEMALE")}`}>
                 {genderWord("FEMALE")}
-                <input type="number" min={0} value={femaleCount}
+                <input type="number" inputMode="numeric" onFocus={selectOnFocus} min={0} value={femaleCount}
                   onChange={(e) => setFemaleCount(e.target.value)}
                   className={`border rounded px-1.5 py-0.5 text-xs w-12 text-center ${genderFieldClass("FEMALE")}`} />
               </label>
@@ -1163,7 +1174,7 @@ export default function WorkshopDetailPage() {
                 </div>
                 <div>
                   <label className="block text-xs text-gray-500 mb-1">מספר חדרים</label>
-                  <input type="number" min={1} value={hd.numRooms}
+                  <input type="number" inputMode="numeric" onFocus={selectOnFocus} min={1} value={hd.numRooms}
                     onChange={(e) => setHeaderDraft({ ...hd, numRooms: Number(e.target.value) })}
                     className="border border-gray-300 rounded px-2 py-1.5 text-sm w-full" />
                 </div>
@@ -1267,7 +1278,7 @@ export default function WorkshopDetailPage() {
               <div className="flex items-center gap-2">
                 <span className="text-gray-400">מספר משתתפים משוער:</span>
                 {(isManager || isTech) && !w.frozen && !w.cancelled ? (
-                  <input type="number" min={1}
+                  <input type="number" inputMode="numeric" onFocus={selectOnFocus} min={1}
                     value={participantsDraft ?? w.estimatedParticipants?.toString() ?? ""}
                     onChange={(e) => setParticipantsDraft(e.target.value)}
                     onBlur={() => {
@@ -1704,13 +1715,13 @@ export default function WorkshopDetailPage() {
                 <div className="flex flex-wrap items-center gap-x-4 gap-y-2 mt-1.5">
                   <label className={`flex items-center gap-1.5 text-xs font-medium ${genderTextClass("MALE")}`}>
                     {genderWord("MALE")} נדרשים לתרחיש
-                    <input type="number" min={0} value={newScenarioMale}
+                    <input type="number" inputMode="numeric" onFocus={selectOnFocus} min={0} value={newScenarioMale}
                       onChange={(e) => setNewScenarioMale(e.target.value)}
                       className={`border rounded px-1.5 py-0.5 text-xs w-14 text-center ${genderFieldClass("MALE")}`} />
                   </label>
                   <label className={`flex items-center gap-1.5 text-xs font-medium ${genderTextClass("FEMALE")}`}>
                     {genderWord("FEMALE")} נדרשות לתרחיש
-                    <input type="number" min={0} value={newScenarioFemale}
+                    <input type="number" inputMode="numeric" onFocus={selectOnFocus} min={0} value={newScenarioFemale}
                       onChange={(e) => setNewScenarioFemale(e.target.value)}
                       className={`border rounded px-1.5 py-0.5 text-xs w-14 text-center ${genderFieldClass("FEMALE")}`} />
                   </label>
@@ -2194,7 +2205,7 @@ export default function WorkshopDetailPage() {
                       {genderWord("MALE")} <span className="text-red-500">*</span>
                     </label>
                     <input
-                      type="number" min={0} value={castingMale}
+                      type="number" inputMode="numeric" onFocus={selectOnFocus} min={0} value={castingMale}
                       onChange={(e) => setCastingMale(e.target.value)}
                       className={`border rounded px-3 py-2 text-sm w-full ${genderFieldClass("MALE")}`}
                       placeholder="0"
@@ -2205,7 +2216,7 @@ export default function WorkshopDetailPage() {
                       {genderWord("FEMALE")} <span className="text-red-500">*</span>
                     </label>
                     <input
-                      type="number" min={0} value={castingFemale}
+                      type="number" inputMode="numeric" onFocus={selectOnFocus} min={0} value={castingFemale}
                       onChange={(e) => setCastingFemale(e.target.value)}
                       className={`border rounded px-3 py-2 text-sm w-full ${genderFieldClass("FEMALE")}`}
                       placeholder="0"
