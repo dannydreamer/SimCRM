@@ -75,6 +75,7 @@ function NewWorkshopForm() {
   const [notes,             setNotes]             = useState("")
   const [saving,            setSaving]            = useState(false)
   const [error,             setError]             = useState("")
+  const [existingId,        setExistingId]        = useState<string | null>(null)
   const [showOrgModal,      setShowOrgModal]      = useState(false)
 
   function handleOrgCreated(org: CreatedOrg) {
@@ -122,29 +123,47 @@ function NewWorkshopForm() {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     setError("")
+    setExistingId(null)
     setSaving(true)
-    const res = await fetch("/api/sadnaot", {
-      method:  "POST",
-      headers: { "Content-Type": "application/json" },
-      body:    JSON.stringify({
-        organizationId:   orgId,
-        groupId:          matchedGroup?.id ?? null,
-        groupName:        matchedGroup ? undefined : groupName.trim(),
-        date,
-        startTime,
-        endTime,
-        numRooms:         parseInt(numRooms),
-        locationType,
-        locationName:     (locationType === "EXTERNAL" || locationType === "ZOOM") ? locationName.trim() || null : null,
-        authorId:         authorId || null,
-        directorRequested,
-        tentative,
-        notes:            notes.trim() || null,
-      }),
-    })
-    const data = await res.json()
-    if (!res.ok) { setError(data.error ?? "שגיאה בשמירה"); setSaving(false); return }
-    router.push("/sadnaot")
+    // A failed request must say so and give the button back. Before, a network
+    // error or a non-JSON error page threw here and left the form on "שומר..."
+    // for good — while the workshop may already have been saved.
+    let res: Response, data: { id?: string; error?: string; existingId?: string }
+    try {
+      res  = await fetch("/api/sadnaot", {
+        method:  "POST",
+        headers: { "Content-Type": "application/json" },
+        body:    JSON.stringify({
+          organizationId:   orgId,
+          groupId:          matchedGroup?.id ?? null,
+          groupName:        matchedGroup ? undefined : groupName.trim(),
+          date,
+          startTime,
+          endTime,
+          numRooms:         parseInt(numRooms),
+          locationType,
+          locationName:     (locationType === "EXTERNAL" || locationType === "ZOOM") ? locationName.trim() || null : null,
+          authorId:         authorId || null,
+          directorRequested,
+          tentative,
+          notes:            notes.trim() || null,
+        }),
+      })
+      data = await res.json()
+    } catch {
+      setError("השמירה לא הושלמה. לפני שמנסים שוב, כדאי לבדוק ברשימת הסדנאות שהסדנה לא נשמרה בכל זאת.")
+      setSaving(false)
+      return
+    }
+    if (!res.ok) {
+      setError(data.error ?? "שגיאה בשמירה")
+      setExistingId(data.existingId ?? null)
+      setSaving(false)
+      return
+    }
+    // Straight to the new workshop (§8.3) — the unmistakable confirmation.
+    // Landing on the full list left a far-off date buried among the rest.
+    router.push(`/sadnaot/${data.id}`)
   }
 
   const inputCls = "w-full border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-navy/30"
@@ -300,7 +319,17 @@ function NewWorkshopForm() {
             <textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={3} className="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-navy/30 resize-none" />
           </div>
 
-          {error && <p className="text-sm text-red-600">{error}</p>}
+          {error && (
+            <p className="text-sm text-red-600">
+              {error}
+              {existingId && (
+                <>
+                  {" · "}
+                  <Link href={`/sadnaot/${existingId}`} className="underline hover:text-red-800">לסדנה הקיימת</Link>
+                </>
+              )}
+            </p>
+          )}
 
           <div className="flex items-center gap-4 pt-2">
             <button type="submit" disabled={saving || !canSubmit} className="px-5 py-2 bg-navy text-white text-sm font-medium rounded hover:bg-navy-dark disabled:opacity-40 transition-colors">

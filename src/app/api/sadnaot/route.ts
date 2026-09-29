@@ -251,6 +251,21 @@ export async function POST(req: NextRequest) {
     }
   }
 
+  // Refuse an exact duplicate — same group, same date, same start time, and
+  // the existing one not cancelled. Deliberately this narrow: two different
+  // groups from one school at the same hour are a real booking (§8.3). What it
+  // stops is a save that succeeded but was not believed, then made again.
+  const duplicate = await prisma.workshop.findFirst({
+    where:  { participantGroupId, date: new Date(date), startTime, cancelled: false },
+    select: { id: true },
+  })
+  if (duplicate) {
+    return NextResponse.json(
+      { error: "כבר קיימת סדנה לקבוצה הזו באותו תאריך ובאותה שעת התחלה", existingId: duplicate.id },
+      { status: 409 }
+    )
+  }
+
   // Create workshop + rooms atomically so they can never be out of sync
   const workshop = await prisma.$transaction(async (tx) => {
     const w = await tx.workshop.create({
