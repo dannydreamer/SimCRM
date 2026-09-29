@@ -40,12 +40,16 @@ export async function GET(
   if (!org) return NextResponse.json({ error: "Not found" }, { status: 404 })
 
   const now = new Date()
-  const allWorkshops = org.participantGroups.flatMap((g) => g.workshops)
-  const totalRoomsDone    = allWorkshops
-    .filter((w) => new Date(w.date) < new Date())
+  // Cancelled workshops keep their rooms, so they are dropped here or a
+  // cancelled-only organization would report rooms "done".
+  const liveWorkshops = org.participantGroups
+    .flatMap((g) => g.workshops)
+    .filter((w) => !w.cancelled)
+  const totalRoomsDone    = liveWorkshops
+    .filter((w) => w.date < now)
     .reduce((sum, w) => sum + w.rooms.length, 0)
-  const totalRoomsPlanned = allWorkshops
-    .filter((w) => new Date(w.date) >= new Date())
+  const totalRoomsPlanned = liveWorkshops
+    .filter((w) => w.date >= now)
     .reduce((sum, w) => sum + w.rooms.length, 0)
 
   return NextResponse.json({

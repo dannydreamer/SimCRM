@@ -28,6 +28,7 @@ export async function GET(req: NextRequest) {
       participantGroups: {
         include: {
           workshops: {
+            where: { cancelled: false },
             select: { id: true, date: true },
             orderBy: { date: "desc" },
           },
