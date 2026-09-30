@@ -234,20 +234,43 @@ export async function PATCH(
   let dateActuallyChanged = false
   let newDateStr_forLog   = ""
 
+  // One clock for the whole request, so a cancellation and the room cancellation
+  // that rides along with it carry the same instant rather than two a
+  // millisecond apart.
+  const now = new Date()
+
   const data: Record<string, unknown> = {}
   // Status is allowed for both Manager and Tech
   if (status !== undefined) data.status = status
 
-  // Room-warning dismissal is allowed for both Manager and Tech
-  if (roomCancelledWarningDismiss === false) data.roomCancelledWarning = false
+  // Room-warning dismissal is allowed for both Manager and Tech.
+  // Every `*Warning` write below carries its `*WarningAt` timestamp with it —
+  // the boolean says whether the warning stands, the timestamp says when it was
+  // raised, and the 14-day notification window reads the timestamp (§4.7.1).
+  // Letting the two drift apart would strand a banner as permanently invisible
+  // (flag true, timestamp null) or permanently unexplained.
+  if (roomCancelledWarningDismiss === false) {
+    data.roomCancelledWarning   = false
+    data.roomCancelledWarningAt = null
+  }
 
   // Workshop cancellation is Manager and Senior Tech (§5.2). postponedWarning
   // rides along: it is raised automatically by a date change, and whoever may
   // cancel a workshop may also clear the warning her own date change raised.
   // A plain Tech can do neither.
   if (hasAny(session.user.roles, CAN_CANCEL_WORKSHOP)) {
-    if (cancelled !== undefined) data.cancelled = cancelled
-    if (postponedWarning !== undefined) data.postponedWarning = postponedWarning
+    if (cancelled !== undefined) {
+      data.cancelled = cancelled
+      // Only stamp a real transition. Re-saving a workshop that is already
+      // cancelled must not restart its 14 days and re-raise a banner everyone
+      // has already dealt with.
+      if (cancelled && !w.cancelled)      data.cancelledAt = now
+      else if (!cancelled && w.cancelled) data.cancelledAt = null
+    }
+    if (postponedWarning !== undefined) {
+      data.postponedWarning   = postponedWarning
+      data.postponedWarningAt = postponedWarning ? now : null
+    }
   }
 
   // Everything below is Manager AND Tech — the §5.2 "Workshops — edit" row.
@@ -278,7 +301,8 @@ export async function PATCH(
       const oldDateStr = w.date.toISOString().slice(0, 10)
       const newDateStr = newDate.toISOString().slice(0, 10)
       if (oldDateStr !== newDateStr) {
-        data.postponedWarning = true
+        data.postponedWarning   = true
+        data.postponedWarningAt = now
         dateActuallyChanged = true
         newDateStr_forLog    = newDateStr
       }
@@ -369,7 +393,10 @@ export async function PATCH(
     if (roomsWereCancelled) {
       await prisma.workshop.update({
         where: { id },
-        data: { roomCancelledWarning: true },
+        // Restamped on every fresh cancellation, deliberately: a second room
+        // going down next week is its own news, and the new timestamp gives it a
+        // dismissal key of its own so the first one's הבנתי cannot silence it.
+        data: { roomCancelledWarning: true, roomCancelledWarningAt: now },
       })
     }
 

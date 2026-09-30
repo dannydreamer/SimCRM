@@ -12,7 +12,8 @@
     "check:roles": "tsx scripts/check-roles-logic.ts",
     "check:orgsearch": "tsx scripts/check-orgsearch-logic.ts",
     "check:orgmerge": "tsx scripts/check-org-merge-logic.ts",
-    "check:minor-tasks": "tsx scripts/check-minor-tasks-logic.ts"
+    "check:minor-tasks": "tsx scripts/check-minor-tasks-logic.ts",
+    "check:notifications": "tsx scripts/check-notification-logic.ts"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"

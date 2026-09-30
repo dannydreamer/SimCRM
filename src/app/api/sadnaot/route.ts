@@ -7,10 +7,21 @@ import { castingPool } from "@/lib/casting-pool"
 import { readinessAlert } from "@/lib/workshop-readiness"
 import { CAN_CREATE_WORKSHOP, hasAny } from "@/lib/roles"
 import { workshopHasEnded } from "@/lib/workshop-status"
+import { visibleEventAt } from "@/lib/notification-window"
 
 export async function GET() {
   const session = await getServerSession(authOptions)
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+
+  // Read fresh rather than from the JWT: sessions last 30 days, so a token
+  // minted before this field existed would carry nothing and quietly drop the
+  // new-user floor for a month. A primary-key lookup beside the findMany below
+  // costs nothing worth saving.
+  const viewer = await prisma.person.findUnique({
+    where:  { id: session.user.id },
+    select: { createdAt: true },
+  })
+  if (!viewer) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
 
   const workshops = await prisma.workshop.findMany({
     orderBy: { date: "asc" },
@@ -201,6 +212,25 @@ export async function GET() {
         castingSentAt:        w.castingSentAt?.toISOString() ?? null,
         postponedWarning:     w.postponedWarning,
         roomCancelledWarning: w.roomCancelledWarning,
+        // The three event-driven banners (§4.7.1). Non-null means "raise it";
+        // null means out of the 14-day window, older than this viewer's account,
+        // or never recorded. The client does no date arithmetic — it renders a
+        // banner exactly when one of these is non-null and undismissed, the same
+        // division of labour `readiness` above uses.
+        //
+        // The booleans stay beside them because they mean something different and
+        // are read elsewhere: `cancelled` still strikes the row through forever,
+        // and the two warning flags still drive the ⚠ marks. Only the banners
+        // move to the timestamps.
+        cancelledAt:            w.cancelled
+          ? visibleEventAt(w.cancelledAt, viewer, now)
+          : null,
+        postponedWarningAt:     w.postponedWarning
+          ? visibleEventAt(w.postponedWarningAt, viewer, now)
+          : null,
+        roomCancelledWarningAt: w.roomCancelledWarning
+          ? visibleEventAt(w.roomCancelledWarningAt, viewer, now)
+          : null,
         feedbackMissing,
         feedbackExpected,
         readiness,
