@@ -4,6 +4,7 @@ import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
 import { checkAndAdvanceStatus } from "@/lib/workshop-status"
 import { castingRequired } from "@/lib/casting-progress"
+import { actorTraining, formatTraining, validTrainingOffset } from "@/lib/actor-training"
 
 export async function POST(
   req: NextRequest,
@@ -52,7 +53,13 @@ export async function POST(
   if (workshop.scenarios.some((s) => !s.modelId))
     return NextResponse.json({ error: "יש לבחור מודל סימולציה לכל התרחישים הפעילים" }, { status: 400 })
 
-  const { castingMaleNeeded, castingFemaleNeeded, castingNotes } = await req.json()
+  const { castingMaleNeeded, castingFemaleNeeded, castingNotes, trainingOffsetMinutes, trainingOnZoom } = await req.json()
+
+  // אימון שחקנים (§3.5.1, §7.2). The form shows it and lets the Tech adjust it in
+  // the same step; omitted, the stored value stands. Not a precondition — it is
+  // preset on every workshop, and the legacy ones left empty are not blocked.
+  if (trainingOffsetMinutes !== undefined && !validTrainingOffset(trainingOffsetMinutes))
+    return NextResponse.json({ error: "מועד אימון לא חוקי — עד שבוע לפני או אחרי הסדנה" }, { status: 400 })
 
   if (castingMaleNeeded === undefined || castingMaleNeeded === null || castingMaleNeeded === "")
     return NextResponse.json({ error: "יש להזין מספר שחקנים נדרשים" }, { status: 400 })
@@ -64,15 +71,19 @@ export async function POST(
   const newFemale = Number(castingFemaleNeeded)
   const now = new Date()
 
-  await prisma.workshop.update({
+  const sent = await prisma.workshop.update({
     where: { id },
     data: {
       castingMaleNeeded:   newMale,
       castingFemaleNeeded: newFemale,
       castingNotes: castingNotes?.trim() || null,
       castingSentAt: now,
+      ...(trainingOffsetMinutes !== undefined && { trainingOffsetMinutes }),
+      ...(trainingOnZoom !== undefined && { trainingOnZoom: !!trainingOnZoom }),
     },
   })
+  const trainingBefore = formatTraining(actorTraining(workshop))
+  const trainingAfter  = formatTraining(actorTraining(sent))
 
   const countsChanged = isResend && (
     newMale !== (workshop.castingMaleNeeded ?? 0) ||
@@ -120,9 +131,18 @@ export async function POST(
     })
   }
 
+  // A re-send that moved the training tells the Caster where it went. On a first
+  // send there is nothing to compare against — SENT opens the work, and her page
+  // shows the training from the start.
+  if (isResend && trainingBefore !== trainingAfter) {
+    await prisma.castingChangeLog.create({
+      data: { workshopId: id, changeType: "TRAINING_CHANGED", detail: `אימון השחקנים עודכן: ${trainingAfter}` },
+    })
+  }
+
   // A bare RESENT beside a COUNTS_CHANGED adds a line that says nothing. Only
   // write it when it is the whole story — a re-send that moved no numbers.
-  if (!isResend || !countsChanged) {
+  if (!isResend || (!countsChanged && trainingBefore === trainingAfter)) {
     await prisma.castingChangeLog.create({
       data: {
         workshopId: id,
@@ -142,6 +162,8 @@ export async function POST(
     castingMaleNeeded: Number(castingMaleNeeded),
     castingFemaleNeeded: Number(castingFemaleNeeded),
     castingNotes: castingNotes?.trim() || null,
+    trainingOffsetMinutes: sent.trainingOffsetMinutes,
+    trainingOnZoom:        sent.trainingOnZoom,
     ...(workshopStatus !== null && { workshopStatus }),
   })
 }

@@ -298,10 +298,32 @@ Multiple groups with the same name under one organization are permitted — no d
 | **scenarioOrderFlexible** | Boolean | Default false. Ticked = the scenarios may be run in any order; unticked = they run in `orderIndex` order. Tech-facing bookkeeping only — see §8.4 |
 | **pivotNotes** | String? | Free text on the טבלאות פיבוט row (§8.12). Manager + Tech. Deliberately separate from `notes` — the two are read by different people for different reasons |
 | **countedRoomsOverride** | Int? | חדרים לספירה override (§8.12). Null = use the computed default. A set value wins **everywhere** capacity is measured against the annual allocation |
+| **trainingOffsetMinutes** | Int? | אימון שחקנים — minutes relative to `date` + `startTime`. Default **-60**. Null = never set; see §3.5.1 |
+| **trainingOnZoom** | Boolean | Default false. Moves the אימון שחקנים to Zoom whatever the workshop's location (§3.5.1) |
 | notes | String? | |
 | createdAt / createdById | | |
 
 Bolded fields are **not in either prior spec** — they were added during implementation.
+
+### 3.5.1 אימון שחקנים — the actors' pre-workshop training `[code]`
+
+> Source: `src/lib/actor-training.ts`. Covered by `npm run check:training`.
+
+Before every workshop the actors have a training session. It is normally **an hour before the start, at the workshop's own place**, and occasionally at another time or moved to Zoom. The Caster needs it most: the actors must know when and where before they commit, so it is shown to her from the moment the workshop is sent to casting (§7.2).
+
+**Stored as an offset, never as a time.** `trainingOffsetMinutes` is minutes relative to the workshop's start, so a postponement carries the training with it and nothing is rewritten; the evening before at 18:00 is simply -900 on a 09:00 workshop. Bounded to a week either way.
+
+**The place is derived.** מרכז → *במרכז* · חיצוני → the workshop's address (`locationName`, or *מחוץ למרכז* when there is none) · זום → *בזום*. `trainingOnZoom` overrides it to *בזום* — the one exception that happens in practice. There is no link; a Zoom training reads just *בזום*.
+
+**Every workshop is born with the default** (-60, not on Zoom), so there is nothing for the Tech to enter and nothing to forget. **Null means "never set", not "the default".** The migration gave every existing workshop the default *except those already sent to casting*, which were left empty: their actors were told a time the system never recorded, and printing a guessed one beside them would read as fact. Those show `אימון שחקנים: טרם הוזן` in grey, and the Tech may fill one in by hand. Nothing clears the field, so null can only ever be one of those legacy rows. It is **not** a precondition for שלח לליהוק and not a READY condition.
+
+**One computation.** `actorTraining()` turns the stored pair into date · time · place, and `formatTraining()` into the line every screen shows — *7.5.26 · 08:00 · במרכז*. Workshop Detail, the send form, the Caster's page and table, and the change-log text all call it.
+
+**When it moves, the Caster hears.** On a workshop already sent to casting:
+- A date or start-time change (§4.7) moves the training; its new value is appended to the `DATE_CHANGED` entry — *"שעת הסדנה שונתה ל-10:00. אימון השחקנים: 7.5.26 · 09:00 · במרכז"*.
+- Any other change to the formatted line — a direct edit, a re-send that adjusts it, or a location change that moves its place — writes `TRAINING_CHANGED`: *"אימון השחקנים עודכן: …"*.
+
+> **Not F-01.** הכשרות שחקנים (§14, F-01) are pool-wide training sessions logged for the actor roster. This is the per-workshop warm-up before a run. They share a word in English and nothing else.
 
 ### 3.6 Room
 
@@ -412,7 +434,7 @@ Unique on `(workshopId, gender, slotIndex)`.
 | Field | Type | Notes |
 |---|---|---|
 | workshopId | FK | |
-| changeType | String | SENT, RESENT, SCENARIO_REQ, SCENARIO_ACTORS_CHANGED, SCENARIO_ADDED, SCENARIO_CANCELLED, ROOM_CANCELLED, ROOM_ADDED, COUNTS_CHANGED, MODEL_CHANGED, DATE_CHANGED |
+| changeType | String | SENT, RESENT, SCENARIO_REQ, SCENARIO_ACTORS_CHANGED, SCENARIO_ADDED, SCENARIO_CANCELLED, ROOM_CANCELLED, ROOM_ADDED, COUNTS_CHANGED, MODEL_CHANGED, DATE_CHANGED, TRAINING_CHANGED |
 | detail | String | Hebrew description, e.g. "תרחיש 2 בוטל" |
 | dismissed | Boolean | |
 | createdAt | DateTime | |
@@ -432,6 +454,7 @@ Drives the Caster's change-alert banners. Hebrew labels:
 | COUNTS_CHANGED | מספרים כמותיים עודכנו |
 | MODEL_CHANGED | מודל סימולציה עודכן |
 | DATE_CHANGED | מועד הסדנה שונה |
+| TRAINING_CHANGED | אימון השחקנים עודכן |
 
 `COUNTS_CHANGED` is written by **`send-to-casting`**, which is the only route that ever sets the pool numbers. It used to be written solely by the workshop PATCH route, which nothing calls with those fields — so the one change the Caster most needed to hear about, the size of her Step 1 pool, was the one change she was never told about.
 
@@ -620,6 +643,7 @@ Un-writing a scenario auto-unchecks `pptReceived` on all active rooms in that wo
 - Changing the date **or the start time** sets `postponedWarning`, showing an amber banner on Workshop Detail: **⚠️ מועד הסדנה שונה — יש להודיע למתחקרים ולמלהקת**. If casting was sent, a `DATE_CHANGED` entry is written to the casting change log so the Caster is alerted — one entry per save, naming what moved: *"תאריך הסדנה שונה ל-7.5.26"*, *"שעת הסדנה שונתה ל-10:00"*, or both in one line. `[code]`
   - **A start-time change is a postponement.** It used to raise nothing at all — no banner, no Caster alert — though the מתחקרים and the actors had been told a time that was no longer true. A save that leaves the time as it was raises nothing.
   - The Workshop Detail banner's per-user dismissal is keyed on date **and** start time, so moving either one brings it back. The end time is not a postponement.
+  - **The actors' training moves with it** (§3.5.1), and they were told the old one. On a workshop already sent to casting, saving a new date or start time first asks for confirmation, spelling out the training's new date, time and place and that the Caster must pass it on; the banner then carries a bold red second line, *🎭 אימון השחקנים זז ל-… — יש לוודא שהשחקנים עודכנו*, and the `DATE_CHANGED` entry ends with the new training.
 - Rooms and scenarios use **soft cancellation** — crossed out, never deleted, excluded from all checklists and casting requirements. Manager only.
 
 ### 4.7.1 The notification window — 14 days, and never older than the account `[code]`
@@ -715,6 +739,7 @@ A workshop still `בוצע איתור צרכים` with **nothing** outstanding r
 | Workshops — edit | ✓ | ✓ | ✓ | — | — | — |
 | Workshops — **cancel** | ✓ | — | ✓ | — | — | — |
 | Workshops — tick **משימות נוספות** (§4.3.1) | ✓ | ✓ | ✓ | — | — | — |
+| Workshops — edit **אימון שחקנים** (§3.5.1) | ✓ | ✓ | ✓ | read-only | — | — |
 | Rooms — assign facilitator | ✓ | ✓ | ✓ | — | — | — |
 | Rooms — mark PPT / letter | ✓ | ✓ | ✓ | — | — | — |
 | Scenarios — create/edit | ✓ | ✓ | ✓ | — | — | — |
@@ -874,12 +899,15 @@ Before the Caster can work, Tech (or Manager) sends the workshop to casting.
 
 All preconditions are re-checked on **every** call — first send and re-send alike. `modelId` remains freely editable after casting has been sent; it is not locked.
 
+**אימון שחקנים is shown, not checked.** The send form opens with a boxed **🎭 אימון שחקנים** block — the formatted line and the editor (date · time · אימון בזום · החזר לברירת מחדל) — above everything else, so the Tech cannot send without seeing it. It is already filled on every workshop (§3.5.1), which is what makes it a condition of the handoff without being a precondition: there is nothing to block on. A legacy workshop still at *טרם הוזן* offers *קבע ברירת מחדל* and is sent either way. Whatever the form holds is saved with the send; a re-send that changed it writes `TRAINING_CHANGED`.
+
 **On send:**
 - Sets `castingMaleNeeded`, `castingFemaleNeeded`, `castingNotes`, `castingSentAt`.
+- Saves the אימון שחקנים from the form, when one is set.
 - Writes a `SENT` (or `RESENT` if already sent) change-log entry.
 - **On re-send with reduced counts:** confirmed actors whose `slotIndex >= newCount` are deleted, and their Step 2 assignments are cleared, keeping Step 1 consistent.
 - Triggers a status re-evaluation.
-- Writes a `COUNTS_CHANGED` entry carrying the new numbers whenever they actually moved, and naming anyone the trim just removed: *"מספר השחקנים הנדרשים עודכן — שחקנים: 3, שחקניות: 2. הוסרו מאישור ההגעה: רונית, מיכל"*. The bare `RESENT` is written only when it is the whole story, so the Caster never gets a line that says nothing beside one that says something.
+- Writes a `COUNTS_CHANGED` entry carrying the new numbers whenever they actually moved, and naming anyone the trim just removed: *"מספר השחקנים הנדרשים עודכן — שחקנים: 3, שחקניות: 2. הוסרו מאישור ההגעה: רונית, מיכל"*. The bare `RESENT` is written only when it is the whole story — no `COUNTS_CHANGED` and no `TRAINING_CHANGED` beside it — so the Caster never gets a line that says nothing beside one that says something.
 - Clears the blocked state implicitly, when the new numbers cover the scenarios (§7.2.1).
 
 ### 7.2.1 When the Tech has to send again `[code]`
@@ -1091,6 +1119,8 @@ The overlay lists the applicable tasks numbered in catalogue order with a checkb
 - **משוב משתתפים** — the auto-generated Google Form string with a copy button, a **לינק למשוב** link, and the confirmation checkbox. The link opens the participants' feedback form in a new tab, so the copied string can be pasted straight in. It is a **single standing form shared by every workshop**, so the URL is a hard-coded constant in the page, not a per-workshop field; it is shown to every role and is not gated on the string existing.
 - **חדר** — the physical-room multi-select (חדר 1 · חדר 2 · חדר 3 · חדר אחר), in the header card below the workshop fields, **shown only when the location is מרכז**. Any combination allowed, **Manager and Tech**, saving on each change rather than behind a שמור button. Selecting **חדר אחר** reveals the free-text `otherRoomNotes` area and the **חדר אושר** checkbox beside the picker. See §3.6.1.
 
+**אימון שחקנים** (§3.5.1) is a full-width line in the header's read grid: *אימון שחקנים: 7.5.26 · 08:00 · במרכז*, a grey *(ברירת מחדל)* when nothing is overridden, and *טרם הוזן* in grey on a legacy workshop. **Manager and Tech** get an עריכה link opening the editor in place — date, time, *אימון בזום* (ticked and locked on a זום workshop), *החזר לברירת מחדל* — saved by its own שמור, outside the header form. Read-only once frozen or cancelled. `[code]`
+
 **מספר משתתפים משוער** sits beside חדרים in the header's read grid as an inline input that saves on blur rather than behind the header form's שמור button. It is **Manager and Tech**. Empty renders as `—` for read-only viewers, not an error; it is enforced only at the READY check (§4.3).
 
 **Left sidebar:** רשימת תיוג split into **ידני** (real checkboxes) and **אוטומטי** (status lines, no checkboxes) · הערות · פרטי רקע · a full-width **"הזנת פידבק לסדנה זו"** button.
@@ -1105,6 +1135,8 @@ The third element is the org's **שיוך פדגוגי**, not the org name. `[sp
 ### 8.5 Casting — `/lihukim` and `/lihukim/[id]`
 
 See §7. The landing page lists workshops sent to casting, with change-alert banners and a room-cancellation warning badge. It is the **Caster's landing page after login** (§8.1).
+
+**אימון שחקנים (§3.5.1).** The landing table has an **אימון** column beside תאריך — the training's time, its date only when it is not the workshop's own day, and its place beneath; *טרם הוזן* in grey on a legacy workshop. On `/lihukim/[id]` it is a highlighted line directly under the 📋 דרישות הסדנה header, **outside** the collapsible body so it stays on screen with the requirements folded away. `[code]`
 
 **Two independent filter pills, both toggleable:** `סדנאות עתידיות בלבד` (**on** by default; date-only comparison, a workshop happening today still counts as upcoming) and `ממתינות בלבד` (**off** by default). They stack — each only narrows the list. **Both choices persist per user in `localStorage`** (`simcrm:lihukim-filters:<userId>`), so the defaults apply only until the user first touches a pill; the same idiom as the workshop table's feedback-only toggle (§8.2). The default therefore shows every upcoming workshop *including ones already fully cast*, because a finished casting is not a closed one: rooms get added, actors drop out, and the Caster edits it. `ממתינות בלבד` was the sole filter and defaulted on, which hid exactly those workshops. `[code]`
 
@@ -1464,7 +1496,8 @@ Phase 1 notifications are **in-system visual flags only** — badges, banners, h
 | Workshop sent to casting | Caster | Pending count + change banner on ליהוק |
 | Scenario/room/counts changed after send | Caster | Change-log banner (amber / red) |
 | **Workshop cancelled** | all roles | Red dismissible banner on the workshop table and on ליהוק, for 14 days (§4.7.1). The row's own strikethrough is permanent and unaffected |
-| Workshop date or start time changed | Manager, Tech, Caster | Amber banner + `DATE_CHANGED` log (when casting was sent). Dismissible, 14-day window |
+| Workshop date or start time changed | Manager, Tech, Caster | Amber banner + `DATE_CHANGED` log (when casting was sent), carrying the moved אימון שחקנים. Dismissible, 14-day window |
+| אימון שחקנים changed after casting was sent | Caster | `TRAINING_CHANGED` log (§3.5.1) |
 | Room cancelled | Manager, Tech | Amber banner on Workshop Detail. Always asks that the מתחקר/ת be told; adds *"ולשלוח מחדש לליהוק"* only once `castingSentAt` is set. The workshop-table banner is dismissible and windowed; the Detail one is permanent |
 | Room added | Manager, Tech | Blue banner — *"יש לשלוח מחדש לליהוק"*, raised only once `castingSentAt` is set |
 | Date passed, still סדנה חדשה | Manager, Tech | Red badge in workshop table |
@@ -1817,6 +1850,7 @@ Sessions 1–19 as built. Branch naming `session-N-*`, merged to `develop` then 
 
 | **30 Sep 2026** | — | **The notification window — dismissed banners stopped coming back, and the backlog ended** (branch `notification_window`, new §4.7.1, §3.5, §7.6, §11). A Manager reported seeing banners he had dismissed weeks earlier, including a test workshop cancelled on the system's first day. Nothing had resurrected them: the three event banners (סדנה בוטלה, הסדנה נדחתה, חדר בוטל) had **no end condition at all** — each showed for every matching workshop the system had ever held, forever, until each user personally clicked הבנתי in their own browser — and dismissal lived only in `localStorage`, so a different browser, or a new account, started from an empty set and was shown the entire history of the centre. What made it visible was a new Manager logging in for the first time. A banner now shows only while the event is **under 14 days old** (`NOTIFICATION_WINDOW_DAYS`) **and newer than the viewer's own account** (`Person.createdAt`), both applied server-side in `/api/sadnaot` and `/api/lihukim` via new `src/lib/notification-window.ts`; the client renders a banner exactly when the API sent a timestamp, and does no date maths. Three nullable columns (`20260930120000_add_notification_timestamps`) carry the event times, because the booleans record *whether* a warning stands and never *when* — a workshop dated March can be cancelled in September. **Backfilled by proxy:** warnings on *future-dated* workshops were stamped `now()` and kept their banners for 14 more days; past-dated ones were left NULL and went silent. The real times were unrecoverable — `Workshop` has no `updatedAt` and cancelling one writes no change-log row — and leaving everything NULL would have silenced a cancellation made minutes before the migration, which no one could then raise again. On production this carried 11 alerts forward and retired 6. The booleans are untouched, so `cancelled` still strikes the row through and the two warning flags still raise their permanent Workshop Detail banners. Two bugs fixed alongside. Dismissal is now keyed per **event** (`<workshopId>:<eventAtISO>`) rather than per workshop, so dismissing one room cancellation no longer silently swallows every later one on that workshop; and `simcrm:dismissed-logs-overview` gained the `:<userId>` suffix every other key in that file already had, so two people sharing a browser no longer share their casting change-log dismissals. Stored keys are pruned once their event ages out, bounding arrays that previously grew for the life of the account. **Deliberate consequence, asserted in `npm run check:notifications`:** a manager who joins three days after a cancellation is never told about it — on a handover the outgoing manager owned that conversation. Not windowed: the Workshop Detail banners and the Caster's `/lihukim/[id]` change logs, which describe the workshop in front of you rather than announcing news. |
 | **10 Oct 2026** | — | **A start-time change is a postponement** (§4.7, §3.5, §3.12, §11). Moving a workshop from 09:00 to 13:00 raised nothing — no banner for the Tech, no alert for the Caster — though everyone involved had been told 09:00. It now sets `postponedWarning` exactly as a date change does, and writes the same `DATE_CHANGED` log entry, naming the new time; a save that moves both writes one entry carrying both. The banners and the change-log label now read *מועד הסדנה שונה* rather than *הסדנה נדחתה*, which was wrong for a workshop brought forward. The Workshop Detail banner's dismissal is keyed on date and start time. |
+| **10 Oct 2026** | — | **אימון שחקנים — the actors' pre-workshop training** (new §3.5.1, §3.5, §3.12, §4.7, §5.2, §7.2, §8.4, §8.5, §11). The Caster had nowhere to read when and where the actors train, though they need it before they commit. Stored as an offset from the workshop's start (default -60) plus an *אימון בזום* override; the place follows the workshop. Preset on every new workshop, so it is never missing and is not a send precondition — it opens the send form instead. Workshops already sent to casting were left **empty** by the migration rather than given a guessed time. A date or start-time change moves it, with a confirmation, a red banner line and the new training in the Caster's `DATE_CHANGED` entry; other changes write the new `TRAINING_CHANGED`. Migration `20261010120000_add_actor_training`; `npm run check:training`. |
 
 ---
 

@@ -18,6 +18,7 @@ export const CASTER_ALERT_TYPES = [
   "MODEL_CHANGED",
   "RESENT",
   "DATE_CHANGED",
+  "TRAINING_CHANGED",
 ] as const
 
 /**
@@ -48,4 +49,5 @@ export const CHANGE_TYPE_LABELS: Record<string, string> = {
   COUNTS_CHANGED:          "מספרים כמותיים עודכנו",
   MODEL_CHANGED:           "מודל סימולציה עודכן",
   DATE_CHANGED:            "מועד הסדנה שונה",
+  TRAINING_CHANGED:        "אימון השחקנים עודכן",
 }

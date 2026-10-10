@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react"
 import { useRouter } from "next/navigation"
 import { useUser } from "@/app/(app)/user-context"
 import { dismissalKey, pruneDismissals } from "@/lib/notification-window"
+import { shortDate, type ActorTraining } from "@/lib/actor-training"
 
 interface ChangeLog {
   id: string
@@ -15,6 +16,8 @@ interface PendingWorkshop {
   id: string
   date: string
   startTime: string
+  /** null on workshops sent to casting before the field existed. §3.5.1 */
+  training: ActorTraining | null
   groupName: string
   orgName: string
   cancelled: boolean
@@ -384,6 +387,7 @@ export default function LihukimLandingPage() {
               <thead>
                 <tr className="bg-gray-50 border-b border-gray-200 text-right text-xs text-gray-500 font-medium">
                   <th className="px-4 py-2.5">תאריך</th>
+                  <th className="px-4 py-2.5">אימון</th>
                   <th className="px-4 py-2.5">קבוצה · ארגון</th>
                   <th className="px-4 py-2.5 text-center">שיבוץ</th>
                 </tr>
@@ -411,6 +415,22 @@ export default function LihukimLandingPage() {
                       <td className="px-4 py-2.5 whitespace-nowrap font-medium text-gray-900">
                         {fmtDate(w.date)}
                         <span className="block text-xs text-gray-400 font-normal">{w.startTime}</span>
+                      </td>
+                      <td className="px-4 py-2.5 whitespace-nowrap">
+                        {w.training ? (
+                          <>
+                            <span className="text-gray-800">
+                              {w.training.time}
+                              {/* The date only when it is not the workshop's own day. */}
+                              {w.training.date !== w.date.slice(0, 10) && (
+                                <span className="text-gray-500"> · {shortDate(w.training.date)}</span>
+                              )}
+                            </span>
+                            <span className="block text-xs text-gray-400">{w.training.place}</span>
+                          </>
+                        ) : (
+                          <span className="text-xs text-gray-400">טרם הוזן</span>
+                        )}
                       </td>
                       <td className="px-4 py-2.5">
                         <span className="font-medium text-gray-800">{w.groupName}</span>

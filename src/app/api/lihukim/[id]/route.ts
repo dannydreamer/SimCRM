@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
 import { CASTER_ALERT_TYPES } from "@/lib/casting-change-log"
+import { actorTraining } from "@/lib/actor-training"
 
 export async function GET(
   _req: NextRequest,
@@ -75,6 +76,9 @@ export async function GET(
     castingFemaleNeeded: w.castingFemaleNeeded,
     castingNotes:     w.castingNotes,
     castingSentAt:    w.castingSentAt?.toISOString() ?? null,
+    // אימון שחקנים (§3.5.1) — what she tells the actors before they commit.
+    // null on workshops sent before the field existed.
+    training:         actorTraining(w),
     status:           w.status,
     cancelled:        w.cancelled,
 

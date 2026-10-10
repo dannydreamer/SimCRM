@@ -201,6 +201,16 @@ model Workshop {
   // EXTERNAL workshops only — a workshop at the centre or on Zoom has no
   // folders or props to pack, so this one is not evaluated for them.
   propsPrepared         Boolean      @default(false)
+  // ─── אימון שחקנים (spec §3.5.1) ───
+  // The actors' pre-workshop training, as minutes relative to the workshop's
+  // start — an offset, not a time, so it moves with the workshop when the date
+  // or start time does. New workshops are born at -60 (an hour before). null =
+  // not set, which only workshops already sent to casting before this existed
+  // carry: the migration left them empty on purpose, and nothing clears it.
+  trainingOffsetMinutes Int?         @default(-60)
+  // The place follows the workshop (centre / its address / Zoom) unless this is
+  // set, which moves the training to Zoom whatever the workshop's location.
+  trainingOnZoom        Boolean      @default(false)
   // ─── טבלאות פיבוט (spec §8.12) ───
   // Free text on the pivot row. Deliberately separate from `notes`, which is the
   // workshop's own operational note — these two are read by different people for

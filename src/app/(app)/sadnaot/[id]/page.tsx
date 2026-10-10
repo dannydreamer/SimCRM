@@ -13,6 +13,10 @@ import {
 import { CASTING_STATE_LABEL, castingRequired, castingState } from "@/lib/casting-progress"
 import { genderCount, genderFieldClass, genderTextClass, genderWord } from "@/lib/gender"
 import { CAN_CANCEL_WORKSHOP, hasAny } from "@/lib/roles"
+import {
+  actorTraining, formatTraining, trainingOffsetFor, DEFAULT_TRAINING_OFFSET,
+  type TrainingInput,
+} from "@/lib/actor-training"
 
 // The participants' feedback Google Form is a single standing form shared by every
 // workshop — the copied מחרוזת is pasted into it as a new option, so the link sits
@@ -60,6 +64,9 @@ interface Workshop {
   castingMaleNeeded: number | null
   castingFemaleNeeded: number | null
   castingNotes: string | null
+  /** אימון שחקנים (§3.5.1): minutes from the start. null = never set (legacy only). */
+  trainingOffsetMinutes: number | null
+  trainingOnZoom: boolean
   casting: { started: boolean; complete: boolean; required: boolean }
   status: string
   cancelled: boolean
@@ -418,6 +425,62 @@ function ScenarioRow({
 
 // ─── RoomRow ──────────────────────────────────────────────────────────────────
 
+// ─── אימון שחקנים editor (§3.5.1) ─────────────────────────────────────────────
+// Controlled: the parent owns the draft, so the header card and the send form
+// can each hold their own. Stores an offset, shows a date and a time — the Tech
+// thinks in "the evening before at 18:00", the database in minutes from start.
+
+interface TrainingDraft { offset: number | null; onZoom: boolean }
+
+function TrainingEditor({
+  workshop, draft, onChange,
+}: {
+  workshop: Omit<TrainingInput, "trainingOffsetMinutes" | "trainingOnZoom">
+  draft: TrainingDraft
+  onChange: (d: TrainingDraft) => void
+}) {
+  const t = actorTraining({ ...workshop, trainingOffsetMinutes: draft.offset, trainingOnZoom: draft.onZoom })
+  if (!t) {
+    return (
+      <button type="button" onClick={() => onChange({ ...draft, offset: DEFAULT_TRAINING_OFFSET })}
+        className="px-3 py-1.5 border border-gray-300 rounded text-sm hover:bg-gray-50">
+        קבע ברירת מחדל — שעה לפני הסדנה
+      </button>
+    )
+  }
+  const set = (date: string, time: string) =>
+    onChange({ ...draft, offset: trainingOffsetFor(workshop.date, workshop.startTime, date, time) })
+  // The workshop list starts at 06:00; an early workshop's default can fall before it.
+  const times = TIMES.includes(t.time) ? TIMES : [t.time, ...TIMES]
+  return (
+    <div className="flex flex-wrap items-end gap-3">
+      <div>
+        <label className="block text-xs text-gray-500 mb-1">תאריך האימון</label>
+        <input type="date" value={t.date} onChange={(e) => e.target.value && set(e.target.value, t.time)}
+          className="border border-gray-300 rounded px-2 py-1.5 text-sm" />
+      </div>
+      <div>
+        <label className="block text-xs text-gray-500 mb-1">שעה</label>
+        <select value={t.time} onChange={(e) => set(t.date, e.target.value)}
+          className="border border-gray-300 rounded px-2 py-1.5 text-sm">
+          {times.map((x) => <option key={x} value={x}>{x}</option>)}
+        </select>
+      </div>
+      <label className="flex items-center gap-1.5 text-sm pb-1.5 cursor-pointer">
+        <input type="checkbox" checked={draft.onZoom || workshop.locationType === "ZOOM"}
+          disabled={workshop.locationType === "ZOOM"}
+          onChange={(e) => onChange({ ...draft, onZoom: e.target.checked })}
+          className="w-4 h-4 accent-navy" />
+        אימון בזום
+      </label>
+      {!t.isDefault && (
+        <button type="button" onClick={() => onChange({ offset: DEFAULT_TRAINING_OFFSET, onZoom: false })}
+          className="text-xs text-blue-600 hover:underline pb-2">החזר לברירת מחדל</button>
+      )}
+    </div>
+  )
+}
+
 function RoomRow({
   r, canAssign, canCheckPptLetter, facilitators, allRooms, workshopId, workshopDate, allScenariosWritten, onUpdate, onWorkshopStatusChange,
 }: {
@@ -585,6 +648,11 @@ export default function WorkshopDetailPage() {
   // Casting actor summary collapsible
   const [castingOpen, setCastingOpen] = useState(false)
 
+  // אימון שחקנים (§3.5.1) — the header card's draft, and the send form's own.
+  const [trainingDraft, setTrainingDraft] = useState<TrainingDraft | null>(null)
+  const [trainingSaving, setTrainingSaving] = useState(false)
+  const [castingTraining, setCastingTraining] = useState<TrainingDraft>({ offset: null, onZoom: false })
+
   // משימות נוספות overlay (§4.3.1). `savingMinor` holds the key being written so
   // one in-flight tick disables only its own row, not the whole list.
   const [showMinorOverlay, setShowMinorOverlay] = useState(false)
@@ -728,6 +796,24 @@ export default function WorkshopDetailPage() {
       if (!ok) return
     }
 
+    // A postponement moves the actors' training with it (§3.5.1), and the actors
+    // were told the old one. Say so before saving, with the new time spelled
+    // out, rather than letting it slide by silently inside the save.
+    const whenChanged = headerDraft.date !== toDateInput(w.date) || headerDraft.startTime !== w.startTime
+    if (whenChanged && w.castingSentAt && w.trainingOffsetMinutes !== null) {
+      const moved = formatTraining(actorTraining({
+        date: headerDraft.date, startTime: headerDraft.startTime,
+        locationType: headerDraft.locationType, locationName: headerDraft.locationName || null,
+        trainingOffsetMinutes: w.trainingOffsetMinutes, trainingOnZoom: w.trainingOnZoom,
+      }))
+      const ok = confirm(
+        `שינוי מועד הסדנה יזיז גם את אימון השחקנים:\n\n${moved}\n\n` +
+        `השחקנים כבר קיבלו את המועד הקודם — יש לוודא שהמלהקת מעדכנת אותם במועד האימון החדש.\n` +
+        `אם האימון אינו זז עם הסדנה, יש לעדכן אותו ידנית לאחר השמירה.\n\nהאם להמשיך?`
+      )
+      if (!ok) return
+    }
+
     const roomCountBefore = w.numRooms
     setHeaderSaving(true)
     setHeaderError(null)
@@ -801,11 +887,21 @@ export default function WorkshopDetailPage() {
       otherRoomNotes:        updated.otherRoomNotes    ?? null,
       otherRoomApproved:     updated.otherRoomApproved ?? prev.otherRoomApproved,
       estimatedParticipants: updated.estimatedParticipants ?? null,
+      trainingOffsetMinutes: updated.trainingOffsetMinutes ?? null,
+      trainingOnZoom:        updated.trainingOnZoom ?? prev.trainingOnZoom,
       ...(updated.status !== undefined && {
         status: updated.status,
         frozen: FROZEN.includes(updated.status),
       }),
     } : prev)
+  }
+
+  async function saveTraining() {
+    if (!trainingDraft || trainingDraft.offset === null) return
+    setTrainingSaving(true)
+    await patchInline({ trainingOffsetMinutes: trainingDraft.offset, trainingOnZoom: trainingDraft.onZoom })
+    setTrainingSaving(false)
+    setTrainingDraft(null)
   }
 
   function toggleRoomLocation(location: string) {
@@ -994,6 +1090,7 @@ export default function WorkshopDetailPage() {
     setCastingMale(w.castingMaleNeeded != null ? String(w.castingMaleNeeded) : "0")
     setCastingFemale(w.castingFemaleNeeded != null ? String(w.castingFemaleNeeded) : "0")
     setCastingOverlayNotes(w.castingNotes ?? "")
+    setCastingTraining({ offset: w.trainingOffsetMinutes, onZoom: w.trainingOnZoom })
     setCastingError(null)
     setShowCastingOverlay(true)
   }
@@ -1009,6 +1106,12 @@ export default function WorkshopDetailPage() {
         castingMaleNeeded: Number(castingMale),
         castingFemaleNeeded: Number(castingFemale),
         castingNotes: castingOverlayNotes,
+        // Left out while a legacy workshop's training is still empty — not a
+        // precondition, and null is not a value the route will store.
+        ...(castingTraining.offset !== null && {
+          trainingOffsetMinutes: castingTraining.offset,
+          trainingOnZoom:        castingTraining.onZoom,
+        }),
       }),
     })
     if (res.ok) {
@@ -1120,7 +1223,15 @@ export default function WorkshopDetailPage() {
         })()}
         {w.postponedWarning && !postponedDismissed && (
           <div className="bg-amber-100 border border-amber-400 rounded-lg px-4 py-3 text-sm text-amber-800 font-semibold flex items-center justify-between gap-3">
-            <span>⚠️ מועד הסדנה שונה — יש להודיע למתחקרים ולמלהקת</span>
+            <span>
+              ⚠️ מועד הסדנה שונה — יש להודיע למתחקרים ולמלהקת
+              {/* The training moved with it (§3.5.1); the actors were told the old one. */}
+              {w.castingSentAt && w.trainingOffsetMinutes !== null && (
+                <span className="block mt-1 text-red-700 font-bold">
+                  🎭 אימון השחקנים זז ל-{formatTraining(actorTraining(w))} — יש לוודא שהשחקנים עודכנו
+                </span>
+              )}
+            </span>
             <button onClick={dismissPostponedBanner}
               className="text-amber-600 hover:text-amber-800 text-lg leading-none shrink-0" title="סגור">×</button>
           </div>
@@ -1340,6 +1451,37 @@ export default function WorkshopDetailPage() {
                   <span className="text-gray-300 text-xs">אין דרישת במאי/ת</span>
                 )}
               </div>
+              {/* אימון שחקנים (§3.5.1). Manager and Tech, like the other inline fields. */}
+              {(() => {
+                const t = actorTraining(w)
+                const canEditTraining = (isManager || isTech) && !w.frozen && !w.cancelled
+                return (
+                  <div className="sm:col-span-2">
+                    {trainingDraft ? (
+                      <div className="border border-sky-200 bg-sky-50/50 rounded-lg p-3 flex flex-col gap-2">
+                        <span className="text-gray-500 text-xs font-semibold">אימון שחקנים</span>
+                        <TrainingEditor workshop={w} draft={trainingDraft} onChange={setTrainingDraft} />
+                        <div className="flex gap-2">
+                          <button onClick={saveTraining} disabled={trainingSaving || trainingDraft.offset === null}
+                            className="px-3 py-1 bg-navy text-white text-sm rounded disabled:opacity-50">שמור</button>
+                          <button onClick={() => setTrainingDraft(null)}
+                            className="px-3 py-1 border border-gray-300 text-sm rounded">ביטול</button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="flex flex-wrap items-center gap-x-2">
+                        <span className="text-gray-400">אימון שחקנים:</span>
+                        <span className={t ? "font-medium" : "text-gray-400"}>{formatTraining(t)}</span>
+                        {t?.isDefault && <span className="text-xs text-gray-400">(ברירת מחדל)</span>}
+                        {canEditTraining && (
+                          <button onClick={() => setTrainingDraft({ offset: w.trainingOffsetMinutes, onZoom: w.trainingOnZoom })}
+                            className="text-xs text-blue-600 hover:underline">עריכה</button>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )
+              })()}
               {(w.castingMaleNeeded !== null || w.castingFemaleNeeded !== null) && (
                 <div className="sm:col-span-2 text-gray-500 flex flex-wrap gap-x-4">
                   <span className={genderTextClass("MALE")}>
@@ -2217,6 +2359,18 @@ export default function WorkshopDetailPage() {
 
             {/* Scrollable body */}
             <div className="flex-1 overflow-y-auto px-4 sm:px-6 py-4 flex flex-col gap-5">
+
+              {/* אימון שחקנים (§3.5.1, §7.2) — first, because the actors need it
+                  before they commit, and this is the moment it leaves the Tech's hands. */}
+              <div className="border-2 border-sky-300 bg-sky-50 rounded-lg p-4 flex flex-col gap-3">
+                <p className="text-sm font-bold text-sky-900">
+                  🎭 אימון שחקנים:{" "}
+                  <span className={castingTraining.offset === null ? "font-normal text-gray-500" : ""}>
+                    {formatTraining(actorTraining({ ...w, trainingOffsetMinutes: castingTraining.offset, trainingOnZoom: castingTraining.onZoom }))}
+                  </span>
+                </p>
+                <TrainingEditor workshop={w} draft={castingTraining} onChange={setCastingTraining} />
+              </div>
 
               {/* Scenario breakdown */}
               <div className="flex flex-col gap-3">

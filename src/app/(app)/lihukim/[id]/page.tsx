@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react"
 import { useParams, useRouter } from "next/navigation"
 import { useUser } from "@/app/(app)/user-context"
 import { CHANGE_TYPE_LABELS } from "@/lib/casting-change-log"
+import { formatTraining, type ActorTraining } from "@/lib/actor-training"
 import { GenderTag } from "@/components/GenderTag"
 import { genderCount, genderFieldClass, genderTextClass, genderWord, type Gender } from "@/lib/gender"
 
@@ -72,6 +73,8 @@ interface CastingData {
   castingFemaleNeeded: number | null
   castingNotes: string | null
   castingSentAt: string | null
+  /** null on workshops sent to casting before the field existed. §3.5.1 */
+  training: ActorTraining | null
   status: string
   cancelled: boolean
   scenarios: Scenario[]
@@ -818,6 +821,16 @@ function RequirementsPanel({ data, scenarios }: { data: CastingData; scenarios: 
         <h2 className="font-semibold text-gray-800 text-sm">📋 דרישות הסדנה (עיון)</h2>
         <span className="text-gray-400 text-xs">{open ? "▲ סגור" : "▼ פתח"}</span>
       </button>
+
+      {/* אימון שחקנים (§3.5.1) — outside the collapsible body on purpose: it is
+          what the actors need before they commit, so it stays on screen even
+          with the requirements folded away. */}
+      <div className={`px-5 py-3 border-b text-sm ${
+        data.training ? "bg-sky-50 border-sky-200 text-sky-900" : "bg-gray-50 border-gray-200 text-gray-500"
+      }`}>
+        <span className="font-semibold">🎭 אימון שחקנים: </span>
+        <span className={data.training ? "font-semibold" : ""}>{formatTraining(data.training)}</span>
+      </div>
 
       {open && (
         <div className="px-5 py-4 space-y-4">
