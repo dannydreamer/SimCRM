@@ -12,6 +12,7 @@ import { type MinorTaskKey } from "@/lib/workshop-minor-tasks"
 import { CASTING_STATE_LABEL, type CastingState } from "@/lib/casting-progress"
 import { CAN_CREATE_WORKSHOP, hasAny } from "@/lib/roles"
 import { dismissalKey, pruneDismissals } from "@/lib/notification-window"
+import { formatTraining, type ActorTraining } from "@/lib/actor-training"
 
 interface Facilitator { id: string; name: string }
 
@@ -53,6 +54,10 @@ interface WorkshopRow {
   cancelledAt: string | null
   postponedWarningAt: string | null
   roomCancelledWarningAt: string | null
+  /** אימון שחקנים (§3.5.1) — null on legacy workshops never given one. */
+  training: ActorTraining | null
+  /** The training moved on its own — same window and dismissal rules as above. */
+  trainingChangedAt: string | null
   topics: { id: string; name: string }[]
 }
 
@@ -184,6 +189,7 @@ function SortTh({ col, label, sortCol, sortDir, onSort, className = "" }: {
 const LS_DISMISSED_CANCELLATIONS  = (userId: string) => `simcrm:dismissed-cancellations:${userId}`
 const LS_DISMISSED_POSTPONEMENTS  = (userId: string) => `simcrm:dismissed-postponements:${userId}`
 const LS_DISMISSED_ROOM_CANCELLED = (userId: string) => `simcrm:dismissed-room-cancelled:${userId}`
+const LS_DISMISSED_TRAINING       = (userId: string) => `simcrm:dismissed-training-changed:${userId}`
 
 // ── Main component ─────────────────────────────────────────────────────────────
 
@@ -200,6 +206,7 @@ export default function SadnaotPage() {
   const [dismissedCancelKeys,        setDismissedCancelKeys]        = useState<Set<string>>(new Set())
   const [dismissedPostponedKeys,     setDismissedPostponedKeys]     = useState<Set<string>>(new Set())
   const [dismissedRoomCancelledKeys, setDismissedRoomCancelledKeys] = useState<Set<string>>(new Set())
+  const [dismissedTrainingKeys,      setDismissedTrainingKeys]      = useState<Set<string>>(new Set())
 
   const [viewFilter,        setViewFilter]        = useState<ViewFilter>("open")
   const [facilitatorFilter, setFacilitatorFilter] = useState<string>("all")
@@ -229,6 +236,7 @@ export default function SadnaotPage() {
       setDismissedCancelKeys(load(LS_DISMISSED_CANCELLATIONS(user.id)))
       setDismissedPostponedKeys(load(LS_DISMISSED_POSTPONEMENTS(user.id)))
       setDismissedRoomCancelledKeys(load(LS_DISMISSED_ROOM_CANCELLED(user.id)))
+      setDismissedTrainingKeys(load(LS_DISMISSED_TRAINING(user.id)))
     } catch { /* ignore */ }
   }, [user.id])
 
@@ -256,6 +264,14 @@ export default function SadnaotPage() {
           !dismissedRoomCancelledKeys.has(dismissalKey(w.id, w.roomCancelledWarningAt)))
       : [],
     [workshops, dismissedRoomCancelledKeys, isManager, isTech]
+  )
+  const trainingChangedWorkshops = useMemo(
+    () => (isManager || isTech)
+      ? workshops.filter((w) =>
+          !w.cancelled && w.trainingChangedAt &&
+          !dismissedTrainingKeys.has(dismissalKey(w.id, w.trainingChangedAt)))
+      : [],
+    [workshops, dismissedTrainingKeys, isManager, isTech]
   )
 
   // A live condition, not an event — it clears itself the moment the workshop
@@ -294,6 +310,8 @@ export default function SadnaotPage() {
     dismiss(LS_DISMISSED_POSTPONEMENTS(user.id), dismissedPostponedKeys, setDismissedPostponedKeys, workshopId, eventAt)
   const dismissRoomCancelled = (workshopId: string, eventAt: string) =>
     dismiss(LS_DISMISSED_ROOM_CANCELLED(user.id), dismissedRoomCancelledKeys, setDismissedRoomCancelledKeys, workshopId, eventAt)
+  const dismissTrainingChanged = (workshopId: string, eventAt: string) =>
+    dismiss(LS_DISMISSED_TRAINING(user.id), dismissedTrainingKeys, setDismissedTrainingKeys, workshopId, eventAt)
 
   // Everything this filter matches is now סגור — feedback stopped holding a
   // workshop open (§4.5) — and the default view hides סגור, so switching it on
@@ -440,6 +458,10 @@ export default function SadnaotPage() {
           <div>
             <p className="font-semibold mb-0.5">מועד הסדנה שונה — יש להודיע לגורמים הרלוונטיים</p>
             <p className="text-xs text-orange-700">{fmtDate(pw.date)} · {pw.groupName} ({pw.orgName})</p>
+            {/* The training rode along with the workshop (§3.5.1). */}
+            {pw.training && (
+              <p className="text-xs text-red-700 font-semibold mt-0.5">🎭 אימון השחקנים זז ל-{formatTraining(pw.training)}</p>
+            )}
           </div>
           <button onClick={() => dismissPostponement(pw.id, pw.postponedWarningAt!)}
             className="text-xs font-semibold px-2.5 py-1 rounded-full shrink-0 border border-orange-300 text-orange-700 hover:bg-orange-100 transition-colors">
@@ -455,6 +477,19 @@ export default function SadnaotPage() {
           </div>
           <button onClick={() => dismissRoomCancelled(rw.id, rw.roomCancelledWarningAt!)}
             className="text-xs font-semibold px-2.5 py-1 rounded-full shrink-0 border border-amber-300 text-amber-700 hover:bg-amber-100 transition-colors">
+            הבנתי
+          </button>
+        </div>
+      ))}
+      {!loading && trainingChangedWorkshops.map((tw) => (
+        <div key={tw.id} className="mx-8 mb-1 bg-sky-50 border border-sky-300 rounded-lg px-4 py-3 flex items-start justify-between gap-3 text-sm text-sky-900 shrink-0">
+          <div>
+            <p className="font-semibold mb-0.5">אימון השחקנים שונה — יש להודיע למתחקרים</p>
+            <p className="text-xs text-sky-800">{fmtDate(tw.date)} · {tw.groupName} ({tw.orgName})</p>
+            <p className="text-xs text-sky-900 font-semibold mt-0.5">🎭 {formatTraining(tw.training)}</p>
+          </div>
+          <button onClick={() => dismissTrainingChanged(tw.id, tw.trainingChangedAt!)}
+            className="text-xs font-semibold px-2.5 py-1 rounded-full shrink-0 border border-sky-300 text-sky-800 hover:bg-sky-100 transition-colors">
             הבנתי
           </button>
         </div>

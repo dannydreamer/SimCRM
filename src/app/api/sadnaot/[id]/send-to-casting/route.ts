@@ -4,7 +4,7 @@ import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
 import { checkAndAdvanceStatus } from "@/lib/workshop-status"
 import { castingRequired } from "@/lib/casting-progress"
-import { actorTraining, formatTraining, validTrainingOffset } from "@/lib/actor-training"
+import { actorTraining, formatTraining, validTrainingOffset, type TrainingInput } from "@/lib/actor-training"
 
 export async function POST(
   req: NextRequest,
@@ -71,6 +71,15 @@ export async function POST(
   const newFemale = Number(castingFemaleNeeded)
   const now = new Date()
 
+  // Adjusting the training here is the same news as adjusting it on the page:
+  // the Tech's banner goes up (§3.5.1), and on a re-send the Caster is told below.
+  const trainingBefore = formatTraining(actorTraining(workshop))
+  const trainingAfter  = formatTraining(actorTraining({
+    ...workshop,
+    ...(trainingOffsetMinutes !== undefined && { trainingOffsetMinutes }),
+    ...(trainingOnZoom !== undefined && { trainingOnZoom: !!trainingOnZoom }),
+  } as TrainingInput))
+
   const sent = await prisma.workshop.update({
     where: { id },
     data: {
@@ -80,10 +89,9 @@ export async function POST(
       castingSentAt: now,
       ...(trainingOffsetMinutes !== undefined && { trainingOffsetMinutes }),
       ...(trainingOnZoom !== undefined && { trainingOnZoom: !!trainingOnZoom }),
+      ...(trainingBefore !== trainingAfter && { trainingChangedAt: now }),
     },
   })
-  const trainingBefore = formatTraining(actorTraining(workshop))
-  const trainingAfter  = formatTraining(actorTraining(sent))
 
   const countsChanged = isResend && (
     newMale !== (workshop.castingMaleNeeded ?? 0) ||

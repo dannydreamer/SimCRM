@@ -211,6 +211,11 @@ model Workshop {
   // The place follows the workshop (centre / its address / Zoom) unless this is
   // set, which moves the training to Zoom whatever the workshop's location.
   trainingOnZoom        Boolean      @default(false)
+  // When the training last moved on its own — an edit, Zoom ↔ in person, or its
+  // place following the workshop's location. Not a postponement: that raises
+  // postponedWarning instead and carries the moved training in its banner.
+  // Drives the Tech's banner, so she can tell the מתחקרים (§3.5.1, §4.7.1).
+  trainingChangedAt     DateTime?
   // ─── טבלאות פיבוט (spec §8.12) ───
   // Free text on the pivot row. Deliberately separate from `notes`, which is the
   // workshop's own operational note — these two are read by different people for

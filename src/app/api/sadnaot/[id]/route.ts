@@ -3,7 +3,7 @@ import { prisma } from "@/lib/prisma"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
 import { checkAndAdvanceStatus } from "@/lib/workshop-status"
-import { actorTraining, formatTraining, validTrainingOffset } from "@/lib/actor-training"
+import { actorTraining, formatTraining, validTrainingOffset, type TrainingInput } from "@/lib/actor-training"
 import { ROOM_LOCATION_VALUES, sortRoomLocations } from "@/lib/room-locations"
 import { castingProgress } from "@/lib/casting-progress"
 import { castingPool } from "@/lib/casting-pool"
@@ -104,6 +104,7 @@ export async function GET(
     // line with the same actorTraining() the server uses for the change log.
     trainingOffsetMinutes: w.trainingOffsetMinutes,
     trainingOnZoom: w.trainingOnZoom,
+    trainingChangedAt: w.trainingChangedAt?.toISOString() ?? null,
     // Casting state for the ליהוק section and the readiness checklist, which must
     // agree. Spec §7.7.
     casting: castingProgress({
@@ -347,6 +348,14 @@ export async function PATCH(
     if (notes !== undefined) data.notes = notes?.trim() || null
   }
 
+  // אימון שחקנים (§3.5.1). A training that moved on its own — not by riding a
+  // postponement, which has its own banner — is news for the Tech, who has to
+  // tell the מתחקרים. Stamped in the same write as the change itself.
+  const trainingBefore = formatTraining(actorTraining(w))
+  const trainingAfter  = formatTraining(actorTraining({ ...w, ...data } as TrainingInput))
+  const workshopMoved  = dateActuallyChanged || timeActuallyChanged
+  if (!workshopMoved && trainingBefore !== trainingAfter) data.trainingChangedAt = now
+
   let updated: Awaited<ReturnType<typeof prisma.workshop.update>>
   try {
     updated = await prisma.workshop.update({ where: { id }, data })
@@ -478,16 +487,12 @@ export async function PATCH(
           detail: parts.join(", ") + (training ? `. אימון השחקנים: ${formatTraining(training)}` : ""),
         },
       })
-    } else {
+    } else if (trainingBefore !== trainingAfter) {
       // The training moved on its own — edited directly, or its place followed
       // a change of the workshop's location.
-      const before = formatTraining(actorTraining(w))
-      const after  = formatTraining(actorTraining(updated))
-      if (before !== after) {
-        await prisma.castingChangeLog.create({
-          data: { workshopId: id, changeType: "TRAINING_CHANGED", detail: `אימון השחקנים עודכן: ${after}` },
-        })
-      }
+      await prisma.castingChangeLog.create({
+        data: { workshopId: id, changeType: "TRAINING_CHANGED", detail: `אימון השחקנים עודכן: ${trainingAfter}` },
+      })
     }
   }
 
@@ -519,6 +524,7 @@ export async function PATCH(
     scenarioOrderFlexible: updated.scenarioOrderFlexible,
     trainingOffsetMinutes: updated.trainingOffsetMinutes,
     trainingOnZoom:        updated.trainingOnZoom,
+    trainingChangedAt:     updated.trainingChangedAt?.toISOString() ?? null,
     // Echoed back so the overlay's checkbox settles on the saved value rather
     // than its optimistic one, and so a tick that completes the list updates the
     // chip and the readiness banner in the same render.

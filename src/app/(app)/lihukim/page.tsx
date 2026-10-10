@@ -35,6 +35,24 @@ function fmtDate(iso: string) {
   return `${d.getDate()}.${d.getMonth() + 1}.${String(d.getFullYear()).slice(2)}`
 }
 
+// אימון שחקנים (§3.5.1): time, the date only when it is not the workshop's own
+// day, and the place beneath. Its own column from sm up; inside the date cell on
+// a phone, where a fourth column crushed the group names to a word per line.
+function TrainingInfo({ w }: { w: PendingWorkshop }) {
+  if (!w.training) return <span className="text-xs text-gray-400">טרם הוזן</span>
+  return (
+    <>
+      <span className="text-gray-800">
+        {w.training.time}
+        {w.training.date !== w.date.slice(0, 10) && (
+          <span className="text-gray-500"> · {shortDate(w.training.date)}</span>
+        )}
+      </span>
+      <span className="block text-xs text-gray-400">{w.training.place}</span>
+    </>
+  )
+}
+
 function isComplete(w: PendingWorkshop) {
   return w.castingTotal > 0 && w.castingFilled === w.castingTotal
 }
@@ -387,7 +405,7 @@ export default function LihukimLandingPage() {
               <thead>
                 <tr className="bg-gray-50 border-b border-gray-200 text-right text-xs text-gray-500 font-medium">
                   <th className="px-4 py-2.5">תאריך</th>
-                  <th className="px-4 py-2.5">אימון</th>
+                  <th className="px-4 py-2.5 hidden sm:table-cell">אימון</th>
                   <th className="px-4 py-2.5">קבוצה · ארגון</th>
                   <th className="px-4 py-2.5 text-center">שיבוץ</th>
                 </tr>
@@ -415,22 +433,12 @@ export default function LihukimLandingPage() {
                       <td className="px-4 py-2.5 whitespace-nowrap font-medium text-gray-900">
                         {fmtDate(w.date)}
                         <span className="block text-xs text-gray-400 font-normal">{w.startTime}</span>
+                        <span className="sm:hidden block mt-1.5 text-xs font-normal whitespace-normal">
+                          <span className="text-gray-400">אימון: </span><TrainingInfo w={w} />
+                        </span>
                       </td>
-                      <td className="px-4 py-2.5 whitespace-nowrap">
-                        {w.training ? (
-                          <>
-                            <span className="text-gray-800">
-                              {w.training.time}
-                              {/* The date only when it is not the workshop's own day. */}
-                              {w.training.date !== w.date.slice(0, 10) && (
-                                <span className="text-gray-500"> · {shortDate(w.training.date)}</span>
-                              )}
-                            </span>
-                            <span className="block text-xs text-gray-400">{w.training.place}</span>
-                          </>
-                        ) : (
-                          <span className="text-xs text-gray-400">טרם הוזן</span>
-                        )}
+                      <td className="px-4 py-2.5 whitespace-nowrap hidden sm:table-cell">
+                        <TrainingInfo w={w} />
                       </td>
                       <td className="px-4 py-2.5">
                         <span className="font-medium text-gray-800">{w.groupName}</span>

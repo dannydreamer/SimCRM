@@ -67,6 +67,8 @@ interface Workshop {
   /** אימון שחקנים (§3.5.1): minutes from the start. null = never set (legacy only). */
   trainingOffsetMinutes: number | null
   trainingOnZoom: boolean
+  /** When the training last moved on its own — drives the Tech's banner. §3.5.1 */
+  trainingChangedAt: string | null
   casting: { started: boolean; complete: boolean; required: boolean }
   status: string
   cancelled: boolean
@@ -644,6 +646,7 @@ export default function WorkshopDetailPage() {
 
   // Per-user banner dismissal (localStorage)
   const [postponedDismissed, setPostponedDismissed] = useState(false)
+  const [trainingDismissed,  setTrainingDismissed]  = useState(false)
 
   // Casting actor summary collapsible
   const [castingOpen, setCastingOpen] = useState(false)
@@ -706,8 +709,18 @@ export default function WorkshopDetailPage() {
     // either one raises the banner again. A value stored before start-time changes
     // counted (a bare date) no longer matches, which re-shows it once — harmless.
     setPostponedDismissed(stored === postponedSlot(w))
+    // Keyed on the event, so the next change to the training raises it again.
+    setTrainingDismissed(
+      !!w.trainingChangedAt &&
+      localStorage.getItem(`simcrm:banner:training:${uid}:${w.id}`) === w.trainingChangedAt)
 
-  }, [w?.id, w?.date, w?.startTime, w?.cancelled, session?.user?.id])
+  }, [w?.id, w?.date, w?.startTime, w?.trainingChangedAt, w?.cancelled, session?.user?.id])
+
+  function dismissTrainingBanner() {
+    if (!w?.trainingChangedAt || !session?.user?.id) return
+    localStorage.setItem(`simcrm:banner:training:${session.user.id}:${w.id}`, w.trainingChangedAt)
+    setTrainingDismissed(true)
+  }
 
   function dismissPostponedBanner() {
     if (!w || !session?.user?.id) return
@@ -800,7 +813,7 @@ export default function WorkshopDetailPage() {
     // were told the old one. Say so before saving, with the new time spelled
     // out, rather than letting it slide by silently inside the save.
     const whenChanged = headerDraft.date !== toDateInput(w.date) || headerDraft.startTime !== w.startTime
-    if (whenChanged && w.castingSentAt && w.trainingOffsetMinutes !== null) {
+    if (whenChanged && w.trainingOffsetMinutes !== null) {
       const moved = formatTraining(actorTraining({
         date: headerDraft.date, startTime: headerDraft.startTime,
         locationType: headerDraft.locationType, locationName: headerDraft.locationName || null,
@@ -808,7 +821,7 @@ export default function WorkshopDetailPage() {
       }))
       const ok = confirm(
         `שינוי מועד הסדנה יזיז גם את אימון השחקנים:\n\n${moved}\n\n` +
-        `השחקנים כבר קיבלו את המועד הקודם — יש לוודא שהמלהקת מעדכנת אותם במועד האימון החדש.\n` +
+        `יש לעדכן את המתחקרים${w.castingSentAt ? " ולוודא שהמלהקת מעדכנת את השחקנים" : ""} במועד האימון החדש.\n` +
         `אם האימון אינו זז עם הסדנה, יש לעדכן אותו ידנית לאחר השמירה.\n\nהאם להמשיך?`
       )
       if (!ok) return
@@ -889,6 +902,7 @@ export default function WorkshopDetailPage() {
       estimatedParticipants: updated.estimatedParticipants ?? null,
       trainingOffsetMinutes: updated.trainingOffsetMinutes ?? null,
       trainingOnZoom:        updated.trainingOnZoom ?? prev.trainingOnZoom,
+      trainingChangedAt:     updated.trainingChangedAt ?? null,
       ...(updated.status !== undefined && {
         status: updated.status,
         frozen: FROZEN.includes(updated.status),
@@ -1226,14 +1240,26 @@ export default function WorkshopDetailPage() {
             <span>
               ⚠️ מועד הסדנה שונה — יש להודיע למתחקרים ולמלהקת
               {/* The training moved with it (§3.5.1); the actors were told the old one. */}
-              {w.castingSentAt && w.trainingOffsetMinutes !== null && (
+              {w.trainingOffsetMinutes !== null && (
                 <span className="block mt-1 text-red-700 font-bold">
-                  🎭 אימון השחקנים זז ל-{formatTraining(actorTraining(w))} — יש לוודא שהשחקנים עודכנו
+                  🎭 אימון השחקנים זז ל-{formatTraining(actorTraining(w))} — יש לוודא שהמתחקרים{w.castingSentAt ? " והשחקנים" : ""} עודכנו
                 </span>
               )}
             </span>
             <button onClick={dismissPostponedBanner}
               className="text-amber-600 hover:text-amber-800 text-lg leading-none shrink-0" title="סגור">×</button>
+          </div>
+        )}
+        {/* The training moved on its own (§3.5.1). The Caster hears through her
+            change log; the מתחקרים hear only through the Tech. */}
+        {w.trainingChangedAt && !trainingDismissed && !w.cancelled && (
+          <div className="bg-sky-50 border border-sky-300 rounded-lg px-4 py-3 text-sm text-sky-900 font-semibold flex items-center justify-between gap-3">
+            <span>
+              ⚠️ אימון השחקנים שונה — יש להודיע למתחקרים
+              <span className="block mt-1 font-bold">🎭 {formatTraining(actorTraining(w))}</span>
+            </span>
+            <button onClick={dismissTrainingBanner}
+              className="text-sky-600 hover:text-sky-800 text-lg leading-none shrink-0" title="סגור">×</button>
           </div>
         )}
         {w.roomCancelledWarning && (
