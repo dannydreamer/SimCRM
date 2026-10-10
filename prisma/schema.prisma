@@ -162,6 +162,15 @@ model Workshop {
   postponedWarning     Boolean        @default(false)
   roomCancelledWarning Boolean        @default(false)
   roomAddedWarning     Boolean        @default(false)
+  // When each of the three warnings above last fired. The booleans say *whether*
+  // a warning stands; these say *when* it was raised, which is what the 14-day
+  // notification window measures against — a workshop dated March can be
+  // cancelled in September, so the workshop's own date is not the event date.
+  // Null means no event recorded, which reads as outside the window and shows
+  // nothing: that is deliberately how every pre-existing row starts. §4.7.1
+  cancelledAt            DateTime?
+  postponedWarningAt     DateTime?
+  roomCancelledWarningAt DateTime?
   feedbackFormAdded    Boolean        @default(false)
   castingMaleNeeded   Int?
   castingFemaleNeeded Int?
