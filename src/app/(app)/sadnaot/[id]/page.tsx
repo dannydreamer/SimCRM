@@ -185,6 +185,12 @@ function fmtDate(iso: string) {
   return d.toLocaleDateString("he-IL", { day: "2-digit", month: "2-digit", year: "numeric" })
 }
 
+// The moment the postponement banner was dismissed at. Date and start time both,
+// since moving either one is a postponement (§4.7).
+function postponedSlot(w: { date: string; startTime: string }) {
+  return `${w.date}|${w.startTime}`
+}
+
 function toDateInput(iso: string) {
   return new Date(iso).toISOString().slice(0, 10)
 }
@@ -627,15 +633,17 @@ export default function WorkshopDetailPage() {
     const uid = session.user.id
 
     const postponedKey = `simcrm:banner:postponed:${uid}:${w.id}`
-    const storedDate = localStorage.getItem(postponedKey)
-    // Dismissed only if stored date matches current workshop date
-    setPostponedDismissed(storedDate === w.date)
+    const stored = localStorage.getItem(postponedKey)
+    // Dismissed only for the date *and start time* it was dismissed at, so moving
+    // either one raises the banner again. A value stored before start-time changes
+    // counted (a bare date) no longer matches, which re-shows it once — harmless.
+    setPostponedDismissed(stored === postponedSlot(w))
 
-  }, [w?.id, w?.date, w?.cancelled, session?.user?.id])
+  }, [w?.id, w?.date, w?.startTime, w?.cancelled, session?.user?.id])
 
   function dismissPostponedBanner() {
     if (!w || !session?.user?.id) return
-    localStorage.setItem(`simcrm:banner:postponed:${session.user.id}:${w.id}`, w.date)
+    localStorage.setItem(`simcrm:banner:postponed:${session.user.id}:${w.id}`, postponedSlot(w))
     setPostponedDismissed(true)
   }
 
@@ -1112,7 +1120,7 @@ export default function WorkshopDetailPage() {
         })()}
         {w.postponedWarning && !postponedDismissed && (
           <div className="bg-amber-100 border border-amber-400 rounded-lg px-4 py-3 text-sm text-amber-800 font-semibold flex items-center justify-between gap-3">
-            <span>⚠️ הסדנה נדחתה — יש להודיע למתחקרים ולמלהקת</span>
+            <span>⚠️ מועד הסדנה שונה — יש להודיע למתחקרים ולמלהקת</span>
             <button onClick={dismissPostponedBanner}
               className="text-amber-600 hover:text-amber-800 text-lg leading-none shrink-0" title="סגור">×</button>
           </div>

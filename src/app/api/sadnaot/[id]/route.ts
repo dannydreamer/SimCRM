@@ -188,7 +188,7 @@ export async function PATCH(
   const w = await prisma.workshop.findUnique({
     where: { id },
     select: {
-      date: true,
+      date: true, startTime: true,
       status: true, cancelled: true, authorId: true,
       castingSentAt: true, castingMaleNeeded: true, castingFemaleNeeded: true,
       rooms: { where: { cancelled: false }, select: { facilitatorId: true } },
@@ -233,6 +233,7 @@ export async function PATCH(
 
   let dateActuallyChanged = false
   let newDateStr_forLog   = ""
+  let timeActuallyChanged = false
 
   // One clock for the whole request, so a cancellation and the room cancellation
   // that rides along with it carry the same instant rather than two a
@@ -307,7 +308,16 @@ export async function PATCH(
         newDateStr_forLog    = newDateStr
       }
     }
-    if (startTime !== undefined) data.startTime = startTime
+    if (startTime !== undefined) {
+      data.startTime = startTime
+      // A moved start time is a postponement in every sense that matters: the
+      // מתחקרים and the actors were told a time, and it is no longer true (§4.7).
+      if (startTime !== w.startTime) {
+        data.postponedWarning   = true
+        data.postponedWarningAt = now
+        timeActuallyChanged = true
+      }
+    }
     if (endTime !== undefined) data.endTime = endTime
     if (locationType !== undefined) data.locationType = locationType
     if (locationName !== undefined) data.locationName = locationName?.trim() || null
@@ -433,14 +443,21 @@ export async function PATCH(
         },
       })
     }
-    // Notify the Caster when the workshop date actually changed
-    if (dateActuallyChanged) {
-      const [y, m, d] = newDateStr_forLog.split("-")
+    // Notify the Caster when the workshop's date or start time actually changed —
+    // one entry for both, so a postponement to another day and hour reads as one event.
+    if (dateActuallyChanged || timeActuallyChanged) {
+      const parts: string[] = []
+      if (dateActuallyChanged) {
+        const [y, m, d] = newDateStr_forLog.split("-")
+        parts.push(`תאריך הסדנה שונה ל-${Number(d)}.${Number(m)}.${String(y).slice(2)}`)
+      }
+      if (timeActuallyChanged)
+        parts.push(dateActuallyChanged ? `שעת ההתחלה ל-${startTime}` : `שעת הסדנה שונתה ל-${startTime}`)
       await prisma.castingChangeLog.create({
         data: {
           workshopId: id,
           changeType: "DATE_CHANGED",
-          detail: `תאריך הסדנה שונה ל-${Number(d)}.${Number(m)}.${String(y).slice(2)}`,
+          detail: parts.join(", "),
         },
       })
     }

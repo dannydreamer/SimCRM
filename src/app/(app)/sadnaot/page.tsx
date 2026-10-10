@@ -438,7 +438,7 @@ export default function SadnaotPage() {
       {!loading && newlyPostponedWorkshops.map((pw) => (
         <div key={pw.id} className="mx-8 mb-1 bg-orange-50 border border-orange-300 rounded-lg px-4 py-3 flex items-start justify-between gap-3 text-sm text-orange-800 shrink-0">
           <div>
-            <p className="font-semibold mb-0.5">הסדנה נדחתה — יש להודיע לגורמים הרלוונטיים</p>
+            <p className="font-semibold mb-0.5">מועד הסדנה שונה — יש להודיע לגורמים הרלוונטיים</p>
             <p className="text-xs text-orange-700">{fmtDate(pw.date)} · {pw.groupName} ({pw.orgName})</p>
           </div>
           <button onClick={() => dismissPostponement(pw.id, pw.postponedWarningAt!)}

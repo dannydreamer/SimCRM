@@ -275,7 +275,7 @@ Multiple groups with the same name under one organization are permitted — no d
 | status | WorkshopStatus | Default NEW |
 | cancelled | Boolean | Default false |
 | tentative | Boolean | Shows `?` badge |
-| postponedWarning | Boolean | Set when date changes after casting/slotting |
+| postponedWarning | Boolean | Set when the date **or start time** changes (§4.7) |
 | **roomCancelledWarning** | Boolean | Caster alert flag |
 | **roomAddedWarning** | Boolean | **Retired** — superseded by derived casting staleness (§7.2.1). Neither read nor written; existing `true` values are inert. Column kept to avoid a migration |
 | **cancelledAt** | DateTime? | When `cancelled` last went false → true. Drives the 14-day notification window (§4.7.1) — the booleans say whether a warning stands, these say when it was raised. Null on every pre-existing row, which is what cleared the historical banner backlog |
@@ -431,7 +431,7 @@ Drives the Caster's change-alert banners. Hebrew labels:
 | ROOM_ADDED | חדר נוסף לסדנה |
 | COUNTS_CHANGED | מספרים כמותיים עודכנו |
 | MODEL_CHANGED | מודל סימולציה עודכן |
-| DATE_CHANGED | הסדנה נדחתה |
+| DATE_CHANGED | מועד הסדנה שונה |
 
 `COUNTS_CHANGED` is written by **`send-to-casting`**, which is the only route that ever sets the pool numbers. It used to be written solely by the workshop PATCH route, which nothing calls with those fields — so the one change the Caster most needed to hear about, the size of her Step 1 pool, was the one change she was never told about.
 
@@ -617,12 +617,14 @@ Un-writing a scenario auto-unchecks `pptReceived` on all active rooms in that wo
 
 - A workshop may be cancelled at **any** status, **including CLOSING and CLOSED**. `[code]` — this was added post-rollout for the real case of a group cancelling at the last moment and needing to be excluded from statistics.
 - Cancelled workshops remain in the system, shown with strikethrough, and are accessible read-only to all roles.
-- Changing the date after casting or slotting sets `postponedWarning`, showing an amber banner: **⚠ התאריך שונה — יש לאמת זמינות שחקנים ומתחקרים**. A `DATE_CHANGED` entry is written to the casting change log so the Caster is alerted.
+- Changing the date **or the start time** sets `postponedWarning`, showing an amber banner on Workshop Detail: **⚠️ מועד הסדנה שונה — יש להודיע למתחקרים ולמלהקת**. If casting was sent, a `DATE_CHANGED` entry is written to the casting change log so the Caster is alerted — one entry per save, naming what moved: *"תאריך הסדנה שונה ל-7.5.26"*, *"שעת הסדנה שונתה ל-10:00"*, or both in one line. `[code]`
+  - **A start-time change is a postponement.** It used to raise nothing at all — no banner, no Caster alert — though the מתחקרים and the actors had been told a time that was no longer true. A save that leaves the time as it was raises nothing.
+  - The Workshop Detail banner's per-user dismissal is keyed on date **and** start time, so moving either one brings it back. The end time is not a postponement.
 - Rooms and scenarios use **soft cancellation** — crossed out, never deleted, excluded from all checklists and casting requirements. Manager only.
 
 ### 4.7.1 The notification window — 14 days, and never older than the account `[code]`
 
-The three dismissible banners on the workshop table — סדנה בוטלה, הסדנה נדחתה, חדר בוטל — are **events**: something happened once, somebody needs to hear about it, and then it is over. They used to have no end. Each showed for every matching workshop the system had ever held, forever, until each user personally clicked הבנתי on it in their own browser. So the banner list grew monotonically for the life of the installation, and a new account opened on its first morning to the entire history of the centre — which is how a test workshop cancelled on day one was still raising a red banner two months later.
+The three dismissible banners on the workshop table — סדנה בוטלה, מועד הסדנה שונה, חדר בוטל — are **events**: something happened once, somebody needs to hear about it, and then it is over. They used to have no end. Each showed for every matching workshop the system had ever held, forever, until each user personally clicked הבנתי on it in their own browser. So the banner list grew monotonically for the life of the installation, and a new account opened on its first morning to the entire history of the centre — which is how a test workshop cancelled on day one was still raising a red banner two months later.
 
 A banner now shows only when **both** hold:
 
@@ -1462,7 +1464,7 @@ Phase 1 notifications are **in-system visual flags only** — badges, banners, h
 | Workshop sent to casting | Caster | Pending count + change banner on ליהוק |
 | Scenario/room/counts changed after send | Caster | Change-log banner (amber / red) |
 | **Workshop cancelled** | all roles | Red dismissible banner on the workshop table and on ליהוק, for 14 days (§4.7.1). The row's own strikethrough is permanent and unaffected |
-| Workshop postponed after casting | Manager, Tech, Caster | Amber banner + `DATE_CHANGED` log. Dismissible, 14-day window |
+| Workshop date or start time changed | Manager, Tech, Caster | Amber banner + `DATE_CHANGED` log (when casting was sent). Dismissible, 14-day window |
 | Room cancelled | Manager, Tech | Amber banner on Workshop Detail. Always asks that the מתחקר/ת be told; adds *"ולשלוח מחדש לליהוק"* only once `castingSentAt` is set. The workshop-table banner is dismissible and windowed; the Detail one is permanent |
 | Room added | Manager, Tech | Blue banner — *"יש לשלוח מחדש לליהוק"*, raised only once `castingSentAt` is set |
 | Date passed, still סדנה חדשה | Manager, Tech | Red badge in workshop table |
@@ -1814,6 +1816,7 @@ Sessions 1–19 as built. Branch naming `session-N-*`, merged to `develop` then 
 | **29 Sep 2026** | — | **Calendar and workshop detail work on a phone and tablet** (branch `claude/workshop-calendar-mobile-98g8x7`, §6.2, §8.4, §8.6). A Tech asked about a workshop away from her desk needs the calendar, the facilitators, the author, the room count, the notes and the casting state. Below `lg` the calendar renders its range as a list of every day, empty days as one muted line, instead of the seven-column grid; below `md` the workshop page stacks (scenarios become cards, header details one column) and the app shell's nav scrolls sideways. No control is removed at any width. The rest of the CRM, including the workshop table, stays desktop-first. No schema, route or permission change. |
 
 | **30 Sep 2026** | — | **The notification window — dismissed banners stopped coming back, and the backlog ended** (branch `notification_window`, new §4.7.1, §3.5, §7.6, §11). A Manager reported seeing banners he had dismissed weeks earlier, including a test workshop cancelled on the system's first day. Nothing had resurrected them: the three event banners (סדנה בוטלה, הסדנה נדחתה, חדר בוטל) had **no end condition at all** — each showed for every matching workshop the system had ever held, forever, until each user personally clicked הבנתי in their own browser — and dismissal lived only in `localStorage`, so a different browser, or a new account, started from an empty set and was shown the entire history of the centre. What made it visible was a new Manager logging in for the first time. A banner now shows only while the event is **under 14 days old** (`NOTIFICATION_WINDOW_DAYS`) **and newer than the viewer's own account** (`Person.createdAt`), both applied server-side in `/api/sadnaot` and `/api/lihukim` via new `src/lib/notification-window.ts`; the client renders a banner exactly when the API sent a timestamp, and does no date maths. Three nullable columns (`20260930120000_add_notification_timestamps`) carry the event times, because the booleans record *whether* a warning stands and never *when* — a workshop dated March can be cancelled in September. **Backfilled by proxy:** warnings on *future-dated* workshops were stamped `now()` and kept their banners for 14 more days; past-dated ones were left NULL and went silent. The real times were unrecoverable — `Workshop` has no `updatedAt` and cancelling one writes no change-log row — and leaving everything NULL would have silenced a cancellation made minutes before the migration, which no one could then raise again. On production this carried 11 alerts forward and retired 6. The booleans are untouched, so `cancelled` still strikes the row through and the two warning flags still raise their permanent Workshop Detail banners. Two bugs fixed alongside. Dismissal is now keyed per **event** (`<workshopId>:<eventAtISO>`) rather than per workshop, so dismissing one room cancellation no longer silently swallows every later one on that workshop; and `simcrm:dismissed-logs-overview` gained the `:<userId>` suffix every other key in that file already had, so two people sharing a browser no longer share their casting change-log dismissals. Stored keys are pruned once their event ages out, bounding arrays that previously grew for the life of the account. **Deliberate consequence, asserted in `npm run check:notifications`:** a manager who joins three days after a cancellation is never told about it — on a handover the outgoing manager owned that conversation. Not windowed: the Workshop Detail banners and the Caster's `/lihukim/[id]` change logs, which describe the workshop in front of you rather than announcing news. |
+| **10 Oct 2026** | — | **A start-time change is a postponement** (§4.7, §3.5, §3.12, §11). Moving a workshop from 09:00 to 13:00 raised nothing — no banner for the Tech, no alert for the Caster — though everyone involved had been told 09:00. It now sets `postponedWarning` exactly as a date change does, and writes the same `DATE_CHANGED` log entry, naming the new time; a save that moves both writes one entry carrying both. The banners and the change-log label now read *מועד הסדנה שונה* rather than *הסדנה נדחתה*, which was wrong for a workshop brought forward. The Workshop Detail banner's dismissal is keyed on date and start time. |
 
 ---
 
