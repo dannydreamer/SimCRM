@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react"
 import { useRouter } from "next/navigation"
 import { useUser } from "@/app/(app)/user-context"
+import { dismissalKey, pruneDismissals } from "@/lib/notification-window"
 
 interface ChangeLog {
   id: string
@@ -17,6 +18,9 @@ interface PendingWorkshop {
   groupName: string
   orgName: string
   cancelled: boolean
+  /** Non-null only while the cancellation is inside the notification window and
+   *  newer than this account — the API has already decided. §4.7.1 */
+  cancelledAt: string | null
   castingTotal: number
   castingFilled: number
   castingStarted: boolean
@@ -47,8 +51,12 @@ function isUpcoming(w: PendingWorkshop) {
 const LS_DISMISSED_CANCELLATIONS = (userId: string) =>
   `simcrm:dismissed-cancellations:${userId}`
 
-// Bug 3 fix: use a separate key from the detail page so dismissals are independent
-const LS_DISMISSED_LOGS_OVERVIEW = "simcrm:dismissed-logs-overview"
+// A separate key from the detail page, so dismissals there and here are
+// independent. Scoped per user like every other key in this file — it was the one
+// that was not, which meant two people sharing a browser shared their casting
+// change-log dismissals: whoever clicked first silenced the banner for the other.
+const LS_DISMISSED_LOGS_OVERVIEW = (userId: string) =>
+  `simcrm:dismissed-logs-overview:${userId}`
 
 // Filter pills, remembered per user — a Caster who works in ממתינות בלבד
 // should not have to re-pick it on every visit.
@@ -65,8 +73,11 @@ export default function LihukimLandingPage() {
   // changes. A stored choice overrides both — see the load effect below.
   const [pendingOnly, setPendingOnly] = useState(false)
   const [upcomingOnly, setUpcomingOnly] = useState(true)
-  const [dismissedCancelIds, setDismissedCancelIds] = useState<Set<string>>(new Set())
-  // Dismissed change-log IDs — own key, independent from the detail page
+  // Keyed per event — `<workshopId>:<cancelledAtISO>` — not per workshop. §4.7.1
+  const [dismissedCancelKeys, setDismissedCancelKeys] = useState<Set<string>>(new Set())
+  // Dismissed change-log IDs — own key, independent from the detail page. These
+  // stay keyed by log id: each log row is already one event with its own id, so
+  // unlike the workshop warnings there was never anything to collide.
   const [dismissedLogIds, setDismissedLogIds] = useState<Set<string>>(new Set())
 
   useEffect(() => {
@@ -79,11 +90,12 @@ export default function LihukimLandingPage() {
       })
   }, [])
 
-  // Load dismissed cancellation IDs from localStorage
+  // Load dismissed cancellations from localStorage, dropping any whose event has
+  // aged out of the window.
   useEffect(() => {
     try {
       const stored = JSON.parse(localStorage.getItem(LS_DISMISSED_CANCELLATIONS(user.id)) ?? "[]")
-      setDismissedCancelIds(new Set(Array.isArray(stored) ? stored : []))
+      setDismissedCancelKeys(new Set(pruneDismissals(Array.isArray(stored) ? stored : [])))
     } catch { /* ignore */ }
   }, [user.id])
 
@@ -103,20 +115,21 @@ export default function LihukimLandingPage() {
   // Load dismissed change-log IDs (overview-specific key, independent from detail page)
   useEffect(() => {
     try {
-      const stored = JSON.parse(localStorage.getItem(LS_DISMISSED_LOGS_OVERVIEW) ?? "[]")
+      const stored = JSON.parse(localStorage.getItem(LS_DISMISSED_LOGS_OVERVIEW(user.id)) ?? "[]")
       setDismissedLogIds(new Set(Array.isArray(stored) ? stored : []))
     } catch { /* ignore */ }
-  }, [])
+  }, [user.id])
 
   const newlyCancelledWorkshops = useMemo(
-    () => workshops.filter((w) => w.cancelled && !dismissedCancelIds.has(w.id)),
-    [workshops, dismissedCancelIds]
+    () => workshops.filter((w) =>
+      w.cancelledAt && !dismissedCancelKeys.has(dismissalKey(w.id, w.cancelledAt))),
+    [workshops, dismissedCancelKeys]
   )
 
-  // Bug 2 fix: dismiss a single workshop cancellation
-  function dismissCancellation(workshopId: string) {
-    const next = new Set([...dismissedCancelIds, workshopId])
-    setDismissedCancelIds(next)
+  // Dismiss a single workshop cancellation, for this user and this cancellation
+  function dismissCancellation(workshopId: string, eventAt: string) {
+    const next = new Set(pruneDismissals([...dismissedCancelKeys, dismissalKey(workshopId, eventAt)]))
+    setDismissedCancelKeys(next)
     try {
       localStorage.setItem(LS_DISMISSED_CANCELLATIONS(user.id), JSON.stringify([...next]))
     } catch { /* ignore */ }
@@ -163,7 +176,7 @@ export default function LihukimLandingPage() {
     const next = new Set([...dismissedLogIds, ...logIds])
     setDismissedLogIds(next)
     try {
-      localStorage.setItem(LS_DISMISSED_LOGS_OVERVIEW, JSON.stringify([...next]))
+      localStorage.setItem(LS_DISMISSED_LOGS_OVERVIEW(user.id), JSON.stringify([...next]))
     } catch { /* ignore */ }
   }
 
@@ -311,7 +324,7 @@ export default function LihukimLandingPage() {
             <p className="text-xs text-red-700">{fmtDate(cw.date)} · {cw.groupName} ({cw.orgName})</p>
           </div>
           <button
-            onClick={() => dismissCancellation(cw.id)}
+            onClick={() => dismissCancellation(cw.id, cw.cancelledAt!)}
             className="text-xs font-semibold px-2.5 py-1 rounded-full shrink-0 border border-red-300 text-red-700 hover:bg-red-100 transition-colors">
             הבנתי
           </button>

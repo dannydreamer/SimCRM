@@ -11,6 +11,7 @@ import {
 import { type MinorTaskKey } from "@/lib/workshop-minor-tasks"
 import { CASTING_STATE_LABEL, type CastingState } from "@/lib/casting-progress"
 import { CAN_CREATE_WORKSHOP, hasAny } from "@/lib/roles"
+import { dismissalKey, pruneDismissals } from "@/lib/notification-window"
 
 interface Facilitator { id: string; name: string }
 
@@ -46,6 +47,12 @@ interface WorkshopRow {
   castingSentAt: string | null
   postponedWarning: boolean
   roomCancelledWarning: boolean
+  // When each warning fired, or null once it is outside the 14-day notification
+  // window or predates this account. Already decided by the API — a non-null
+  // value means "raise the banner", and no date maths happens here. §4.7.1
+  cancelledAt: string | null
+  postponedWarningAt: string | null
+  roomCancelledWarningAt: string | null
   topics: { id: string; name: string }[]
 }
 
@@ -169,6 +176,11 @@ function SortTh({ col, label, sortCol, sortDir, onSort, className = "" }: {
   )
 }
 
+// Dismissals are stored per user, per *event* — `<workshopId>:<eventAtISO>`, via
+// dismissalKey() — not per workshop. Dismissing today's room cancellation must
+// not silence next week's. Entries whose event has aged out of the window are
+// pruned on every write, so these arrays stay small instead of growing for the
+// life of the account. §4.7.1
 const LS_DISMISSED_CANCELLATIONS  = (userId: string) => `simcrm:dismissed-cancellations:${userId}`
 const LS_DISMISSED_POSTPONEMENTS  = (userId: string) => `simcrm:dismissed-postponements:${userId}`
 const LS_DISMISSED_ROOM_CANCELLED = (userId: string) => `simcrm:dismissed-room-cancelled:${userId}`
@@ -185,9 +197,9 @@ export default function SadnaotPage() {
 
   const [workshops, setWorkshops] = useState<WorkshopRow[]>([])
   const [loading, setLoading]     = useState(true)
-  const [dismissedCancelIds,        setDismissedCancelIds]        = useState<Set<string>>(new Set())
-  const [dismissedPostponedIds,     setDismissedPostponedIds]     = useState<Set<string>>(new Set())
-  const [dismissedRoomCancelledIds, setDismissedRoomCancelledIds] = useState<Set<string>>(new Set())
+  const [dismissedCancelKeys,        setDismissedCancelKeys]        = useState<Set<string>>(new Set())
+  const [dismissedPostponedKeys,     setDismissedPostponedKeys]     = useState<Set<string>>(new Set())
+  const [dismissedRoomCancelledKeys, setDismissedRoomCancelledKeys] = useState<Set<string>>(new Set())
 
   const [viewFilter,        setViewFilter]        = useState<ViewFilter>("open")
   const [facilitatorFilter, setFacilitatorFilter] = useState<string>("all")
@@ -208,31 +220,42 @@ export default function SadnaotPage() {
 
   useEffect(() => {
     try {
+      // Pruned on read as well as on write, so a browser that has not been back
+      // in a fortnight tidies itself on the way in.
       const load = (key: string) => {
         const stored = JSON.parse(localStorage.getItem(key) ?? "[]")
-        return new Set<string>(Array.isArray(stored) ? stored : [])
+        return new Set<string>(pruneDismissals(Array.isArray(stored) ? stored : []))
       }
-      setDismissedCancelIds(load(LS_DISMISSED_CANCELLATIONS(user.id)))
-      setDismissedPostponedIds(load(LS_DISMISSED_POSTPONEMENTS(user.id)))
-      setDismissedRoomCancelledIds(load(LS_DISMISSED_ROOM_CANCELLED(user.id)))
+      setDismissedCancelKeys(load(LS_DISMISSED_CANCELLATIONS(user.id)))
+      setDismissedPostponedKeys(load(LS_DISMISSED_POSTPONEMENTS(user.id)))
+      setDismissedRoomCancelledKeys(load(LS_DISMISSED_ROOM_CANCELLED(user.id)))
     } catch { /* ignore */ }
   }, [user.id])
 
+  // A banner shows when the API sent a timestamp — meaning the event is inside
+  // the 14-day window and newer than this account — and this user has not
+  // dismissed that particular event. The booleans are no longer consulted here;
+  // they still drive the row's own strikethrough and ⚠ marks further down.
   const newlyCancelledWorkshops = useMemo(
-    () => workshops.filter((w) => w.cancelled && !dismissedCancelIds.has(w.id)),
-    [workshops, dismissedCancelIds]
+    () => workshops.filter((w) =>
+      w.cancelledAt && !dismissedCancelKeys.has(dismissalKey(w.id, w.cancelledAt))),
+    [workshops, dismissedCancelKeys]
   )
   const newlyPostponedWorkshops = useMemo(
     () => (isManager || isTech)
-      ? workshops.filter((w) => !w.cancelled && w.postponedWarning && !dismissedPostponedIds.has(w.id))
+      ? workshops.filter((w) =>
+          !w.cancelled && w.postponedWarningAt &&
+          !dismissedPostponedKeys.has(dismissalKey(w.id, w.postponedWarningAt)))
       : [],
-    [workshops, dismissedPostponedIds, isManager, isTech]
+    [workshops, dismissedPostponedKeys, isManager, isTech]
   )
   const newlyRoomCancelledWorkshops = useMemo(
     () => (isManager || isTech)
-      ? workshops.filter((w) => !w.cancelled && w.roomCancelledWarning && !dismissedRoomCancelledIds.has(w.id))
+      ? workshops.filter((w) =>
+          !w.cancelled && w.roomCancelledWarningAt &&
+          !dismissedRoomCancelledKeys.has(dismissalKey(w.id, w.roomCancelledWarningAt)))
       : [],
-    [workshops, dismissedRoomCancelledIds, isManager, isTech]
+    [workshops, dismissedRoomCancelledKeys, isManager, isTech]
   )
 
   // A live condition, not an event — it clears itself the moment the workshop
@@ -249,21 +272,28 @@ export default function SadnaotPage() {
     [workshops, isManager, isTech]
   )
 
-  function dismissCancellation(workshopId: string) {
-    const next = new Set([...dismissedCancelIds, workshopId])
-    setDismissedCancelIds(next)
-    try { localStorage.setItem(LS_DISMISSED_CANCELLATIONS(user.id), JSON.stringify([...next])) } catch { /* ignore */ }
+  // One dismissal path for all three banners: add this event's key, prune the
+  // ones that have aged out, store. Takes the event timestamp rather than
+  // reaching for it, so the caller cannot pass a workshop whose banner is not
+  // actually showing.
+  function dismiss(
+    storageKey: string,
+    current: Set<string>,
+    apply: (next: Set<string>) => void,
+    workshopId: string,
+    eventAt: string
+  ) {
+    const next = new Set(pruneDismissals([...current, dismissalKey(workshopId, eventAt)]))
+    apply(next)
+    try { localStorage.setItem(storageKey, JSON.stringify([...next])) } catch { /* ignore */ }
   }
-  function dismissPostponement(workshopId: string) {
-    const next = new Set([...dismissedPostponedIds, workshopId])
-    setDismissedPostponedIds(next)
-    try { localStorage.setItem(LS_DISMISSED_POSTPONEMENTS(user.id), JSON.stringify([...next])) } catch { /* ignore */ }
-  }
-  function dismissRoomCancelled(workshopId: string) {
-    const next = new Set([...dismissedRoomCancelledIds, workshopId])
-    setDismissedRoomCancelledIds(next)
-    try { localStorage.setItem(LS_DISMISSED_ROOM_CANCELLED(user.id), JSON.stringify([...next])) } catch { /* ignore */ }
-  }
+
+  const dismissCancellation = (workshopId: string, eventAt: string) =>
+    dismiss(LS_DISMISSED_CANCELLATIONS(user.id), dismissedCancelKeys, setDismissedCancelKeys, workshopId, eventAt)
+  const dismissPostponement = (workshopId: string, eventAt: string) =>
+    dismiss(LS_DISMISSED_POSTPONEMENTS(user.id), dismissedPostponedKeys, setDismissedPostponedKeys, workshopId, eventAt)
+  const dismissRoomCancelled = (workshopId: string, eventAt: string) =>
+    dismiss(LS_DISMISSED_ROOM_CANCELLED(user.id), dismissedRoomCancelledKeys, setDismissedRoomCancelledKeys, workshopId, eventAt)
 
   // Everything this filter matches is now סגור — feedback stopped holding a
   // workshop open (§4.5) — and the default view hides סגור, so switching it on
@@ -399,7 +429,7 @@ export default function SadnaotPage() {
             <p className="font-semibold mb-0.5">סדנה בוטלה — יש לעדכן את כל הגורמים הרלוונטיים</p>
             <p className="text-xs text-red-700">{fmtDate(cw.date)} · {cw.groupName} ({cw.orgName})</p>
           </div>
-          <button onClick={() => dismissCancellation(cw.id)}
+          <button onClick={() => dismissCancellation(cw.id, cw.cancelledAt!)}
             className="text-xs font-semibold px-2.5 py-1 rounded-full shrink-0 border border-red-300 text-red-700 hover:bg-red-100 transition-colors">
             הבנתי
           </button>
@@ -411,7 +441,7 @@ export default function SadnaotPage() {
             <p className="font-semibold mb-0.5">הסדנה נדחתה — יש להודיע לגורמים הרלוונטיים</p>
             <p className="text-xs text-orange-700">{fmtDate(pw.date)} · {pw.groupName} ({pw.orgName})</p>
           </div>
-          <button onClick={() => dismissPostponement(pw.id)}
+          <button onClick={() => dismissPostponement(pw.id, pw.postponedWarningAt!)}
             className="text-xs font-semibold px-2.5 py-1 rounded-full shrink-0 border border-orange-300 text-orange-700 hover:bg-orange-100 transition-colors">
             הבנתי
           </button>
@@ -423,7 +453,7 @@ export default function SadnaotPage() {
             <p className="font-semibold mb-0.5">חדר בוטל — יש להודיע למתחקר/ת</p>
             <p className="text-xs text-amber-700">{fmtDate(rw.date)} · {rw.groupName} ({rw.orgName})</p>
           </div>
-          <button onClick={() => dismissRoomCancelled(rw.id)}
+          <button onClick={() => dismissRoomCancelled(rw.id, rw.roomCancelledWarningAt!)}
             className="text-xs font-semibold px-2.5 py-1 rounded-full shrink-0 border border-amber-300 text-amber-700 hover:bg-amber-100 transition-colors">
             הבנתי
           </button>

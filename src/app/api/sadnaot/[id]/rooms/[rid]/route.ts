@@ -148,8 +148,14 @@ export async function DELETE(
 
   await prisma.room.update({ where: { id: rid }, data: { cancelled: true } })
 
-  // Always mark the workshop so the Manager/Tech list-page banner fires
-  await prisma.workshop.update({ where: { id }, data: { roomCancelledWarning: true } })
+  // Always mark the workshop so the Manager/Tech list-page banner fires. The
+  // timestamp is what the 14-day window measures (§4.7.1), and restamping gives
+  // this cancellation its own dismissal key — so it raises a banner even for
+  // someone who already dismissed an earlier room cancellation on this workshop.
+  await prisma.workshop.update({
+    where: { id },
+    data: { roomCancelledWarning: true, roomCancelledWarningAt: new Date() },
+  })
 
   // Also log for the Caster if casting was already sent
   const workshop = await prisma.workshop.findUnique({ where: { id }, select: { castingSentAt: true } })
