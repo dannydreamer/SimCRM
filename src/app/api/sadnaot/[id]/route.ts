@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
 import { checkAndAdvanceStatus } from "@/lib/workshop-status"
+import { actorTraining, formatTraining, validTrainingOffset, type TrainingInput } from "@/lib/actor-training"
 import { ROOM_LOCATION_VALUES, sortRoomLocations } from "@/lib/room-locations"
 import { castingProgress } from "@/lib/casting-progress"
 import { castingPool } from "@/lib/casting-pool"
@@ -99,6 +100,11 @@ export async function GET(
     castingMaleNeeded: w.castingMaleNeeded,
     castingFemaleNeeded: w.castingFemaleNeeded,
     castingNotes: w.castingNotes,
+    // אימון שחקנים (§3.5.1). Raw, like the minor tasks: the page computes the
+    // line with the same actorTraining() the server uses for the change log.
+    trainingOffsetMinutes: w.trainingOffsetMinutes,
+    trainingOnZoom: w.trainingOnZoom,
+    trainingChangedAt: w.trainingChangedAt?.toISOString() ?? null,
     // Casting state for the ליהוק section and the readiness checklist, which must
     // agree. Spec §7.7.
     casting: castingProgress({
@@ -188,7 +194,9 @@ export async function PATCH(
   const w = await prisma.workshop.findUnique({
     where: { id },
     select: {
-      date: true,
+      date: true, startTime: true,
+      locationType: true, locationName: true,
+      trainingOffsetMinutes: true, trainingOnZoom: true,
       status: true, cancelled: true, authorId: true,
       castingSentAt: true, castingMaleNeeded: true, castingFemaleNeeded: true,
       rooms: { where: { cancelled: false }, select: { facilitatorId: true } },
@@ -207,7 +215,13 @@ export async function PATCH(
     feedbackFormAdded, estimatedParticipants,
     roomLocations, otherRoomNotes, otherRoomApproved, scenarioOrderFlexible,
     roomCancelledWarning: roomCancelledWarningDismiss,
+    trainingOffsetMinutes, trainingOnZoom,
   } = body
+
+  // אימון שחקנים (§3.5.1). There is no way to clear it: null is reserved for the
+  // legacy workshops the migration left empty.
+  if (trainingOffsetMinutes !== undefined && !validTrainingOffset(trainingOffsetMinutes))
+    return NextResponse.json({ error: "מועד אימון לא חוקי — עד שבוע לפני או אחרי הסדנה" }, { status: 400 })
 
   if (roomLocations !== undefined) {
     if (!Array.isArray(roomLocations) || roomLocations.some((l) => !ROOM_LOCATION_VALUES.includes(l)))
@@ -233,6 +247,7 @@ export async function PATCH(
 
   let dateActuallyChanged = false
   let newDateStr_forLog   = ""
+  let timeActuallyChanged = false
 
   // One clock for the whole request, so a cancellation and the room cancellation
   // that rides along with it carry the same instant rather than two a
@@ -307,11 +322,22 @@ export async function PATCH(
         newDateStr_forLog    = newDateStr
       }
     }
-    if (startTime !== undefined) data.startTime = startTime
+    if (startTime !== undefined) {
+      data.startTime = startTime
+      // A moved start time is a postponement in every sense that matters: the
+      // מתחקרים and the actors were told a time, and it is no longer true (§4.7).
+      if (startTime !== w.startTime) {
+        data.postponedWarning   = true
+        data.postponedWarningAt = now
+        timeActuallyChanged = true
+      }
+    }
     if (endTime !== undefined) data.endTime = endTime
     if (locationType !== undefined) data.locationType = locationType
     if (locationName !== undefined) data.locationName = locationName?.trim() || null
     if (numRooms !== undefined) data.numRooms = Number(numRooms)
+    if (trainingOffsetMinutes !== undefined) data.trainingOffsetMinutes = trainingOffsetMinutes
+    if (trainingOnZoom !== undefined) data.trainingOnZoom = !!trainingOnZoom
     if (authorId !== undefined) data.authorId = authorId || null
     if (directorRequested !== undefined) data.directorRequested = directorRequested
     if (directorNotes !== undefined) data.directorNotes = directorNotes?.trim() || null
@@ -321,6 +347,14 @@ export async function PATCH(
     if (tentative !== undefined) data.tentative = tentative
     if (notes !== undefined) data.notes = notes?.trim() || null
   }
+
+  // אימון שחקנים (§3.5.1). A training that moved on its own — not by riding a
+  // postponement, which has its own banner — is news for the Tech, who has to
+  // tell the מתחקרים. Stamped in the same write as the change itself.
+  const trainingBefore = formatTraining(actorTraining(w))
+  const trainingAfter  = formatTraining(actorTraining({ ...w, ...data } as TrainingInput))
+  const workshopMoved  = dateActuallyChanged || timeActuallyChanged
+  if (!workshopMoved && trainingBefore !== trainingAfter) data.trainingChangedAt = now
 
   let updated: Awaited<ReturnType<typeof prisma.workshop.update>>
   try {
@@ -433,15 +467,31 @@ export async function PATCH(
         },
       })
     }
-    // Notify the Caster when the workshop date actually changed
-    if (dateActuallyChanged) {
-      const [y, m, d] = newDateStr_forLog.split("-")
+    // Notify the Caster when the workshop's date or start time actually changed —
+    // one entry for both, so a postponement to another day and hour reads as one event.
+    if (dateActuallyChanged || timeActuallyChanged) {
+      const parts: string[] = []
+      if (dateActuallyChanged) {
+        const [y, m, d] = newDateStr_forLog.split("-")
+        parts.push(`תאריך הסדנה שונה ל-${Number(d)}.${Number(m)}.${String(y).slice(2)}`)
+      }
+      if (timeActuallyChanged)
+        parts.push(dateActuallyChanged ? `שעת ההתחלה ל-${startTime}` : `שעת הסדנה שונתה ל-${startTime}`)
+      // The training rides on the workshop's start, so it just moved too — and
+      // it is the part the Caster has to pass on to the actors.
+      const training = actorTraining(updated)
       await prisma.castingChangeLog.create({
         data: {
           workshopId: id,
           changeType: "DATE_CHANGED",
-          detail: `תאריך הסדנה שונה ל-${Number(d)}.${Number(m)}.${String(y).slice(2)}`,
+          detail: parts.join(", ") + (training ? `. אימון השחקנים: ${formatTraining(training)}` : ""),
         },
+      })
+    } else if (trainingBefore !== trainingAfter) {
+      // The training moved on its own — edited directly, or its place followed
+      // a change of the workshop's location.
+      await prisma.castingChangeLog.create({
+        data: { workshopId: id, changeType: "TRAINING_CHANGED", detail: `אימון השחקנים עודכן: ${trainingAfter}` },
       })
     }
   }
@@ -472,6 +522,9 @@ export async function PATCH(
     otherRoomNotes:        updated.otherRoomNotes,
     otherRoomApproved:     updated.otherRoomApproved,
     scenarioOrderFlexible: updated.scenarioOrderFlexible,
+    trainingOffsetMinutes: updated.trainingOffsetMinutes,
+    trainingOnZoom:        updated.trainingOnZoom,
+    trainingChangedAt:     updated.trainingChangedAt?.toISOString() ?? null,
     // Echoed back so the overlay's checkbox settles on the saved value rather
     // than its optimistic one, and so a tick that completes the list updates the
     // chip and the readiness banner in the same render.
