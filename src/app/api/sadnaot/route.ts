@@ -8,6 +8,7 @@ import { readinessAlert } from "@/lib/workshop-readiness"
 import { CAN_CREATE_WORKSHOP, hasAny } from "@/lib/roles"
 import { workshopHasEnded } from "@/lib/workshop-status"
 import { visibleEventAt } from "@/lib/notification-window"
+import { actorTraining } from "@/lib/actor-training"
 
 export async function GET() {
   const session = await getServerSession(authOptions)
@@ -231,6 +232,11 @@ export async function GET() {
         roomCancelledWarningAt: w.roomCancelledWarning
           ? visibleEventAt(w.roomCancelledWarningAt, viewer, now)
           : null,
+        // אימון שחקנים (§3.5.1): the line both banners quote, and the fourth
+        // event — the training moving on its own. No boolean beside it: nothing
+        // but the banners reads it.
+        training:               actorTraining(w),
+        trainingChangedAt:      visibleEventAt(w.trainingChangedAt, viewer, now),
         feedbackMissing,
         feedbackExpected,
         readiness,

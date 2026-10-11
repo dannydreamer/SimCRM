@@ -4,6 +4,7 @@ import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
 import { CASTER_ALERT_TYPES } from "@/lib/casting-change-log"
 import { NOTIFICATION_WINDOW_DAYS, visibleEventAt } from "@/lib/notification-window"
+import { actorTraining } from "@/lib/actor-training"
 
 export async function GET() {
   const session = await getServerSession(authOptions)
@@ -93,6 +94,8 @@ export async function GET() {
         id:           w.id,
         date:         w.date.toISOString(),
         startTime:    w.startTime,
+        // אימון שחקנים (§3.5.1), so she can plan the training across workshops.
+        training:     actorTraining(w),
         groupName:    w.participantGroup.name,
         orgName:      w.participantGroup.organization.name,
         cancelled:      w.cancelled,
