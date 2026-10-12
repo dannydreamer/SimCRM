@@ -876,7 +876,7 @@ Gender appears on every casting-facing screen. It is shown as a **Hebrew word**,
 
 ### 6.8 Global chrome `[code]`
 
-- **Header** (56px, white, bottom border): right side = logo + "מערכת ניהול"; left side = user name + role pill(s) + "יציאה" logout.
+- **Header** (56px, white, bottom border): right side = logo + "מערכת ניהול"; left side = greeting with the user's first name (§6.9; the full name until the page hydrates, and as its tooltip) + role pill(s) + "יציאה" logout.
 - **Nav**: horizontal row below header, role-filtered, active item highlighted.
 - **Footer**: version number, small gray text.
 - **Backup warning banner**: amber, non-dismissible, Manager only, shown when backup env vars are missing.
@@ -893,6 +893,10 @@ Cosmetic only, and per person: each user can make the CRM a little more their ow
 There is no dark theme.
 
 **Header background (רקע לכותרת).** An optional pattern behind the header strip, and behind the login page — never behind tables, forms or the nav. Built in, no uploads: **ללא** (default), **לפי העונה**, **אבן ירושלמית**, **ענפי זית**, **גלים**, **רימונים**, **פריחה**, **גיאומטרי**. Each is an SVG mask over a layer filled with the theme's navy at low opacity, so it follows the colour theme; אבן ירושלמית alone is drawn in sand. **לפי העונה** follows the Hebrew month (`seasonalPattern()`): Elul–Tishri רימונים, Heshvan–Tevet גלים, Shevat–Nisan פריחה, Iyar–Av ענפי זית.
+
+**Greeting.** The header greets the user by first name, by Israel time (`greetingFor()` in `src/lib/greeting.ts`): בוקר טוב ☀️ 05–12, צהריים טובים 🌤️ 12–17, ערב טוב 🌆 17–21, לילה טוב 🌙 otherwise; שבת שלום 🕯️ from Friday 12:00 to Saturday 18:00, then שבוע טוב ✨. Holidays override all of these: שנה טובה (1–10 Tishri), חג שמח (Sukkot, Pesach), חנוכה שמח, פורים שמח. It is rendered only on the client, since server and viewer may disagree about the hour, and rechecked each minute. Not a setting.
+
+**Closing celebration.** When a workshop becomes סגור while its Workshop Detail page is open — that is, the user just ticked its last letter (§4.2) — confetti bursts from the bottom corners for about three seconds with the message *כל המכתבים התקבלו — הסדנה נסגרה 🎉*. Only on that transition, in that tab: opening an already-closed workshop never fires it. Display-only — `celebrate()` in `src/lib/celebrate.ts` draws on a throwaway canvas and never touches status. With *reduce motion* set, the message shows without the confetti.
 
 **Storage.** Theme and background together in `localStorage`, keyed per user (`simcrm:appearance:<userId>`), so two people sharing a browser keep their own; nothing reaches the database, and the choice does not follow a person to another device. `simcrm:appearance:last` mirrors the latest choice in that browser so the login page carries the same theme and background. An inline script applies the stored choice before first paint (`appearanceInitScript()` in `src/lib/appearance.ts`), so a themed page never flashes navy.
 
@@ -1874,6 +1878,7 @@ Sessions 1–19 as built. Branch naming `session-N-*`, merged to `develop` then 
 | **11 Oct 2026** | — | **The Tech is told when the אימון שחקנים changes** (§3.5, §3.5.1, §4.7, §4.7.1, §11). Only the Caster was: a training moved to Zoom reached her change log and nobody else, though the מתחקרים need it too and hear only through the Tech. A change to the training on its own now stamps `trainingChangedAt` and raises a blue banner for Manager and Tech on Workshop Detail and the workshop table, under the §4.7.1 window. A postponement keeps its own banner, which now carries the moved training on the table too. The postponement confirmation and its training line no longer wait for casting to have been sent. Migration `20261011120000_add_training_changed_at`. |
 | **12 Oct 2026** | — | **Personal colour themes** (new §6.9, §6.8). A 🎨 button in the header lets each user pick one of five palettes — כיתקטיקה, ים, שקיעה, יער, לבנדר. Only the navy family and teal change; green, status and RAG colours are fixed, and the two navy status pills moved to fixed `status-navy` tokens so a theme can't recolour a status. Stored per user in `localStorage`. Under trial. **No schema change, no migration.** |
 | **12 Oct 2026** | — | **Personal header background** (§6.9, §6.1). The 🎨 popover gains *רקע לכותרת*: a faint built-in pattern behind the header and the login page — אבן ירושלמית, ענפי זית, גלים, רימונים, פריחה, גיאומטרי, or לפי העונה, which follows the Hebrew month. Tinted by the colour theme. Off by default; stored with the theme. Under trial. **No schema change, no migration.** |
+| **12 Oct 2026** | — | **Greeting and closing celebration** (§6.9, §6.8). The header greets the user by first name and Israel time — בוקר טוב, צהריים טובים, ערב טוב, לילה טוב, שבת שלום / שבוע טוב, and a few holiday greetings. When the last letter closes a workshop on its Workshop Detail page, a short burst of confetti and a message mark it. Display-only; status logic untouched. Under trial. **No schema change, no migration.** |
 
 ---
 

@@ -7,6 +7,7 @@ import { signOut } from "next-auth/react"
 import { NAV_ITEMS, ROLE_LABELS, displayRoles } from "@/lib/roles"
 import { appearanceInitScript } from "@/lib/appearance"
 import { AppearanceMenu } from "./AppearanceMenu"
+import { Greeting } from "./Greeting"
 
 interface AppShellProps {
   user: {
@@ -58,7 +59,7 @@ export function AppShell({ user, version, backupWarning, children }: AppShellPro
         {/* Left: user info + logout */}
         <div className="flex items-center gap-3 md:gap-4 min-w-0">
           <div className="flex items-center gap-2 text-sm text-gray-700 min-w-0">
-            <span className="font-medium truncate">{user.name}</span>
+            <Greeting name={user.name} />
             {roleLabels && (
               <span className="hidden md:inline px-2 py-0.5 rounded-full text-xs font-medium bg-navy-light text-navy">
                 {roleLabels}

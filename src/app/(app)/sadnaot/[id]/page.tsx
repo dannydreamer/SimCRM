@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState, useCallback, type FocusEvent, type ReactNode } from "react"
+import { useEffect, useRef, useState, useCallback, type FocusEvent, type ReactNode } from "react"
 import { useParams } from "next/navigation"
 import Link from "next/link"
 import { useSession } from "next-auth/react"
@@ -17,6 +17,7 @@ import {
   actorTraining, formatTraining, trainingOffsetFor, DEFAULT_TRAINING_OFFSET,
   type TrainingInput,
 } from "@/lib/actor-training"
+import { celebrate } from "@/lib/celebrate"
 
 // The participants' feedback Google Form is a single standing form shared by every
 // workshop — the copied מחרוזת is pasted into it as a new option, so the link sits
@@ -697,6 +698,19 @@ export default function WorkshopDetailPage() {
   }, [id])
 
   useEffect(() => { load() }, [load])
+
+  // Confetti when the last letter closes the workshop in front of you (§6.9).
+  // Keyed on id as well, so moving to an already-closed workshop doesn't fire.
+  const lastStatus = useRef<string | null>(null)
+  useEffect(() => {
+    if (!w) return
+    const key = `${w.id}:${w.status}`
+    const prev = lastStatus.current
+    if (prev && prev.startsWith(`${w.id}:`) && prev !== key && w.status === "CLOSED") {
+      celebrate("כל המכתבים התקבלו — הסדנה נסגרה 🎉")
+    }
+    lastStatus.current = key
+  }, [w])
 
   // Sync localStorage-based banner dismissal whenever w or session changes
   useEffect(() => {
