@@ -881,6 +881,7 @@ Gender appears on every casting-facing screen. It is shown as a **Hebrew word**,
 - **Footer**: version number, small gray text.
 - **Backup warning banner**: amber, non-dismissible, Manager only, shown when backup env vars are missing.
 - **🎨 מראה אישי**: a button left of יציאה opening the personal-appearance popover (§6.9).
+- **🎭 מסיבה**: a button beside 🎨 offering the party effects (§6.9). Visible while on trial; meant to move behind a hidden trigger on the logo once settled.
 
 ### 6.9 Personal appearance `[code]`
 
@@ -897,6 +898,14 @@ There is no dark theme.
 **Greeting.** The header greets the user by first name, by Israel time (`greetingFor()` in `src/lib/greeting.ts`): בוקר טוב ☀️ 05–12, צהריים טובים 🌤️ 12–17, ערב טוב 🌆 17–21, לילה טוב 🌙 otherwise; שבת שלום 🕯️ from Friday 12:00 to Saturday 18:00, then שבוע טוב ✨. Holidays override all of these: שנה טובה (1–10 Tishri), חג שמח (Sukkot, Pesach), חנוכה שמח, פורים שמח. It is rendered only on the client, since server and viewer may disagree about the hour, and rechecked each minute. Not a setting.
 
 **Closing celebration.** When a workshop becomes סגור while its Workshop Detail page is open — that is, the user just ticked its last letter (§4.2) — confetti bursts from the bottom corners for about three seconds with the message *כל המכתבים התקבלו — הסדנה נסגרה 🎉*. Only on that transition, in that tab: opening an already-closed workshop never fires it. Display-only — `celebrate()` in `src/lib/celebrate.ts` draws on a throwaway canvas and never touches status. With *reduce motion* set, the message shows without the confetti.
+
+**Party effects (🎭).** A few seconds of play on demand, chosen from the 🎭 menu:
+- **פסיכדלי** — rows and headings bounce out of step through pastel rainbow colours, the header and nav sway, the page cycles hue. About 7 seconds.
+- **כוח משיכה** — every visible letter drops, bounces and piles into dunes at the foot of the screen, leaving the page's empty frame behind, then flies back into place. About 5½ seconds.
+- **ריקוד** — up to ten visible rows fly out of the page and become a dancing figure (torso, head, arms, legs), with music notes, then fly home. About 8 seconds. A page with fewer than six usable elements gets פסיכדלי instead.
+- **אקראי** — any of the three, never the same twice running.
+
+The page is never restructured: פסיכדלי is a class on `<html>`; כוח משיכה paints letters on a canvas while the real text goes transparent; ריקוד moves *copies* and only hides the originals. A transparent shield covers the page while an effect runs, so nothing underneath can be clicked by accident — a click or Esc ends it at once and restores the page. With *reduce motion* set, every choice becomes a brief, gentle colour shift. `src/lib/party-fx.ts`.
 
 **Storage.** Theme and background together in `localStorage`, keyed per user (`simcrm:appearance:<userId>`), so two people sharing a browser keep their own; nothing reaches the database, and the choice does not follow a person to another device. `simcrm:appearance:last` mirrors the latest choice in that browser so the login page carries the same theme and background. An inline script applies the stored choice before first paint (`appearanceInitScript()` in `src/lib/appearance.ts`), so a themed page never flashes navy.
 
@@ -1879,6 +1888,7 @@ Sessions 1–19 as built. Branch naming `session-N-*`, merged to `develop` then 
 | **12 Oct 2026** | — | **Personal colour themes** (new §6.9, §6.8). A 🎨 button in the header lets each user pick one of five palettes — כיתקטיקה, ים, שקיעה, יער, לבנדר. Only the navy family and teal change; green, status and RAG colours are fixed, and the two navy status pills moved to fixed `status-navy` tokens so a theme can't recolour a status. Stored per user in `localStorage`. Under trial. **No schema change, no migration.** |
 | **12 Oct 2026** | — | **Personal header background** (§6.9, §6.1). The 🎨 popover gains *רקע לכותרת*: a faint built-in pattern behind the header and the login page — אבן ירושלמית, ענפי זית, גלים, רימונים, פריחה, גיאומטרי, or לפי העונה, which follows the Hebrew month. Tinted by the colour theme. Off by default; stored with the theme. Under trial. **No schema change, no migration.** |
 | **12 Oct 2026** | — | **Greeting and closing celebration** (§6.9, §6.8). The header greets the user by first name and Israel time — בוקר טוב, צהריים טובים, ערב טוב, לילה טוב, שבת שלום / שבוע טוב, and a few holiday greetings. When the last letter closes a workshop on its Workshop Detail page, a short burst of confetti and a message mark it. Display-only; status logic untouched. Under trial. **No schema change, no migration.** |
+| **12 Oct 2026** | — | **🎭 Party effects** (§6.9, §6.8). A 🎭 button in the header plays a few seconds of nonsense: פסיכדלי (rows bounce in rainbow colours), כוח משיכה (every letter falls into a pile, then flies back), ריקוד (rows form a dancing figure), or אקראי. Nothing can be clicked while one runs; a click or Esc ends it. Visible for the trial, to be hidden behind the logo later. **No schema change, no migration.** |
 
 ---
 

@@ -8,6 +8,7 @@ import { NAV_ITEMS, ROLE_LABELS, displayRoles } from "@/lib/roles"
 import { appearanceInitScript } from "@/lib/appearance"
 import { AppearanceMenu } from "./AppearanceMenu"
 import { Greeting } from "./Greeting"
+import { PartyButton } from "./PartyButton"
 
 interface AppShellProps {
   user: {
@@ -66,6 +67,7 @@ export function AppShell({ user, version, backupWarning, children }: AppShellPro
               </span>
             )}
           </div>
+          <PartyButton />
           <AppearanceMenu userId={user.id} />
           <button
             onClick={() => signOut({ callbackUrl: "/login" })}
