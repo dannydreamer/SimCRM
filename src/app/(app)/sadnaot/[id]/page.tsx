@@ -151,7 +151,7 @@ const STATUS_COLORS: Record<string, string> = {
   SPECIFIED: "bg-blue-100 text-blue-700",
   READY: "bg-green-100 text-green-700",
   CLOSING: "bg-amber-100 text-amber-700",
-  CLOSED: "bg-navy-light text-navy",
+  CLOSED: "bg-status-navy-light text-status-navy",
   CANCELLED: "bg-red-100 text-red-600",
 }
 

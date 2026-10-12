@@ -5,9 +5,12 @@ import Image from "next/image"
 import { usePathname } from "next/navigation"
 import { signOut } from "next-auth/react"
 import { NAV_ITEMS, ROLE_LABELS, displayRoles } from "@/lib/roles"
+import { appearanceInitScript } from "@/lib/appearance"
+import { AppearanceMenu } from "./AppearanceMenu"
 
 interface AppShellProps {
   user: {
+    id: string
     name: string
     email: string
     roles: string[]
@@ -32,6 +35,8 @@ export function AppShell({ user, version, backupWarning, children }: AppShellPro
 
   return (
     <div className="min-h-screen flex flex-col bg-white" dir="rtl">
+      {/* Applies this user's theme before paint — see appearance.ts */}
+      <script dangerouslySetInnerHTML={{ __html: appearanceInitScript(user.id) }} />
       {/* Header */}
       <header className="h-14 bg-white border-b border-gray-200 flex items-center px-4 md:px-6 shrink-0">
         {/* Right: logo + system name */}
@@ -58,6 +63,7 @@ export function AppShell({ user, version, backupWarning, children }: AppShellPro
               </span>
             )}
           </div>
+          <AppearanceMenu userId={user.id} />
           <button
             onClick={() => signOut({ callbackUrl: "/login" })}
             className="shrink-0 text-sm text-gray-400 hover:text-gray-700 transition-colors"

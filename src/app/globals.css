@@ -16,6 +16,38 @@
   --color-rag-amber:        #FFF3CD;
   --color-rag-amber-text:   #856404;
   --color-rag-red:          #F8D7DA;
+
+  /* ── Status navy — fixed, never follows the personal theme (§6.9) ── */
+  --color-status-navy:       #2C4B9A;
+  --color-status-navy-light: #EEF2FF;
+}
+
+/* ── Personal colour themes (§6.9) ───────────────────
+   Only the navy family and teal move. Green stays green because it means
+   "done", and the status / RAG tokens above are untouched. */
+html[data-theme="sea"] {
+  --color-navy:       #0E7C86;
+  --color-navy-dark:  #0A5F67;
+  --color-navy-light: #E3F2F1;
+  --color-sim-teal:   #2F6FA3;
+}
+html[data-theme="sunset"] {
+  --color-navy:       #B5533C;
+  --color-navy-dark:  #93402D;
+  --color-navy-light: #FBEDE7;
+  --color-sim-teal:   #A8682A;
+}
+html[data-theme="forest"] {
+  --color-navy:       #2F6B3F;
+  --color-navy-dark:  #24532F;
+  --color-navy-light: #EAF3EC;
+  --color-sim-teal:   #5E7A24;
+}
+html[data-theme="lavender"] {
+  --color-navy:       #6B5B9A;
+  --color-navy-dark:  #554780;
+  --color-navy-light: #F1EEF8;
+  --color-sim-teal:   #8A5A9E;
 }
 
 * {
