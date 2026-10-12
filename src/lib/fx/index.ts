@@ -4,16 +4,12 @@
 
 import { makeCtx, type Ctx } from "./core"
 import { isSoundOn } from "./sound"
-import { psychedelic } from "./effects/psychedelic"
 import { gravity } from "./effects/gravity"
 import { hula } from "./effects/hula"
 import { bird } from "./effects/bird"
 import { matrix } from "./effects/matrix"
 import { star } from "./effects/star"
-import { curtain } from "./effects/curtain"
 import { pacman } from "./effects/pacman"
-import { blackhole } from "./effects/blackhole"
-import { dominoes } from "./effects/dominoes"
 import { plane } from "./effects/plane"
 import { aquarium } from "./effects/aquarium"
 import { fireworks } from "./effects/fireworks"
@@ -25,16 +21,12 @@ type Run = (ctx: Ctx) => boolean
 
 /** In menu order. A run returns false when the page lacks what it needs. */
 const EFFECTS: { id: string; label: string; run: Run }[] = [
-  { id: "psychedelic", label: "פסיכדלי",     run: psychedelic },
   { id: "gravity",     label: "כוח משיכה",   run: gravity },
   { id: "hula",        label: "ריקוד הולה",  run: hula },
   { id: "bird",        label: "ציפור וקן",   run: bird },
   { id: "matrix",      label: "מטריקס",      run: matrix },
   { id: "star",        label: "מגן דוד",     run: star },
-  { id: "curtain",     label: "ההצגה מתחילה", run: curtain },
   { id: "pacman",      label: "פקמן",        run: pacman },
-  { id: "blackhole",   label: "חור שחור",    run: blackhole },
-  { id: "dominoes",    label: "דומינו",      run: dominoes },
   { id: "plane",       label: "מטוס נייר",   run: plane },
   { id: "aquarium",    label: "אקווריום",    run: aquarium },
   { id: "fireworks",   label: "זיקוקים",     run: fireworks },
@@ -66,8 +58,12 @@ export function runFx(id: string) {
   running = true
   const ctx = makeCtx(isSoundOn(), () => { running = false })
   try {
-    // Not enough on this page for the chosen one — the one that always works.
-    if (!chosen.run(ctx)) psychedelic(ctx)
+    // An effect that finds too little on this page declines before touching
+    // anything; then another one plays. The bird always can.
+    if (!chosen.run(ctx)) {
+      const others = EFFECTS.filter((e) => e !== chosen).sort(() => Math.random() - 0.5)
+      if (!others.some((e) => e.run(ctx))) ctx.stop()
+    }
   } catch (e) {
     ctx.stop()
     throw e

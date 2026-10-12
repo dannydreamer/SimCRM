@@ -126,34 +126,8 @@ body {
 }
 
 /* ── 🎭 Party effects (§6.9) ──────────────────────────
-   Classes on <html> only, set and cleared by src/lib/party-fx.ts. Nothing
-   here changes React's DOM, so removing the class restores the page exactly. */
-html.fx-psy main { animation: fx-hue 2.4s linear infinite; }
-html.fx-psy header, html.fx-psy nav { animation: fx-sway 0.9s ease-in-out infinite alternate; }
-html.fx-psy main tr,
-html.fx-psy main li,
-html.fx-psy main h1, html.fx-psy main h2, html.fx-psy main h3 {
-  animation: fx-bounce 0.45s ease-in-out infinite alternate, fx-rainbow 1.6s linear infinite;
-}
-/* Buttons and links only bounce — a rainbow behind white text erases it. */
-html.fx-psy main button, html.fx-psy main a { animation: fx-bounce 0.45s ease-in-out infinite alternate; }
-html.fx-psy main tr:nth-child(3n+1) { animation-delay: -0.15s, -0.4s; }
-html.fx-psy main tr:nth-child(3n+2) { animation-delay: -0.3s, -0.8s; animation-direction: alternate-reverse, normal; }
-html.fx-psy main tr:nth-child(4n)   { animation-delay: -0.05s, -1.2s; }
-html.fx-psy main button:nth-child(odd), html.fx-psy main a:nth-child(odd) { animation-direction: alternate-reverse; }
-
-@keyframes fx-hue    { from { filter: hue-rotate(0deg) saturate(1.5); } to { filter: hue-rotate(360deg) saturate(1.5); } }
-@keyframes fx-sway   { from { transform: rotate(-0.8deg) translateY(-2px); } to { transform: rotate(0.8deg) translateY(2px); } }
-@keyframes fx-bounce { from { transform: translate(-10px, -3px) rotate(-1.2deg); } to { transform: translate(10px, 3px) rotate(1.2deg); } }
-@keyframes fx-rainbow {
-  0%   { background-color: #ffd6e0; }
-  20%  { background-color: #ffe9b8; }
-  40%  { background-color: #d4f5c9; }
-  60%  { background-color: #c9ecff; }
-  80%  { background-color: #e3d4ff; }
-  100% { background-color: #ffd6e0; }
-}
-
+   Classes and keyframes used by src/lib/fx/. Nothing here changes React's
+   DOM, so removing a class restores the page exactly. */
 html.fx-gentle main { animation: fx-gentle 1.8s ease-in-out; }
 @keyframes fx-gentle { 50% { filter: hue-rotate(120deg) saturate(1.3); } }
 
@@ -162,10 +136,6 @@ html.fx-hide-text body *:not(.fx-keep) { color: transparent !important; -webkit-
 html.fx-hide-text body input::placeholder, html.fx-hide-text body textarea::placeholder { color: transparent !important; }
 
 @keyframes fx-note { from { transform: translate(0, 0) rotate(-10deg); opacity: 1; } to { transform: translate(40px, -120px) rotate(20deg); opacity: 0; } }
-@keyframes fx-bow {
-  0%, 100% { transform: none; }
-  35%, 60% { transform: perspective(700px) rotateX(42deg) translateY(4px); }
-}
 @keyframes fx-float {
   0%, 100% { transform: translate(0, 0) rotate(0deg); }
   25%      { transform: translate(7px, -7px) rotate(0.7deg); }

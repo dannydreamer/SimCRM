@@ -44,8 +44,11 @@ function drawPlane(g: CanvasRenderingContext2D, x: number, y: number, a: number,
 
 export function plane(ctx: Ctx): boolean {
   const { W, H, sound } = ctx
-  const rows = Array.from(document.querySelectorAll<HTMLElement>("main tbody tr, main li, main h1, main h2"))
-    .filter((e) => { const r = e.getBoundingClientRect(); return r.width > 80 && r.top > 60 && r.bottom < H - 20 })
+  // Rows if the page has them; otherwise any sizeable block — the calendar
+  // and the organization cards have no table.
+  const rows = Array.from(document.querySelectorAll<HTMLElement>(
+    "main tbody tr, main li, main h1, main h2, main h3, main .rounded-xl, main .rounded-lg, main p, main button",
+  )).filter((e) => { const r = e.getBoundingClientRect(); return r.width > 80 && r.width < W * 0.95 && r.height > 14 && r.top > 0 && r.bottom < H })
   if (!rows.length) return false
   const row = rows.sort((a, b) => Math.abs(a.getBoundingClientRect().top - H / 2) - Math.abs(b.getBoundingClientRect().top - H / 2))[0]
   const { copies, rects } = liftOut(ctx, [row])

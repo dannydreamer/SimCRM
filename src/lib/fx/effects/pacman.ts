@@ -64,7 +64,7 @@ export function pacman(ctx: Ctx): boolean {
     return { x: lerp(p.x, q.x, f), y: lerp(p.y, q.y, f), dx: Math.sign(q.x - p.x), dy: Math.sign(q.y - p.y) }
   }
 
-  const speed = Math.min(1700, Math.max(380, total / 7)) / 1000   // px per ms
+  const speed = Math.min(1100, Math.max(300, total / 9)) / 1000   // px per ms
   const RUN = total / speed
   const CAUGHT = RUN + 450
   const DEATH = CAUGHT + 1400
