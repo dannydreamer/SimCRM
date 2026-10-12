@@ -881,7 +881,7 @@ Gender appears on every casting-facing screen. It is shown as a **Hebrew word**,
 - **Footer**: version number, small gray text.
 - **Backup warning banner**: amber, non-dismissible, Manager only, shown when backup env vars are missing.
 - **🎨 מראה אישי**: a button left of יציאה opening the personal-appearance popover (§6.9).
-- **🎭 מסיבה**: a button beside 🎨 offering the party effects (§6.9). Visible while on trial; meant to move behind a hidden trigger on the logo once settled.
+- **🎭 מסיבה**: a button beside 🎨 offering the party effects and the sound toggle (§6.9). Visible while on trial; meant to move behind a hidden trigger on the logo once settled.
 
 ### 6.9 Personal appearance `[code]`
 
@@ -901,13 +901,19 @@ Deliberately fixed in every light theme:
 
 **Closing celebration.** When a workshop becomes סגור while its Workshop Detail page is open — that is, the user just ticked its last letter (§4.2) — confetti bursts from the bottom corners for about three seconds with the message *כל המכתבים התקבלו — הסדנה נסגרה 🎉*. Only on that transition, in that tab: opening an already-closed workshop never fires it. Display-only — `celebrate()` in `src/lib/celebrate.ts` draws on a throwaway canvas and never touches status. With *reduce motion* set, the message shows without the confetti.
 
-**Party effects (🎭).** A few seconds of play on demand, chosen from the 🎭 menu:
-- **פסיכדלי** — rows and headings bounce out of step through pastel rainbow colours, the header and nav sway, the page cycles hue. About 7 seconds.
-- **כוח משיכה** — every visible letter drops, bounces and piles into dunes at the foot of the screen, leaving the page's empty frame behind, then flies back into place. About 5½ seconds.
-- **ריקוד** — up to ten visible rows fly out of the page and become a dancing figure (torso, head, arms, legs), with music notes, then fly home. About 8 seconds. A page with fewer than six usable elements gets פסיכדלי instead.
-- **אקראי** — any of the three, never the same twice running.
+**Party effects (🎭).** A few seconds of play on demand, chosen from the 🎭 menu or at random (**🎲 אקראי** — never the same one twice running):
 
-The page is never restructured: פסיכדלי is a class on `<html>`; כוח משיכה paints letters on a canvas while the real text goes transparent; ריקוד moves *copies* and only hides the originals. A transparent shield covers the page while an effect runs, so nothing underneath can be clicked by accident — a click or Esc ends it at once and restores the page. With *reduce motion* set, every choice becomes a brief, gentle colour shift. `src/lib/party-fx.ts`.
+| Effect | What happens |
+|---|---|
+| **פסיכדלי** | Rows and headings bounce out of step in pastel rainbow colours, then the page becomes a kaleidoscope — live copies of it cut into 8 mirrored wedges (6 on very large pages) that turn, drift and melt under a displacement filter while the hue cycles. ~11 s. |
+| **כוח משיכה** | Every visible letter drops, bounces and piles into dunes at the foot of the screen, leaving the page's empty frame behind, then flies back into place. ~5½ s. |
+| **ריקוד הולה** | Up to ten visible rows fly out and become a woman dancing hula — torso, head, arms and legs made of rows — with a grass skirt, a lei, long hair and a hibiscus drawn on. Hips sway; both arms ripple to one side, then the other. ~10 s. |
+
+An effect that finds too little on the page (fewer than six usable elements for the dancer, almost no text for the letter effects) plays פסיכדלי instead.
+
+The page is never restructured: effects set classes on `<html>`, paint on canvases while the real text goes transparent, move *copies* of elements and hide the originals, or set inline style on an element React leaves unstyled — and every change is undone when the effect ends. A transparent shield covers the page while one runs, so nothing underneath can be clicked by accident; a click or Esc ends it at once. With *reduce motion* set, every choice becomes a brief, gentle colour shift. Code under `src/lib/fx/`, one module per effect; `PartyButton` loads it only when the menu is first opened.
+
+**Sound.** Synthesized in the browser (Web Audio, no audio files) and **off by default** — the menu's 🔇/🔊 row toggles it per browser (`simcrm:fx-sound`). Kept quiet: one master gain at 0.16. Psychedelic plays a gliding arpeggio over a drone, the dancer a ukulele strum, gravity a falling whistle and the patter of landing letters.
 
 **Storage.** Theme and background together in `localStorage`, keyed per user (`simcrm:appearance:<userId>`), so two people sharing a browser keep their own; nothing reaches the database, and the choice does not follow a person to another device. `simcrm:appearance:last` mirrors the latest choice in that browser so the login page carries the same theme and background. An inline script applies the stored choice before first paint (`appearanceInitScript()` in `src/lib/appearance.ts`), so a themed page never flashes navy.
 
@@ -1892,6 +1898,7 @@ Sessions 1–19 as built. Branch naming `session-N-*`, merged to `develop` then 
 | **12 Oct 2026** | — | **Greeting and closing celebration** (§6.9, §6.8). The header greets the user by first name and Israel time — בוקר טוב, צהריים טובים, ערב טוב, לילה טוב, שבת שלום / שבוע טוב, and a few holiday greetings. When the last letter closes a workshop on its Workshop Detail page, a short burst of confetti and a message mark it. Display-only; status logic untouched. Under trial. **No schema change, no migration.** |
 | **12 Oct 2026** | — | **🎭 Party effects** (§6.9, §6.8). A 🎭 button in the header plays a few seconds of nonsense: פסיכדלי (rows bounce in rainbow colours), כוח משיכה (every letter falls into a pile, then flies back), ריקוד (rows form a dancing figure), or אקראי. Nothing can be clicked while one runs; a click or Esc ends it. Visible for the trial, to be hidden behind the logo later. **No schema change, no migration.** |
 | **12 Oct 2026** | — | **Themes tint the page, and a dark theme** (§6.9). Testers found the themes barely visible, since only buttons and links changed. Each light theme now also washes the page canvas, header bar, nav strip and table headers in its colour, with cards left white. New **לילה** theme: Tailwind's white and gray scale inverted, pastel banners dimmed. Under trial. **No schema change, no migration.** |
+| **12 Oct 2026** | — | **Party effects, round two** (§6.9). Psychedelic gains a melting, turning kaleidoscope made from live copies of the page. The dancer is now a woman dancing hula, in a grass skirt and lei. Optional synthesized sound, off by default, toggled from the 🎭 menu. Effects moved to `src/lib/fx/` and load only when the menu opens. Under trial. **No schema change, no migration.** |
 
 ---
 
