@@ -11,6 +11,7 @@ export const THEMES = [
   { id: "sunset",    label: "שקיעה",     swatch: ["#B5533C", "#FBEDE7"] },
   { id: "forest",    label: "יער",       swatch: ["#2F6B3F", "#EAF3EC"] },
   { id: "lavender",  label: "לבנדר",     swatch: ["#6B5B9A", "#F1EEF8"] },
+  { id: "night",     label: "לילה",      swatch: ["#171C27", "#5A7BE0"] },
 ] as const
 
 export type ThemeId = (typeof THEMES)[number]["id"]

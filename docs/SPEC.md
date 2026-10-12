@@ -887,11 +887,13 @@ Gender appears on every casting-facing screen. It is shown as a **Hebrew word**,
 
 Cosmetic only, and per person: each user can make the CRM a little more their own without changing what anyone else sees. **Under trial** — the pieces below were built to be tried, and the ones that don't earn their place will be removed.
 
-**Colour themes (ערכת צבעים).** Five presets: **כיתקטיקה** (the default navy, §6.1), **ים**, **שקיעה**, **יער**, **לבנדר**. A theme replaces only the navy family (`navy`, `navy-dark`, `navy-light`) and `sim-teal`, through `html[data-theme]` overrides in `globals.css`. Deliberately fixed in every theme:
+**Colour themes (ערכת צבעים).** Six presets: **כיתקטיקה** (the default, unchanged from §6.1), **ים**, **שקיעה**, **יער**, **לבנדר**, and **לילה**, a dark theme. Each is a set of `html[data-theme]` overrides in `globals.css`. The four light themes replace the navy family (`navy`, `navy-dark`, `navy-light`) and `sim-teal`, and tint the app's surfaces: the page canvas, the header bar, the nav strip and `gray-50` (table headers, hover rows) take a pale wash of the theme colour, while cards stay white and lift off it. The surfaces are the `app-canvas`, `app-header` and `app-nav` classes in `AppShell`.
+
+**לילה** turns Tailwind's white and gray scale around — every utility reads its colour from a variable, so one block darkens nearly every screen. White *text* stays white (it sits on navy buttons), the logo gets a white disc, and the amber, green, red and blue pastels used for banners and chips are dimmed. Status pills drawn from the RAG tokens stay light.
+
+Deliberately fixed in every light theme:
 - **Green** — it means *done* (✓ marks, the מוכן pill).
 - **Status and RAG colours** (§6.4, §6.5). The two status pills that used navy — בוצע איתור צרכים in the table, סגור on Workshop Detail — use the fixed `status-navy` tokens instead.
-
-There is no dark theme.
 
 **Header background (רקע לכותרת).** An optional pattern behind the header strip, and behind the login page — never behind tables, forms or the nav. Built in, no uploads: **ללא** (default), **לפי העונה**, **אבן ירושלמית**, **ענפי זית**, **גלים**, **רימונים**, **פריחה**, **גיאומטרי**. Each is an SVG mask over a layer filled with the theme's navy at low opacity, so it follows the colour theme; אבן ירושלמית alone is drawn in sand. **לפי העונה** follows the Hebrew month (`seasonalPattern()`): Elul–Tishri רימונים, Heshvan–Tevet גלים, Shevat–Nisan פריחה, Iyar–Av ענפי זית.
 
@@ -1889,6 +1891,7 @@ Sessions 1–19 as built. Branch naming `session-N-*`, merged to `develop` then 
 | **12 Oct 2026** | — | **Personal header background** (§6.9, §6.1). The 🎨 popover gains *רקע לכותרת*: a faint built-in pattern behind the header and the login page — אבן ירושלמית, ענפי זית, גלים, רימונים, פריחה, גיאומטרי, or לפי העונה, which follows the Hebrew month. Tinted by the colour theme. Off by default; stored with the theme. Under trial. **No schema change, no migration.** |
 | **12 Oct 2026** | — | **Greeting and closing celebration** (§6.9, §6.8). The header greets the user by first name and Israel time — בוקר טוב, צהריים טובים, ערב טוב, לילה טוב, שבת שלום / שבוע טוב, and a few holiday greetings. When the last letter closes a workshop on its Workshop Detail page, a short burst of confetti and a message mark it. Display-only; status logic untouched. Under trial. **No schema change, no migration.** |
 | **12 Oct 2026** | — | **🎭 Party effects** (§6.9, §6.8). A 🎭 button in the header plays a few seconds of nonsense: פסיכדלי (rows bounce in rainbow colours), כוח משיכה (every letter falls into a pile, then flies back), ריקוד (rows form a dancing figure), or אקראי. Nothing can be clicked while one runs; a click or Esc ends it. Visible for the trial, to be hidden behind the logo later. **No schema change, no migration.** |
+| **12 Oct 2026** | — | **Themes tint the page, and a dark theme** (§6.9). Testers found the themes barely visible, since only buttons and links changed. Each light theme now also washes the page canvas, header bar, nav strip and table headers in its colour, with cards left white. New **לילה** theme: Tailwind's white and gray scale inverted, pastel banners dimmed. Under trial. **No schema change, no migration.** |
 
 ---
 

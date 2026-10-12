@@ -36,11 +36,11 @@ export function AppShell({ user, version, backupWarning, children }: AppShellPro
     .join(", ")
 
   return (
-    <div className="min-h-screen flex flex-col bg-white" dir="rtl">
+    <div className="app-canvas min-h-screen flex flex-col" dir="rtl">
       {/* Applies this user's theme before paint — see appearance.ts */}
       <script dangerouslySetInnerHTML={{ __html: appearanceInitScript(user.id) }} />
       {/* Header */}
-      <header className="relative isolate h-14 bg-white border-b border-gray-200 flex items-center px-4 md:px-6 shrink-0">
+      <header className="app-header relative isolate h-14 border-b border-gray-200 flex items-center px-4 md:px-6 shrink-0">
         {/* Personal background pattern, hidden unless one is chosen (§6.9) */}
         <div className="appearance-bg absolute inset-0 -z-10 pointer-events-none" aria-hidden />
         {/* Right: logo + system name */}
@@ -79,7 +79,7 @@ export function AppShell({ user, version, backupWarning, children }: AppShellPro
       </header>
 
       {/* Nav — scrolls sideways on a phone rather than wrapping */}
-      <nav className="bg-white border-b border-gray-100 px-4 md:px-6 flex items-center gap-1 h-10 shrink-0 overflow-x-auto">
+      <nav className="app-nav border-b border-gray-100 px-4 md:px-6 flex items-center gap-1 h-10 shrink-0 overflow-x-auto">
         {visibleNav.map((item) => {
           const active = pathname.startsWith(item.href)
           return (

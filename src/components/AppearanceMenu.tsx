@@ -54,10 +54,10 @@ export function AppearanceMenu({ userId }: { userId: string }) {
       </button>
 
       {open && (
-        <div className="absolute left-0 top-10 z-50 w-64 bg-white border border-gray-200 rounded-xl shadow-lg p-4 space-y-4">
+        <div className="absolute left-0 top-10 z-50 w-72 bg-white border border-gray-200 rounded-xl shadow-lg p-4 space-y-4">
           <div>
             <p className="text-xs font-semibold text-gray-500 mb-2">ערכת צבעים</p>
-            <div className="grid grid-cols-5 gap-2">
+            <div className="grid grid-cols-3 gap-2">
               {THEMES.map((t) => {
                 const active = appearance.theme === t.id
                 return (

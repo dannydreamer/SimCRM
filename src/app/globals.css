@@ -25,30 +25,71 @@
 /* ── Personal colour themes (§6.9) ───────────────────
    Only the navy family and teal move. Green stays green because it means
    "done", and the status / RAG tokens above are untouched. */
+/* App surfaces. Cards stay bg-white, so on a tinted canvas they lift off it. */
+.app-canvas { background-color: var(--app-canvas, #ffffff); }
+.app-header { background-color: var(--app-header, #ffffff); }
+.app-nav    { background-color: var(--app-nav, #ffffff); }
+
 html[data-theme="sea"] {
+  --app-canvas: #F2F8F8; --app-header: #DDEFEE; --app-nav: #EAF5F4; --color-gray-50: #EEF6F6;
   --color-navy:       #0E7C86;
   --color-navy-dark:  #0A5F67;
   --color-navy-light: #E3F2F1;
   --color-sim-teal:   #2F6FA3;
 }
 html[data-theme="sunset"] {
+  --app-canvas: #FDF6F2; --app-header: #F8E2D8; --app-nav: #FBEDE6; --color-gray-50: #FAF0EA;
   --color-navy:       #B5533C;
   --color-navy-dark:  #93402D;
   --color-navy-light: #FBEDE7;
   --color-sim-teal:   #A8682A;
 }
 html[data-theme="forest"] {
+  --app-canvas: #F4F8F4; --app-header: #DDEBDF; --app-nav: #EAF2EB; --color-gray-50: #EEF5EF;
   --color-navy:       #2F6B3F;
   --color-navy-dark:  #24532F;
   --color-navy-light: #EAF3EC;
   --color-sim-teal:   #5E7A24;
 }
 html[data-theme="lavender"] {
+  --app-canvas: #F7F5FB; --app-header: #E6E0F3; --app-nav: #EFEBF8; --color-gray-50: #F2EFF9;
   --color-navy:       #6B5B9A;
   --color-navy-dark:  #554780;
   --color-navy-light: #F1EEF8;
   --color-sim-teal:   #8A5A9E;
 }
+
+/* Night. Tailwind's utilities read their colours from variables, so turning
+   white and the gray scale around darkens nearly every screen at once. White
+   *text* is pinned back to white — it sits on navy buttons. Pastel banners
+   and the status / RAG colours stay as they are: light chips on a dark page. */
+html[data-theme="night"] {
+  color-scheme: dark;
+  --app-canvas: #10141C; --app-header: #171C27; --app-nav: #171C27;
+  --color-white:    #171C27;
+  --color-gray-50:  #1C2230;
+  --color-gray-100: #232A3A;
+  --color-gray-200: #2E3647;
+  --color-gray-300: #3D4659;
+  --color-gray-400: #6B7487;
+  --color-gray-500: #8D95A6;
+  --color-gray-600: #A9B0BE;
+  --color-gray-700: #C4C9D4;
+  --color-gray-800: #DDE1E8;
+  --color-gray-900: #EEF0F4;
+  --color-navy:       #5A7BE0;
+  --color-navy-dark:  #4766C8;
+  --color-navy-light: #253150;
+  --color-sim-teal:   #4FB7C2;
+  /* Pastel banners and chips, dimmed so they don't glare */
+  --color-amber-50: #33290F; --color-amber-100: #44361A; --color-amber-200: #6B5420; --color-amber-700: #F0C46A; --color-amber-800: #F3D58A;
+  --color-green-50: #10291A; --color-green-100: #163723; --color-green-700: #7DDB9A;
+  --color-red-50:   #33151A; --color-red-100:   #451C22; --color-red-200:   #6B2A33; --color-red-600: #F28B95;
+  --color-blue-50:  #14223F; --color-blue-100:  #1B2D52; --color-blue-700:  #93B4F5; --color-blue-800: #B3CBFA;
+}
+html[data-theme="night"] body { color: var(--color-gray-900); background: var(--app-canvas); }
+html[data-theme="night"] .text-white { color: #ffffff; }
+html[data-theme="night"] header img { background: #ffffff; border-radius: 9999px; }
 
 /* ── Header backgrounds (§6.9) ───────────────────────
    Each pattern is a mask over a layer filled with the theme colour, so the
