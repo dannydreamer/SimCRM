@@ -7,6 +7,17 @@ import { isSoundOn } from "./sound"
 import { psychedelic } from "./effects/psychedelic"
 import { gravity } from "./effects/gravity"
 import { hula } from "./effects/hula"
+import { bird } from "./effects/bird"
+import { matrix } from "./effects/matrix"
+import { star } from "./effects/star"
+import { curtain } from "./effects/curtain"
+import { pacman } from "./effects/pacman"
+import { blackhole } from "./effects/blackhole"
+import { dominoes } from "./effects/dominoes"
+import { plane } from "./effects/plane"
+import { aquarium } from "./effects/aquarium"
+import { fireworks } from "./effects/fireworks"
+import { earthquake } from "./effects/earthquake"
 
 export { isSoundOn, setSoundOn } from "./sound"
 
@@ -17,6 +28,17 @@ const EFFECTS: { id: string; label: string; run: Run }[] = [
   { id: "psychedelic", label: "פסיכדלי",     run: psychedelic },
   { id: "gravity",     label: "כוח משיכה",   run: gravity },
   { id: "hula",        label: "ריקוד הולה",  run: hula },
+  { id: "bird",        label: "ציפור וקן",   run: bird },
+  { id: "matrix",      label: "מטריקס",      run: matrix },
+  { id: "star",        label: "מגן דוד",     run: star },
+  { id: "curtain",     label: "ההצגה מתחילה", run: curtain },
+  { id: "pacman",      label: "פקמן",        run: pacman },
+  { id: "blackhole",   label: "חור שחור",    run: blackhole },
+  { id: "dominoes",    label: "דומינו",      run: dominoes },
+  { id: "plane",       label: "מטוס נייר",   run: plane },
+  { id: "aquarium",    label: "אקווריום",    run: aquarium },
+  { id: "fireworks",   label: "זיקוקים",     run: fireworks },
+  { id: "earthquake",  label: "רעידת אדמה",  run: earthquake },
 ]
 
 export const FX_MENU = [{ id: "random", label: "אקראי" }, ...EFFECTS.map(({ id, label }) => ({ id, label }))]

@@ -162,3 +162,12 @@ html.fx-hide-text body *:not(.fx-keep) { color: transparent !important; -webkit-
 html.fx-hide-text body input::placeholder, html.fx-hide-text body textarea::placeholder { color: transparent !important; }
 
 @keyframes fx-note { from { transform: translate(0, 0) rotate(-10deg); opacity: 1; } to { transform: translate(40px, -120px) rotate(20deg); opacity: 0; } }
+@keyframes fx-bow {
+  0%, 100% { transform: none; }
+  35%, 60% { transform: perspective(700px) rotateX(42deg) translateY(4px); }
+}
+@keyframes fx-float {
+  0%, 100% { transform: translate(0, 0) rotate(0deg); }
+  25%      { transform: translate(7px, -7px) rotate(0.7deg); }
+  75%      { transform: translate(-7px, 5px) rotate(-0.6deg); }
+}
