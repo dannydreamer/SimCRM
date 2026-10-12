@@ -38,7 +38,9 @@ export function AppShell({ user, version, backupWarning, children }: AppShellPro
       {/* Applies this user's theme before paint — see appearance.ts */}
       <script dangerouslySetInnerHTML={{ __html: appearanceInitScript(user.id) }} />
       {/* Header */}
-      <header className="h-14 bg-white border-b border-gray-200 flex items-center px-4 md:px-6 shrink-0">
+      <header className="relative isolate h-14 bg-white border-b border-gray-200 flex items-center px-4 md:px-6 shrink-0">
+        {/* Personal background pattern, hidden unless one is chosen (§6.9) */}
+        <div className="appearance-bg absolute inset-0 -z-10 pointer-events-none" aria-hidden />
         {/* Right: logo + system name */}
         <div className="flex items-center gap-3 flex-1">
           <Image

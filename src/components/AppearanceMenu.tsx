@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react"
 import {
-  THEMES, applyAppearance, loadAppearance, saveAppearance,
+  THEMES, BACKGROUNDS, seasonalPattern, applyAppearance, loadAppearance, saveAppearance,
   DEFAULT_APPEARANCE, type Appearance,
 } from "@/lib/appearance"
 
@@ -77,6 +77,31 @@ export function AppearanceMenu({ userId }: { userId: string }) {
                     <span className={`text-[11px] leading-tight ${active ? "font-semibold text-gray-900" : "text-gray-500"}`}>
                       {t.label}
                     </span>
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+          <div>
+            <p className="text-xs font-semibold text-gray-500 mb-2">רקע לכותרת</p>
+            <div className="grid grid-cols-2 gap-1.5">
+              {BACKGROUNDS.map((b) => {
+                const active = appearance.bg === b.id
+                const pattern = b.id === "seasonal" ? seasonalPattern(new Date()) : b.id
+                return (
+                  <button
+                    key={b.id}
+                    type="button"
+                    onClick={() => update({ bg: b.id })}
+                    className={`relative isolate h-9 rounded-lg border text-xs transition-colors ${
+                      active ? "border-navy text-navy font-semibold" : "border-gray-200 text-gray-600 hover:border-gray-300"
+                    }`}
+                  >
+                    {/* A live preview: the same layer the header uses, pinned to this pattern */}
+                    {b.id !== "none" && (
+                      <span data-bg-preview={pattern} className="appearance-bg absolute inset-0 -z-10 rounded-lg" aria-hidden />
+                    )}
+                    {b.label}
                   </button>
                 )
               })}

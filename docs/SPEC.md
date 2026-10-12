@@ -818,7 +818,7 @@ Five changes were made after go-live, in this order:
 - Palette:
   - Navy `#2C4B9A` · Teal `#0B8390` · Green `#31AA59` · Mint `#86C9BB` · Blush `#F9CFCC`
 - **Dominant background: white (`#FFFFFF`)**
-- No decorative brand motifs. Brand present through colour and logo only.
+- No decorative brand motifs. Brand present through colour and logo only. The one exception is the opt-in header background a user can choose for themselves (§6.9) — off by default, and never behind working content.
 - Feel: clean, calm, functional. This is a work tool, not a showcase.
 
 ### 6.2 Language & layout
@@ -892,7 +892,9 @@ Cosmetic only, and per person: each user can make the CRM a little more their ow
 
 There is no dark theme.
 
-**Storage.** `localStorage`, keyed per user (`simcrm:appearance:<userId>`), so two people sharing a browser keep their own; nothing reaches the database, and the choice does not follow a person to another device. `simcrm:appearance:last` mirrors the latest choice in that browser so the login page matches. An inline script applies the stored choice before first paint (`appearanceInitScript()` in `src/lib/appearance.ts`), so a themed page never flashes navy.
+**Header background (רקע לכותרת).** An optional pattern behind the header strip, and behind the login page — never behind tables, forms or the nav. Built in, no uploads: **ללא** (default), **לפי העונה**, **אבן ירושלמית**, **ענפי זית**, **גלים**, **רימונים**, **פריחה**, **גיאומטרי**. Each is an SVG mask over a layer filled with the theme's navy at low opacity, so it follows the colour theme; אבן ירושלמית alone is drawn in sand. **לפי העונה** follows the Hebrew month (`seasonalPattern()`): Elul–Tishri רימונים, Heshvan–Tevet גלים, Shevat–Nisan פריחה, Iyar–Av ענפי זית.
+
+**Storage.** Theme and background together in `localStorage`, keyed per user (`simcrm:appearance:<userId>`), so two people sharing a browser keep their own; nothing reaches the database, and the choice does not follow a person to another device. `simcrm:appearance:last` mirrors the latest choice in that browser so the login page carries the same theme and background. An inline script applies the stored choice before first paint (`appearanceInitScript()` in `src/lib/appearance.ts`), so a themed page never flashes navy.
 
 ---
 
@@ -1871,6 +1873,7 @@ Sessions 1–19 as built. Branch naming `session-N-*`, merged to `develop` then 
 | **10 Oct 2026** | — | **אימון שחקנים — the actors' pre-workshop training** (new §3.5.1, §3.5, §3.12, §4.7, §5.2, §7.2, §8.4, §8.5, §11). The Caster had nowhere to read when and where the actors train, though they need it before they commit. Stored as an offset from the workshop's start (default -60) plus an *אימון בזום* override; the place follows the workshop. Preset on every new workshop, so it is never missing and is not a send precondition — it opens the send form instead. Workshops already sent to casting were left **empty** by the migration rather than given a guessed time. A date or start-time change moves it, with a confirmation, a red banner line and the new training in the Caster's `DATE_CHANGED` entry; other changes write the new `TRAINING_CHANGED`. Migration `20261010120000_add_actor_training`; `npm run check:training`. |
 | **11 Oct 2026** | — | **The Tech is told when the אימון שחקנים changes** (§3.5, §3.5.1, §4.7, §4.7.1, §11). Only the Caster was: a training moved to Zoom reached her change log and nobody else, though the מתחקרים need it too and hear only through the Tech. A change to the training on its own now stamps `trainingChangedAt` and raises a blue banner for Manager and Tech on Workshop Detail and the workshop table, under the §4.7.1 window. A postponement keeps its own banner, which now carries the moved training on the table too. The postponement confirmation and its training line no longer wait for casting to have been sent. Migration `20261011120000_add_training_changed_at`. |
 | **12 Oct 2026** | — | **Personal colour themes** (new §6.9, §6.8). A 🎨 button in the header lets each user pick one of five palettes — כיתקטיקה, ים, שקיעה, יער, לבנדר. Only the navy family and teal change; green, status and RAG colours are fixed, and the two navy status pills moved to fixed `status-navy` tokens so a theme can't recolour a status. Stored per user in `localStorage`. Under trial. **No schema change, no migration.** |
+| **12 Oct 2026** | — | **Personal header background** (§6.9, §6.1). The 🎨 popover gains *רקע לכותרת*: a faint built-in pattern behind the header and the login page — אבן ירושלמית, ענפי זית, גלים, רימונים, פריחה, גיאומטרי, or לפי העונה, which follows the Hebrew month. Tinted by the colour theme. Off by default; stored with the theme. Under trial. **No schema change, no migration.** |
 
 ---
 
