@@ -1,8 +1,8 @@
 import { type Ctx, canvasLayer, collectGlyphs, el, hideText, phase, rand } from "../core"
 
-// The page's letters drip into green digital rain, the screen types "Wake up,
-// Neo…", and Morpheus offers two pills. Blue: the story ends and the page
-// comes back. Red: the rain forms a figure in a long coat and dark glasses.
+// The page's letters drip into green digital rain, the screen greets whoever
+// is signed in by name, and Morpheus offers two pills. Blue: the story ends
+// and the page comes back. Red: the rain forms a spoon, which bends.
 
 const KATAKANA = "ｱｲｳｴｵｶｷｸｹｺｻｼｽｾｿﾀﾁﾂﾃﾄﾅﾆﾇﾈﾉﾊﾋﾌﾍﾎﾏﾐﾑﾒﾓﾔﾕﾖﾗﾘﾙﾚﾛﾜﾝ"
 const HEBREW = "אבגדהוזחטיכלמנסעפצקרשת"
@@ -11,10 +11,13 @@ const GREEN = "#22FF55"
 const BRIGHT = "#D8FFD8"
 const MONO = "ui-monospace, 'Cascadia Mono', 'Courier New', monospace"
 
-const LINES = ["Wake up, Neo...", "The Matrix has you...", "Follow the white rabbit.", "Knock, knock, Neo."]
 
 export function matrix(ctx: Ctx): boolean {
   const { W, H, sound } = ctx
+  const name = ctx.userName || "there"
+  // U+200E after the name: a Hebrew name would otherwise drag the trailing
+  // dots to its left.
+  const LINES = [`Hello ${name}\u200E...`, "Follow the white rabbit.", `Knock, knock, ${ctx.userName || "Neo"}\u200E.`]
   const page = collectGlyphs(2500)
   const { g } = canvasLayer(ctx, 9980)
   hideText(ctx)
@@ -40,7 +43,7 @@ export function matrix(ctx: Ctx): boolean {
 
   let state: "intro" | "type" | "pills" | "blue" | "red" = "intro"
   let stateAt = 0
-  let figure: ReturnType<typeof buildFigure> | null = null
+  let figure: ReturnType<typeof buildSpoon> | null = null
   let spoonAt = -1
 
   // Sound: a low hum under everything, blips in the rain.
@@ -56,6 +59,16 @@ export function matrix(ctx: Ctx): boolean {
   for (const line of LINES) {
     const start = at
     script.push([start, () => { state = "type"; typing = { text: line, start, hold: 900 } }])
+    // Knock, knock: a knock on the door as each word types.
+    if (line.startsWith("Knock")) {
+      for (const i of [0, line.indexOf("knock")]) {
+        const k = (start + i * 55) / 1000
+        sound.tone(170, k, 0.09, { type: "sine", vol: 0.9, slideTo: 80, attack: 0.002 })
+        sound.noise(k, 0.06, { filter: "lowpass", freq: 1200, vol: 0.5 })
+        sound.tone(160, k + 0.17, 0.09, { type: "sine", vol: 0.8, slideTo: 75, attack: 0.002 })
+        sound.noise(k + 0.17, 0.06, { filter: "lowpass", freq: 1100, vol: 0.45 })
+      }
+    }
     at += line.length * 55 + 1000
   }
   script.push([at, () => { typing = null; showPills(); state = "pills"; stateAt = at }])
@@ -117,13 +130,16 @@ export function matrix(ctx: Ctx): boolean {
       rainDensity = 1.6
       sound.whoosh(0, 1.6, true, 0.3)
       sound.tone(80, 0, 1.8, { type: "sawtooth", vol: 0.12, slideTo: 320 })
-      figure = buildFigure(W, H)
+      figure = buildSpoon(W, H)
       const fig = figure
       ctx.later(1500, () => {
         if (!sound.on) return
         for (let i = 0; i < 30; i++) sound.tone(rand(1500, 3500), i * 0.07, 0.06, { type: "sine", vol: 0.06 })
+        // the bend: a slow, eerie glide
+        sound.tone(220, (fig.decodeMs + 300) / 1000, BEND_MS / 1000, { type: "sine", vol: 0.15, slideTo: 110, attack: 0.4 })
+        sound.tone(331, (fig.decodeMs + 300) / 1000, BEND_MS / 1000, { type: "triangle", vol: 0.06, slideTo: 140, attack: 0.4 })
       })
-      ctx.later(1500 + fig.decodeMs + 700, () => { spoonAt = performance.now() - t0 })
+      ctx.later(1500 + fig.decodeMs + 300 + BEND_MS, () => { spoonAt = performance.now() - t0 })
     }
   }
 
@@ -197,10 +213,10 @@ export function matrix(ctx: Ctx): boolean {
       g.shadowBlur = 0
     }
 
-    // 4. Red pill: the figure decodes out of the rain.
+    // 4. Red pill: a spoon decodes out of the rain, then bends.
     if (state === "red" && figure) {
       const ft = t - stateAt - 1500
-      if (ft > 0) drawFigure(g, figure, ft, rc)
+      if (ft > 0) drawSpoon(g, figure, ft, rc)
       if (spoonAt > 0) {
         const s = "There is no spoon."
         const n = Math.min(s.length, Math.floor((t - spoonAt) / 70))
@@ -213,9 +229,10 @@ export function matrix(ctx: Ctx): boolean {
         g.fillText(s.slice(0, n), W / 2, figure.bottom + 28)
         g.shadowBlur = 0
       }
-      if (ft > figure.decodeMs + 4200) {
-        // Dissolve: the veil thickens to clear, then the canvas fades out.
-        const k = phase(ft, figure.decodeMs + 4200, figure.decodeMs + 5600)
+      const END = figure.decodeMs + 300 + BEND_MS + 2800
+      if (ft > END) {
+        // Dissolve: the rain thins, then the canvas fades out.
+        const k = phase(ft, END, END + 1400)
         g.canvas.style.opacity = String(1 - k)
         rainDensity = 1 - k
         if (k >= 1) { ctx.stop(); return false }
@@ -232,93 +249,70 @@ export function matrix(ctx: Ctx): boolean {
   return true
 }
 
-// ─── The figure: a man in a long coat and dark glasses, made of rain ─────────
+// ─── The spoon: decoded out of the rain, then bent ───────────────────────────
 
-interface Cell { x: number; y: number; kind: "fill" | "rim" | "dim"; lock: number; ch: string }
+const BEND_MS = 2600
 
-function buildFigure(W: number, H: number) {
-  const Hf = H * 0.72
-  const cellH = Math.max(12, Math.round(Hf / 40))
+interface Cell { x: number; y: number; u: number; v: number; lock: number; ch: string }
+
+function buildSpoon(W: number, H: number) {
+  const Hf = H * 0.66
+  const cellH = Math.max(12, Math.round(Hf / 38))
   const cellW = Math.round(cellH * 0.62)
-  const top = (H - Hf) / 2 - 34
+  const top = (H - Hf) / 2 - 30
   const cx = W / 2
   const cells: Cell[] = []
   const charset = KATAKANA + DIGITS
   const rows = Math.floor(Hf / cellH)
-  const half = Math.floor((Hf * 0.36) / cellW)
+  // Wide enough for the bowl once it has bent over to the side.
+  const half = Math.floor((Hf * 0.42) / cellW)
   for (let r = 0; r < rows; r++) {
     for (let c = -half; c <= half; c++) {
-      const u = (c * cellW) / Hf
-      const v = (r * cellH) / Hf
-      const kind = classify(u, v)
-      if (!kind) continue
       cells.push({
-        x: cx + c * cellW, y: top + r * cellH, kind,
-        lock: r * 45 + Math.random() * 500,
+        x: cx + c * cellW, y: top + r * cellH, u: (c * cellW) / Hf, v: (r * cellH) / Hf,
+        lock: r * 40 + Math.random() * 450,
         ch: charset[Math.floor(Math.random() * charset.length)],
       })
     }
   }
-  return { cells, cellH, decodeMs: rows * 45 + 500, bottom: top + rows * cellH }
+  return { cells, cellH, decodeMs: rows * 40 + 450, bottom: top + rows * cellH }
 }
 
-/** u: horizontal from the centre, v: down from the top — both in figure heights. */
-function classify(u: number, v: number): Cell["kind"] | null {
-  const au = Math.abs(u)
-  // Head and slicked-back hair.
-  const hd = Math.hypot(u / 0.055, (v - 0.085) / 0.072)
-  if (hd < 1) {
-    // Dark glasses: two lenses, empty inside, bright rims, and a bridge.
-    for (const sx of [-0.024, 0.024]) {
-      const ld = Math.hypot((u - sx) / 0.021, (v - 0.088) / 0.012)
-      if (ld < 0.8) return null
-      if (ld < 1.25) return "rim"
-    }
-    if (au < 0.006 && Math.abs(v - 0.086) < 0.006) return "rim"
-    if (v < 0.04) return "rim"                      // the hairline
-    return hd > 0.86 ? "rim" : "fill"
-  }
-  if (au < 0.022 && v >= 0.155 && v < 0.185) return "fill"   // neck
+const PIVOT_V = 0.5   // where the handle bends
 
-  // Torso: sloping shoulders into a straight chest.
-  if (v >= 0.18 && v < 0.5) {
-    const halfW = v < 0.215 ? 0.04 + (v - 0.18) * 2.6 : 0.13
-    if (au < halfW) {
-      if (v < 0.42 && Math.abs(au - (0.42 - v) * 0.45) < 0.007) return "rim"  // lapels
-      return au > halfW - 0.01 ? "rim" : "fill"
-    }
+/** The straight spoon: an oval bowl on top, a handle widening at its end. */
+function spoonShape(u: number, v: number): "fill" | "rim" | null {
+  const bowl = Math.hypot(u / 0.1, (v - 0.2) / 0.17)
+  if (bowl < 1) {
+    // a highlight down the hollow of the bowl
+    if (Math.abs(u + 0.03) < 0.012 && Math.abs(v - 0.18) < 0.09) return "rim"
+    return bowl > 0.86 ? "rim" : "fill"
   }
-  // Arms hang beside the torso, a little apart from it, hands at the end.
-  if (v >= 0.215 && v < 0.64) {
-    const out = 0.135 + (v - 0.215) * 0.06
-    if (au > out + 0.008 && au < out + 0.045) return au > out + 0.037 || au < out + 0.016 ? "rim" : "fill"
-    if (v > 0.6 && au > out + 0.01 && au < out + 0.04) return "fill"
-  }
-  // Coat skirt: flaring, and open from the waist down over the legs.
-  if (v >= 0.5 && v < 0.9) {
-    const halfW = 0.13 + (v - 0.5) * 0.27
-    const gap = (v - 0.5) * 0.3
-    if (au < halfW) {
-      if (au < gap) return legs(u, v) ? "fill" : null
-      if (au < gap + 0.01 || au > halfW - 0.011) return "rim"
-      return "fill"
-    }
-  }
-  // Legs and boots below the hem.
-  if (v >= 0.9 && v < 1) return legs(u, v) ? (v > 0.965 ? "rim" : "fill") : null
+  const halfW = v < 0.42 ? 0.016 + (0.42 - v) * 0.2 : v > 0.82 ? 0.022 + (v - 0.82) * 0.25 : 0.02
+  if (v >= 0.34 && v < 0.98 && Math.abs(u) < halfW) return Math.abs(u) > halfW - 0.008 || v > 0.965 ? "rim" : "fill"
   return null
 }
 
-function legs(u: number, v: number) {
-  const au = Math.abs(u)
-  return v > 0.5 && au > 0.014 && au < 0.052 + (v > 0.965 ? 0.016 : 0)
+/** The bent spoon at angle θ: everything above the pivot turns about it. */
+function bentShape(u: number, v: number, theta: number) {
+  if (v >= PIVOT_V) return spoonShape(u, v)
+  // undo the turn to ask whether this point was on the upper part
+  const dx = u, dy = v - PIVOT_V
+  const c = Math.cos(-theta), s = Math.sin(-theta)
+  const u0 = dx * c - dy * s
+  const v0 = PIVOT_V + dx * s + dy * c
+  return v0 < PIVOT_V ? spoonShape(u0, v0) : null
 }
 
-function drawFigure(g: CanvasRenderingContext2D, fig: ReturnType<typeof buildFigure>, ft: number, rc: () => string) {
-  g.font = `${fig.cellH}px ${MONO}`
+function drawSpoon(g: CanvasRenderingContext2D, sp: ReturnType<typeof buildSpoon>, ft: number, rc: () => string) {
+  const bend = ease01((ft - sp.decodeMs - 300) / BEND_MS)
+  const theta = bend * 1.25                     // about 70°, over to the right
+  g.font = `${sp.cellH}px ${MONO}`
   g.textAlign = "center"
   g.textBaseline = "top"
-  for (const c of fig.cells) {
+  for (const c of sp.cells) {
+    const kind = bentShape(c.u, c.v, theta)
+    if (!kind) continue
     if (ft < c.lock) {
       if (Math.random() < 0.5) continue
       g.fillStyle = "rgba(34,255,85,0.35)"
@@ -326,12 +320,14 @@ function drawFigure(g: CanvasRenderingContext2D, fig: ReturnType<typeof buildFig
       continue
     }
     if (Math.random() < 0.04) c.ch = rc()          // still alive, flickering
-    g.fillStyle = c.kind === "rim" ? BRIGHT : c.kind === "dim" ? "rgba(34,255,85,0.25)" : GREEN
-    if (c.kind === "rim") { g.shadowColor = GREEN; g.shadowBlur = 6 }
+    g.fillStyle = kind === "rim" ? BRIGHT : GREEN
+    if (kind === "rim") { g.shadowColor = GREEN; g.shadowBlur = 6 }
     g.fillText(c.ch, c.x, c.y)
     g.shadowBlur = 0
   }
 }
+
+const ease01 = (x: number) => { const k = Math.max(0, Math.min(1, x)); return k < 0.5 ? 2 * k * k : 1 - (-2 * k + 2) ** 2 / 2 }
 
 /** An open hand, palm up, seen from in front — Morpheus offering. */
 const HAND_SVG = `<svg viewBox="0 0 150 120" width="195" height="156" aria-hidden="true">

@@ -6,40 +6,34 @@ import { type Ctx, type Glyph, canvasLayer, collectGlyphs, drawGlyph, hideText, 
 interface Line { y: number; x1: number; x2: number; glyphs: number[] }
 
 const GHOSTS = ["#FF0000", "#FFB8FF", "#00FFFF", "#FFB852"]
-const R = 14
+const R = 15
+const LANES = 4
+const SPEED = 0.3          // px per ms — an unhurried arcade pace
 
+/** Up to four lanes spread down the text; every letter belongs to its nearest. */
 function lines(glyphs: Glyph[], H: number): Line[] {
-  const idx = glyphs.map((_, i) => i).sort((a, b) => glyphs[a].y - glyphs[b].y)
-  const out: Line[] = []
-  for (const i of idx) {
-    const gl = glyphs[i]
-    const last = out[out.length - 1]
-    if (last && Math.abs(gl.y - last.y) < 9) {
-      last.glyphs.push(i)
-      last.x1 = Math.min(last.x1, gl.x - gl.w)
-      last.x2 = Math.max(last.x2, gl.x + gl.w)
-    } else {
-      out.push({ y: gl.y, x1: gl.x - gl.w, x2: gl.x + gl.w, glyphs: [i] })
-    }
-  }
-  // Lines worth a detour, at least one Pac-Man apart.
-  const kept: Line[] = []
-  for (const l of out.filter((l) => l.glyphs.length >= 4 && l.y > 20 && l.y < H - 20)) {
-    const prev = kept[kept.length - 1]
-    if (prev && l.y - prev.y < R * 2.5) {
-      prev.glyphs.push(...l.glyphs)
-      prev.x1 = Math.min(prev.x1, l.x1)
-      prev.x2 = Math.max(prev.x2, l.x2)
-      prev.y = (prev.y + l.y) / 2
-    } else kept.push(l)
-  }
-  return kept.slice(0, 14)
+  const ys = glyphs.map((g) => g.y).filter((y) => y > 20 && y < H - 20).sort((a, b) => a - b)
+  if (ys.length < 10) return []
+  const lo = ys[Math.floor(ys.length * 0.03)], hi = ys[Math.floor(ys.length * 0.97)]
+  const n = Math.max(1, Math.min(LANES, Math.round((hi - lo) / 90) + 1))
+  const lanes: Line[] = Array.from({ length: n }, (_, i) => ({
+    y: n === 1 ? (lo + hi) / 2 : lo + ((hi - lo) * i) / (n - 1), x1: Infinity, x2: -Infinity, glyphs: [],
+  }))
+  glyphs.forEach((g, i) => {
+    let best = 0
+    for (let k = 1; k < n; k++) if (Math.abs(lanes[k].y - g.y) < Math.abs(lanes[best].y - g.y)) best = k
+    const l = lanes[best]
+    l.glyphs.push(i)
+    l.x1 = Math.min(l.x1, g.x - g.w)
+    l.x2 = Math.max(l.x2, g.x + g.w)
+  })
+  return lanes.filter((l) => l.glyphs.length)
 }
 
 export function pacman(ctx: Ctx): boolean {
   const glyphs = collectGlyphs()
   const ls = lines(glyphs, ctx.H)
-  if (ls.length < 2) return false
+  if (!ls.length) return false
   const { W, H, sound } = ctx
 
   // The route: along each line, alternating direction, joined by drops.
@@ -64,13 +58,15 @@ export function pacman(ctx: Ctx): boolean {
     return { x: lerp(p.x, q.x, f), y: lerp(p.y, q.y, f), dx: Math.sign(q.x - p.x), dy: Math.sign(q.y - p.y) }
   }
 
-  const speed = Math.min(1100, Math.max(300, total / 9)) / 1000   // px per ms
+  const speed = SPEED
   const RUN = total / speed
   const CAUGHT = RUN + 450
   const DEATH = CAUGHT + 1400
   const RESTORE = DEATH + 1000
 
   const eaten = new Float64Array(glyphs.length).fill(-1)
+  // Letters off the lane are drawn into his mouth rather than vanishing.
+  const gulp: ({ x: number; y: number } | undefined)[] = new Array(glyphs.length)
   const lineOf = new Int32Array(glyphs.length).fill(-1)
   ls.forEach((l, i) => l.glyphs.forEach((g) => { lineOf[g] = i }))
 
@@ -101,7 +97,7 @@ export function pacman(ctx: Ctx): boolean {
         const lo = Math.min(prevPac.x, pac.x) - R * 0.5
         const hi = Math.max(prevPac.x, pac.x) + R * 0.5
         for (const gi of ls[li].glyphs) {
-          if (eaten[gi] < 0 && glyphs[gi].x >= lo && glyphs[gi].x <= hi) eaten[gi] = t
+          if (eaten[gi] < 0 && glyphs[gi].x >= lo && glyphs[gi].x <= hi) { eaten[gi] = t; gulp[gi] = { x: pac.x, y: pac.y } }
         }
       }
     }
@@ -111,6 +107,12 @@ export function pacman(ctx: Ctx): boolean {
     for (let i = 0; i < glyphs.length; i++) {
       const gl = glyphs[i]
       if (eaten[i] < 0 || lineOf[i] < 0) { drawGlyph(g, gl, gl.x, gl.y); continue }
+      const sucked = phase(t, eaten[i], eaten[i] + 160)
+      if (sucked < 1 && t < DEATH) {
+        const m = gulp[i]!
+        drawGlyph(g, gl, lerp(gl.x, m.x, sucked), lerp(gl.y, m.y, sucked), 0, gl.color, 1 - sucked * 0.7)
+        continue
+      }
       if (t > DEATH) {
         const k = easeOut(phase(t, DEATH + (gl.x / W) * 500, DEATH + (gl.x / W) * 500 + 400))
         if (k > 0) drawGlyph(g, gl, gl.x, gl.y, 0, gl.color, 0.3 + 0.7 * k)

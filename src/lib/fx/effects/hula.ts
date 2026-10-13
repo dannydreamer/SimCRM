@@ -1,12 +1,13 @@
 import { type Ctx, canvasLayer, ease, el, lerp, lerpAngle, liftOut, phase, pickBlocks } from "../core"
 
-// Up to ten rows fly out of the page and become a hula dancer — torso, head,
-// arms and legs made of rows — with a grass skirt, a lei, long hair and a
-// hibiscus drawn on top. Hips sway, arms wave to one side and then the other.
+// Rows fly out of the page and become a hula dancer — torso, head, arms and
+// legs, and long hair, all made of rows — with a smiling face, a grass skirt,
+// a lei and a hibiscus drawn on top. Hips sway, arms wave side to side.
 
 interface Limb { x: number; y: number; a: number; len: number; th: number; round: number }
 
 const PART_COUNT = 10
+const HAIR_COUNT = 6
 
 function place(e: HTMLElement, l: Limb) {
   e.style.width = `${l.len}px`
@@ -30,7 +31,7 @@ const mirror = (a: number) => Math.PI - a
 
 function pose(s: number, W: number, H: number): Pose {
   const U = Math.min(W / 7, H / 7.4)
-  const T = U * 0.36
+  const T = U * 0.5
   const ph = s * Math.PI * 2 * 0.8            // one hip sway every 1¼ s
   const sway = Math.sin(ph)
   const seg = (x: number, y: number, a: number, len: number, th = T): Limb => ({ x, y, a, len, th, round: th / 2 })
@@ -38,7 +39,7 @@ function pose(s: number, W: number, H: number): Pose {
   // Hips carry the dance; the upper body stays nearly still above them.
   const hipX = W / 2 + sway * U * 0.55
   const hipY = H * 0.55 + Math.abs(Math.cos(ph)) * U * 0.06
-  const torso = seg(hipX, hipY, -Math.PI / 2 - sway * 0.2, U * 1.9, T * 1.5)
+  const torso = seg(hipX, hipY, -Math.PI / 2 - sway * 0.2, U * 1.9, T * 1.9)
   const [shX, shY] = end(torso)
 
   // Arms: both reach to one side and ripple, then glide to the other side.
@@ -77,9 +78,25 @@ function pose(s: number, W: number, H: number): Pose {
   const tilt = -sway * 0.18
   const head: Limb = { x: hcX - Math.cos(tilt) * d / 2, y: hcY - Math.sin(tilt) * d / 2, a: tilt, len: d, th: d, round: d / 2 }
 
+  // Hair: rows falling from the crown and the sides of the head, behind it,
+  // down past the shoulders, swaying a beat behind the hips.
+  const hair: Limb[] = []
+  const HT = U * 0.24
+  for (let i = 0; i < HAIR_COUNT; i++) {
+    // alternate sides, so even two spare rows frame the face
+    const side = i % 2 ? 1 : -1
+    const k = 1 - Math.floor(i / 2) / (HAIR_COUNT / 2 - 1)        // 1 side → 0 crown
+    const a = -Math.PI / 2 + side * (0.35 + k * 1.05) + tilt
+    const sx = hcX + Math.cos(a) * d * 0.38
+    const sy = hcY + Math.sin(a) * d * 0.38
+    const fall = Math.PI / 2 - side * (0.12 + k * 0.1) + Math.sin(s * 2.4 + i) * 0.07 - sway * 0.12
+    hair.push({ x: sx, y: sy, a: fall, len: U * (2.0 + k * 0.25), th: HT, round: HT / 2 })
+  }
+
   return {
-    // Most important first: six usable rows still make a body, head, legs and arms.
-    limbs: [torso, head, thighR, thighL, upperR, upperL, shinR, shinL, foreR, foreL],
+    // Most important first: six usable rows still make a body, head, legs and
+    // arms; hair comes last, from whatever rows are left.
+    limbs: [torso, head, thighR, thighL, upperR, upperL, shinR, shinL, foreR, foreL, ...hair],
     hip: { x: hipX, y: hipY, a: torso.a + Math.PI / 2, w: T * 2.6 },
     neck: { x: shX, y: shY },
     head: { x: hcX, y: hcY, r: d / 2, tilt },
@@ -103,21 +120,26 @@ function decorate(g: CanvasRenderingContext2D, p: Pose, s: number, hipVel: numbe
   const [ux, uy] = dir(hip.a)            // along the waist
   const [dx, dy] = [-uy, ux]             // down the body
 
-  // Long hair, falling behind the shoulders.
+  // Her face: drawn over the head-row, smiling.
   const { head } = p
-  g.fillStyle = "#3B2417"
-  g.beginPath()
-  g.arc(head.x, head.y, head.r * 1.08, Math.PI * 1.05 + head.tilt, Math.PI * 1.95 + head.tilt)
-  const flow = Math.sin(s * 5) * U * 0.1 - hipVel * 6
-  for (const sideSign of [1, -1]) {
-    const sx = head.x + sideSign * head.r * 1.02
-    const sy = head.y
-    g.moveTo(sx, sy - head.r * 0.2)
-    g.quadraticCurveTo(sx + sideSign * U * 0.25 + flow, sy + U * 0.8, sx + sideSign * U * 0.1 + flow * 1.6, sy + U * 1.5)
-    g.lineTo(sx - sideSign * U * 0.12 + flow * 1.6, sy + U * 1.45)
-    g.quadraticCurveTo(sx - sideSign * U * 0.05 + flow, sy + U * 0.7, sx - sideSign * head.r * 0.15, sy)
+  g.save()
+  g.translate(head.x, head.y)
+  g.rotate(head.tilt)
+  const fr = head.r
+  g.fillStyle = "rgba(243,201,168,.92)"
+  g.beginPath(); g.arc(0, 0, fr * 0.92, 0, Math.PI * 2); g.fill()
+  g.fillStyle = "rgba(255,120,140,.35)"
+  for (const cx of [-0.48, 0.48]) { g.beginPath(); g.arc(cx * fr, 0.18 * fr, fr * 0.17, 0, Math.PI * 2); g.fill() }
+  g.strokeStyle = "#3B2417"
+  g.lineCap = "round"
+  g.lineWidth = Math.max(2, fr * 0.09)
+  for (const ex of [-0.34, 0.34]) {            // happy closed eyes
+    g.beginPath(); g.arc(ex * fr, -0.1 * fr, fr * 0.14, Math.PI * 1.1, Math.PI * 1.9); g.stroke()
   }
-  g.fill()
+  g.strokeStyle = "#C2304C"
+  g.lineWidth = Math.max(2, fr * 0.1)
+  g.beginPath(); g.arc(0, 0.12 * fr, fr * 0.36, Math.PI * 0.15, Math.PI * 0.85); g.stroke()
+  g.restore()
 
   // Hibiscus behind the ear.
   const fx = head.x + head.r * 0.75
@@ -179,7 +201,7 @@ function decorate(g: CanvasRenderingContext2D, p: Pose, s: number, hipVel: numbe
 // ── The effect ────────────────────────────────────────────────────────────────
 
 export function hula(ctx: Ctx): boolean {
-  const dancers = pickBlocks(PART_COUNT)
+  const dancers = pickBlocks(PART_COUNT + HAIR_COUNT)
   if (dancers.length < 6) return false
   const { W, H } = ctx
 
@@ -187,6 +209,14 @@ export function hula(ctx: Ctx): boolean {
   const from: Limb[] = rects.map((r) => ({ x: r.left, y: r.top + r.height / 2, a: 0, len: r.width, th: r.height, round: 4 }))
   copies.forEach((c, i) => place(c, from[i]))
   if (copies[1]) copies[1].style.zIndex = "9986" // the head sits over the neck
+  // Hair: dyed dark brown, behind everything else.
+  copies.slice(PART_COUNT).forEach((c) => {
+    c.style.zIndex = "9983"
+    c.style.background = "linear-gradient(90deg, #3A2214, #5A3520 50%, #3A2214)"
+    c.style.filter = "saturate(.6)"
+    c.style.border = "none"
+    c.style.boxShadow = "none"
+  })
   const { g } = canvasLayer(ctx, 9987)
 
   // Music notes drifting off the dancer.

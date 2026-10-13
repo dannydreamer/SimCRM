@@ -67,7 +67,7 @@ export function AppShell({ user, version, backupWarning, children }: AppShellPro
               </span>
             )}
           </div>
-          <PartyButton />
+          <PartyButton userName={user.name} />
           <AppearanceMenu userId={user.id} />
           <button
             onClick={() => signOut({ callbackUrl: "/login" })}

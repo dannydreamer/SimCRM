@@ -11,7 +11,7 @@ const loadFx = () => (fxModule ??= import("@/lib/fx"))
  * 🎭 in the header — picks a party effect. Visible while the effects are on
  * trial; the plan is to hide it behind the logo once settled. §6.9
  */
-export function PartyButton() {
+export function PartyButton({ userName }: { userName: string }) {
   const [open, setOpen] = useState(false)
   const [fx, setFx] = useState<Fx | null>(null)
   const [soundOn, setSoundOnState] = useState(false)
@@ -65,7 +65,7 @@ export function PartyButton() {
                     onClick={() => {
                       setOpen(false)
                       // Let the menu close before the page is captured.
-                      requestAnimationFrame(() => fx.runFx(e.id))
+                      requestAnimationFrame(() => fx.runFx(e.id, userName))
                     }}
                     className={`text-right px-2.5 py-1.5 rounded-lg text-sm hover:bg-navy-light hover:text-navy ${
                       e.id === "random" ? "col-span-2 font-semibold text-navy" : "text-gray-700"

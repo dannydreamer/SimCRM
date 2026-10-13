@@ -11,6 +11,8 @@ import { Sound } from "./sound"
 export interface Ctx {
   W: number
   H: number
+  /** First name of whoever is signed in — the Matrix addresses them. */
+  userName: string
   sound: Sound
   /** Fixed, full-viewport, above the page. Interactive children go here. */
   shield: HTMLElement
@@ -21,7 +23,7 @@ export interface Ctx {
   loop(fn: (t: number, dt: number) => boolean | void): void
 }
 
-export function makeCtx(soundOn: boolean, onDone: () => void): Ctx {
+export function makeCtx(soundOn: boolean, userName: string, onDone: () => void): Ctx {
   const cleanups: (() => void)[] = []
   let done = false
   const sound = new Sound(soundOn)
@@ -43,6 +45,7 @@ export function makeCtx(soundOn: boolean, onDone: () => void): Ctx {
   const ctx: Ctx = {
     W: window.innerWidth,
     H: window.innerHeight,
+    userName,
     sound,
     shield,
     stop() {

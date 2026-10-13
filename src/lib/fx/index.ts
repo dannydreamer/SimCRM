@@ -4,16 +4,14 @@
 
 import { makeCtx, type Ctx } from "./core"
 import { isSoundOn } from "./sound"
-import { gravity } from "./effects/gravity"
 import { hula } from "./effects/hula"
 import { bird } from "./effects/bird"
 import { matrix } from "./effects/matrix"
 import { star } from "./effects/star"
 import { pacman } from "./effects/pacman"
-import { plane } from "./effects/plane"
 import { aquarium } from "./effects/aquarium"
-import { fireworks } from "./effects/fireworks"
-import { earthquake } from "./effects/earthquake"
+import { migration } from "./effects/migration"
+import { origami } from "./effects/origami"
 
 export { isSoundOn, setSoundOn } from "./sound"
 
@@ -21,16 +19,14 @@ type Run = (ctx: Ctx) => boolean
 
 /** In menu order. A run returns false when the page lacks what it needs. */
 const EFFECTS: { id: string; label: string; run: Run }[] = [
-  { id: "gravity",     label: "כוח משיכה",   run: gravity },
   { id: "hula",        label: "ריקוד הולה",  run: hula },
   { id: "bird",        label: "ציפור וקן",   run: bird },
   { id: "matrix",      label: "מטריקס",      run: matrix },
   { id: "star",        label: "מגן דוד",     run: star },
   { id: "pacman",      label: "פקמן",        run: pacman },
-  { id: "plane",       label: "מטוס נייר",   run: plane },
   { id: "aquarium",    label: "אקווריום",    run: aquarium },
-  { id: "fireworks",   label: "זיקוקים",     run: fireworks },
-  { id: "earthquake",  label: "רעידת אדמה",  run: earthquake },
+  { id: "migration",   label: "נדידת ציפורים", run: migration },
+  { id: "origami",     label: "ארנב אוריגמי", run: origami },
 ]
 
 export const FX_MENU = [{ id: "random", label: "אקראי" }, ...EFFECTS.map(({ id, label }) => ({ id, label }))]
@@ -38,7 +34,7 @@ export const FX_MENU = [{ id: "random", label: "אקראי" }, ...EFFECTS.map(({
 let running = false
 let last: string | null = null
 
-export function runFx(id: string) {
+export function runFx(id: string, userName = "") {
   if (running || typeof window === "undefined") return
 
   if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
@@ -56,7 +52,7 @@ export function runFx(id: string) {
   last = chosen.id
 
   running = true
-  const ctx = makeCtx(isSoundOn(), () => { running = false })
+  const ctx = makeCtx(isSoundOn(), userName.trim().split(/\s+/)[0] ?? "", () => { running = false })
   try {
     // An effect that finds too little on this page declines before touching
     // anything; then another one plays. The bird always can.
