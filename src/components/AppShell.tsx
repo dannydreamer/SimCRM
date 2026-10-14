@@ -1,14 +1,13 @@
 "use client"
 
 import Link from "next/link"
-import Image from "next/image"
 import { usePathname } from "next/navigation"
 import { signOut } from "next-auth/react"
 import { NAV_ITEMS, ROLE_LABELS, displayRoles } from "@/lib/roles"
 import { appearanceInitScript } from "@/lib/appearance"
 import { AppearanceMenu } from "./AppearanceMenu"
 import { Greeting } from "./Greeting"
-import { PartyButton } from "./PartyButton"
+import { LogoParty } from "./LogoParty"
 
 interface AppShellProps {
   user: {
@@ -45,13 +44,8 @@ export function AppShell({ user, version, backupWarning, children }: AppShellPro
         <div className="appearance-bg absolute inset-0 -z-10 pointer-events-none" aria-hidden />
         {/* Right: logo + system name */}
         <div className="flex items-center gap-3 flex-1">
-          <Image
-            src="/logo.png"
-            alt="כיתקטיקה"
-            width={36}
-            height={36}
-            className="object-contain"
-          />
+          {/* Five clicks on the logo open the party effects (§6.9) */}
+          <LogoParty userName={user.name} />
           <span className="hidden sm:inline text-sm font-semibold text-gray-500 tracking-wide">
             מערכת ניהול
           </span>
@@ -67,7 +61,6 @@ export function AppShell({ user, version, backupWarning, children }: AppShellPro
               </span>
             )}
           </div>
-          <PartyButton userName={user.name} />
           <AppearanceMenu userId={user.id} />
           <button
             onClick={() => signOut({ callbackUrl: "/login" })}

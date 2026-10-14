@@ -876,12 +876,12 @@ Gender appears on every casting-facing screen. It is shown as a **Hebrew word**,
 
 ### 6.8 Global chrome `[code]`
 
-- **Header** (56px, white, bottom border): right side = logo + "מערכת ניהול"; left side = greeting with the user's first name (§6.9; the full name until the page hydrates, and as its tooltip) + role pill(s) + "יציאה" logout.
+- **Header** (56px, white, bottom border): right side = logo (a hidden trigger, below) + "מערכת ניהול"; left side = greeting with the user's first name (§6.9; the full name until the page hydrates, and as its tooltip) + role pill(s) + "יציאה" logout.
 - **Nav**: horizontal row below header, role-filtered, active item highlighted.
 - **Footer**: version number, small gray text.
 - **Backup warning banner**: amber, non-dismissible, Manager only, shown when backup env vars are missing.
 - **🎨 מראה אישי**: a button left of יציאה opening the personal-appearance popover (§6.9).
-- **🎭 מסיבה**: a button beside 🎨 offering the party effects and the sound toggle (§6.9). Visible while on trial; meant to move behind a hidden trigger on the logo once settled.
+- **The logo** is a hidden trigger: five quick clicks open the party-effects menu (§6.9).
 
 ### 6.9 Personal appearance `[code]`
 
@@ -899,9 +899,9 @@ Deliberately fixed in every light theme:
 
 **Greeting.** The header greets the user by first name, by Israel time (`greetingFor()` in `src/lib/greeting.ts`): בוקר טוב ☀️ 05–12, צהריים טובים 🌤️ 12–17, ערב טוב 🌆 17–21, לילה טוב 🌙 otherwise; שבת שלום 🕯️ from Friday 12:00 to Saturday 18:00, then שבוע טוב ✨. Holidays override all of these: שנה טובה (1–10 Tishri), חג שמח (Sukkot, Pesach), חנוכה שמח, פורים שמח. It is rendered only on the client, since server and viewer may disagree about the hour, and rechecked each minute. Not a setting.
 
-**Closing celebration.** When a workshop becomes סגור while its Workshop Detail page is open — that is, the user just ticked its last letter (§4.2) — confetti bursts from the bottom corners for about three seconds with the message *כל המכתבים התקבלו — הסדנה נסגרה 🎉*. Only on that transition, in that tab: opening an already-closed workshop never fires it. With sound on in the 🎭 menu, a short trumpet fanfare plays with it. Display-only — `celebrate()` in `src/lib/celebrate.ts` draws on a throwaway canvas and never touches status. With *reduce motion* set, the message shows without the confetti.
+**Closing celebration.** When a workshop becomes סגור while its Workshop Detail page is open — that is, the user just ticked its last letter (§4.2) — confetti bursts from the bottom corners for about three seconds with the message *כל המכתבים התקבלו — הסדנה נסגרה 🎉*. Only on that transition, in that tab: opening an already-closed workshop never fires it. A short trumpet fanfare always plays with it — the one sound in the app that doesn't wait for the sound toggle. Display-only — `celebrate()` in `src/lib/celebrate.ts` draws on a throwaway canvas and never touches status. With *reduce motion* set, the message shows without the confetti.
 
-**Party effects (🎭).** A few seconds of play on demand, chosen from the 🎭 menu or at random (**🎲 אקראי** — never the same one twice running):
+**Party effects — behind the logo.** Five quick clicks on the header logo open a menu of effects. Each click on the way answers: the logo wobbles, harder each time; a ring around it fills by a fifth; and a small hint counts down under it (*עוד 4… / עוד 3… / עוד 2… / עוד אחת!*). A pause of 1.6 s resets the count. The fifth click opens the menu, headed *🎉 מצאת את ההפתעה*: a few seconds of play, chosen by name or at random (**🎲 אקראי** — never the same one twice running), plus the sound toggle. The effects' code starts loading at the first click. `LogoParty` in `src/components/`.
 
 | Effect | What happens |
 |---|---|
@@ -916,7 +916,7 @@ Deliberately fixed in every light theme:
 
 An effect that finds too little on the page (fewer than six usable elements for the dancer, almost no text for the letter effects) declines before changing anything, and another effect plays in its place; ציפור וקן, אקווריום, מטריקס and ארנב אוריגמי can always run.
 
-The page is never restructured: effects set classes on `<html>`, paint on canvases while the real text goes transparent, move *copies* of elements and hide the originals, or set inline style on an element React leaves unstyled — and every change is undone when the effect ends. A transparent shield covers the page while one runs, so nothing underneath can be clicked by accident; a click or Esc ends it at once. With *reduce motion* set, every choice becomes a brief, gentle colour shift (`fx-gentle`). Code under `src/lib/fx/`, one module per effect; `PartyButton` loads it only when the menu is first opened.
+The page is never restructured: effects set classes on `<html>`, paint on canvases while the real text goes transparent, move *copies* of elements and hide the originals, or set inline style on an element React leaves unstyled — and every change is undone when the effect ends. A transparent shield covers the page while one runs, so nothing underneath can be clicked by accident; a click or Esc ends it at once. With *reduce motion* set, every choice becomes a brief, gentle colour shift (`fx-gentle`). Code under `src/lib/fx/`, one module per effect, loaded only once someone starts clicking the logo.
 
 **Sound.** Synthesized in the browser (Web Audio, no audio files) and **off by default** — the menu's 🔇/🔊 row toggles it per browser (`simcrm:fx-sound`). Kept quiet: one master gain at 0.16. Each effect has its own: a ukulele strum (הולה), birdsong and cheeping (ציפור), a low hum, rain blips, typing clicks and knocks on a door (מטריקס), the opening phrase of התקווה or bells as the candles light (מגן דוד), waka-waka and the death warble (פקמן), bubbles and a drain gurgle (אקווריום), *Morning Mood* (נדידת ציפורים), paper crinkles, a twinkle, birdsong and soft hops (ארנב אוריגמי).
 
@@ -1908,6 +1908,7 @@ Sessions 1–19 as built. Branch naming `session-N-*`, merged to `develop` then 
 | **12 Oct 2026** | — | **Party effects trimmed after testing** (§6.9). Dropped פסיכדלי, ההצגה מתחילה, חור שחור (choppy) and דומינו, leaving ten. An effect that can't run on a page now hands over to another at random, rather than to פסיכדלי. מטוס נייר works on pages without a table, where it used to give up. פקמן runs slower. **No schema change, no migration.** |
 | **13 Oct 2026** | — | **Party effects, round three** (§6.9). Dropped כוח משיכה, מטוס נייר, זיקוקים and רעידת אדמה. New: **נדידת ציפורים** (letters become birds flying off in a V across a sunny sky, to *Morning Mood*) and **ארנב אוריגמי** (the page folds into an origami bunny that hops away through a forest). The hula dancer has hair made of rows, a smile and a fuller figure. The Matrix greets the signed-in user by first name, drops *The Matrix has you*, knocks on the door, and the red pill now bends a spoon. Pac-Man runs at a fixed, slower pace along up to four lanes. Eight effects in all. **No schema change, no migration.** |
 | **14 Oct 2026** | — | **Trumpets for a closed workshop** (§6.9). The closing confetti now comes with a short synthesized trumpet fanfare, when sound is on in the 🎭 menu. **No schema change, no migration.** |
+| **14 Oct 2026** | — | **Effects move behind the logo; the fanfare always plays** (§6.8, §6.9). The 🎭 header button is gone: five quick clicks on the logo open the effects menu, with a wobble, a filling ring and a countdown hint on the way. The closing-workshop trumpets now play regardless of the sound toggle. **No schema change, no migration.** |
 
 ---
 

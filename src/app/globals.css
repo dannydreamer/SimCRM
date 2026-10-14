@@ -141,3 +141,12 @@ html.fx-hide-text body input::placeholder, html.fx-hide-text body textarea::plac
   25%      { transform: translate(7px, -7px) rotate(0.7deg); }
   75%      { transform: translate(-7px, 5px) rotate(-0.6deg); }
 }
+/* The logo's answer to each click on the way to five (§6.9) */
+@keyframes fx-logo-wobble {
+  0%   { transform: rotate(0) scale(1); }
+  25%  { transform: rotate(calc(var(--amp) * -1)) scale(var(--pop)); }
+  55%  { transform: rotate(var(--amp)) scale(var(--pop)); }
+  80%  { transform: rotate(calc(var(--amp) * -0.4)) scale(1); }
+  100% { transform: rotate(0) scale(1); }
+}
+@keyframes fx-hint { from { opacity: 0; transform: translate(50%, -4px); } to { opacity: 1; transform: translate(50%, 0); } }

@@ -1,8 +1,8 @@
 // A one-off burst of confetti and a short message, drawn on a throwaway
-// canvas that removes itself, with a trumpet fanfare when the 🎭 menu's sound
-// is on. Display-only — it never touches status. §6.9
+// canvas that removes itself, and a trumpet fanfare. Display-only — it never
+// touches status. §6.9
 
-import { Sound, isSoundOn, note } from "./fx/sound"
+import { Sound, note } from "./fx/sound"
 
 const PALETTE = ["#31AA59", "#86C9BB", "#F9CFCC", "#0B8390", "#F4C542", "#FFFFFF"]
 
@@ -91,7 +91,7 @@ function showToast(message: string) {
 
 /** Ta-ta-ta-taaa, ta-ta-ta-taaaa — two brassy voices a third apart. */
 function fanfare() {
-  if (!isSoundOn()) return
+  // Always — unlike the party effects, closing a workshop earns a fanfare.
   const s = new Sound(true)
   const brass = (semis: number, at: number, dur: number) => {
     const f = note(semis)
