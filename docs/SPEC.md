@@ -1670,18 +1670,56 @@ Combines actor work activity with payment-order tracking, built on data already 
 
 > **Note:** this feature was unlabelled in the source notes — it appeared without a heading, nested inside the backup section. Assigned F-06 here, which was otherwise unused.
 
-The CRM generates a presentation for each facilitator assigned to a workshop, merging their personal base PPT with workshop-specific content (group name, date, schedule, scenario details).
+The CRM generates a facilitator's presentation for a workshop: it fills a template PPTX with that workshop's data — cover details, schedule, topics, and one slide per scenario. Design settled with Daniel in October 2026; nothing is built yet.
 
-**The generation logic is built separately** — a standalone Claude Code project, handed off to be embedded. This section covers only what the CRM stores, triggers, and delivers.
+**Engine:** JavaScript, inside the CRM — not a separate Python service. A PPTX (and a DOCX) is a zip of XML; the engine edits it directly. It needs only three operations: replace tokens, duplicate a slide, duplicate a table row. `python-pptx` was considered and rejected — it cannot duplicate slides either, so its advantage did not survive, and it would have put a second language and runtime into the deploy.
 
-**Data the CRM holds:**
+#### Template anatomy
 
-- **Per facilitator** — a base PPT file: their personal template with preferred slides and phrasing. Tech uploads and maintains it; facilitators contact Tech to request changes.
-- **Per workshop** — a schedule file defining that workshop's timing structure (which varies per workshop). Uploaded by Tech during setup.
+The template is an ordinary deck the facilitator styles freely. Two kinds of anchor:
 
-**Generation:** manual trigger via a **"צור מצגות"** button on the workshop detail page. Preconditions: scenarios written, facilitators slotted, schedule file uploaded. Produces one PPT per assigned facilitator, attached to the workshop and downloadable from its detail page.
+- **Tokens** — `{{name}}` typed into slide text where the value goes. The value inherits the token's formatting. A token's whole paragraph is removed when its value is empty.
+- **Slides are identified by the tokens they contain**, not by name or position. (PowerPoint's Selection Pane names shapes, not slides, so slide names are not usable.) A slide holding `{{scenario.*}}` is the scenario slide; a table row holding `{{row.*}}` is the schedule row.
 
-**Deferred:** whether preconditions hard-block or soft-warn. Behaviour when base PPT or schedule is missing. Whether a PPT can be regenerated after later changes.
+The engine must tolerate a token split across several XML runs — PowerPoint splits text after spell-check or partial formatting.
+
+#### Token inventory
+
+Agreed slide by slide against a test deck (`סימולציה 27.8`); Daniel's own deck, still to be supplied, will carry the same tokens. Every slide not listed is static.
+
+| Slide | Token | Source | Repeats |
+|---|---|---|---|
+| Cover | `{{debriefer}}` | The whole line, label included: `מתחקר: <name>` for Daniel, `מתחקרת: <name>` for everyone else. Name from the Room's facilitator. `Person` holds no gender, so the masculine form is a one-name exception in the generator. | — |
+| Cover | `{{organization}}` | `Organization.name` | — |
+| Cover | `{{group}}` | `ParticipantGroup.name` | — |
+| Cover | `{{date}}` | `Workshop.date`, Gregorian only, `D.M.YY` (e.g. `27.8.26`) | — |
+| Icebreaker | `{{icebreaker_question}}` | Optional free-text field in the generator. Empty → the question paragraph is removed; the slide and its title stay. | — |
+| Schedule | `{{row.activity}}` · `{{row.time}}` | The workshop's schedule DOCX (below) | **Table row**, once per schedule line; header row untouched |
+| Topics | `{{topics}}` | Distinct `Topic.name` of the workshop's active scenarios, one per line | — |
+| Scenario | `{{scenario.title}}` · `{{scenario.body}}` · `{{scenario.time}}` | That scenario's DOCX (below) | **Slide**, once per active scenario, in scenario order |
+
+The cover's manager and technical-operator lines, the simulation-model slide and the feedback QR code are static text in the template, edited by hand when they change.
+
+#### Input parsing — schedule and scenario DOCX
+
+Both files are read, never written. Each parse feeds an **editable preview**: the user sees what was extracted, corrects, deletes or adds, and only then generates. The preview is what makes imperfect parsing acceptable.
+
+- **Schedule DOCX** — a two-column table, `פעילות | זמן`. Keep only rows whose time cell is a range (`9:30-10:00`); this drops the internal logistics row (actor training and debriefer arrival carry single times). **Drop `התכנסות`.** Activity names are copied exactly as written.
+- **Scenario DOCX** — one scenario per file: a header block (`תרחיש N`, `נושא האימון`, `אוכלוסיית מתאמנים/ות`, `שם התרחיש`, sometimes `הדמות`), the participants' section, then a 6-row facilitator table (`מטרת תרחיש`, `נקודות לתחקיר`, `זמן ומשתתפים`, `הקשר`, `הדמות/ות`, `דגשים לתפעול`).
+  - `{{scenario.title}}` ← `שם התרחיש`, exactly as written, quotes included.
+  - `{{scenario.body}}` ← everything from `תקציר למשתתפים/ות` down to the table: the brief, `מטרת הסימולציה`/`מטרת השיחה`, and `הערה` when present. Plain text — source bold is not kept. `*****` separator lines are dropped.
+  - `{{scenario.time}}` ← the `לרשותך`/`לרשותכן N דקות` line.
+  - The header block and the facilitator table never reach the slide.
+  - Label wording varies between files (gendered endings, a goal line stated twice); the parser must allow for it rather than expect one exact form.
+
+**Shared with F-03.** The scenario parser yields a full structured record (topic, population, name, character, brief, goal, time, debrief points, context, staging notes). The Scenario Library should store that record on upload, so a scenario already in the library needs no file attached here.
+
+#### Access — pilot first
+
+- **Pilot:** visible to **Daniel's account only**, live in production so it runs on real workshop data. Enforced in the API route, not just by hiding the button — an obscured button or a second password is not access control.
+- **Later:** widened to every facilitator (one deck per Room's facilitator, each with its own `{{debriefer}}`), and to Tech generating on their behalf, as originally envisioned — per-facilitator base templates uploaded by Tech, and a **"צור מצגות"** button on Workshop Detail. Going wide should be a change to who is allowed, not a rewrite.
+
+**Deferred:** where templates and generated decks are stored, and whether a deck is kept on the workshop or only downloaded; whether preconditions (scenarios written, facilitators slotted, schedule present) hard-block or soft-warn; regeneration after later changes; topic-specific content slides chosen automatically by topic.
 
 ---
 
@@ -1723,7 +1761,7 @@ Built as the first V2 item, on branch `sim_model`. It is now as-built behaviour 
 | F-03 | Scenario Library | Manager, Tech, Facilitator | — |
 | F-04 | WhatsApp Message Generator | Tech | — |
 | F-05 | Actor Activity & Payments | Manager | — |
-| F-06 | Facilitator PPT Generation | Tech | External generation project |
+| F-06 | Facilitator PPT Generation | Daniel only (pilot) → Facilitator, Tech | Shares scenario parser with F-03 |
 | F-07 | Backup Management | **Admin** | Admin role (§14.0) |
 | ~~F-08~~ | ~~מודל סימולציה field~~ | — | **Shipped** — remaining scope is group-history surfacing |
 
@@ -1857,6 +1895,7 @@ Sessions 1–19 as built. Branch naming `session-N-*`, merged to `develop` then 
 | **10 Oct 2026** | — | **A start-time change is a postponement** (§4.7, §3.5, §3.12, §11). Moving a workshop from 09:00 to 13:00 raised nothing — no banner for the Tech, no alert for the Caster — though everyone involved had been told 09:00. It now sets `postponedWarning` exactly as a date change does, and writes the same `DATE_CHANGED` log entry, naming the new time; a save that moves both writes one entry carrying both. The banners and the change-log label now read *מועד הסדנה שונה* rather than *הסדנה נדחתה*, which was wrong for a workshop brought forward. The Workshop Detail banner's dismissal is keyed on date and start time. |
 | **10 Oct 2026** | — | **אימון שחקנים — the actors' pre-workshop training** (new §3.5.1, §3.5, §3.12, §4.7, §5.2, §7.2, §8.4, §8.5, §11). The Caster had nowhere to read when and where the actors train, though they need it before they commit. Stored as an offset from the workshop's start (default -60) plus an *אימון בזום* override; the place follows the workshop. Preset on every new workshop, so it is never missing and is not a send precondition — it opens the send form instead. Workshops already sent to casting were left **empty** by the migration rather than given a guessed time. A date or start-time change moves it, with a confirmation, a red banner line and the new training in the Caster's `DATE_CHANGED` entry; other changes write the new `TRAINING_CHANGED`. Migration `20261010120000_add_actor_training`; `npm run check:training`. |
 | **11 Oct 2026** | — | **The Tech is told when the אימון שחקנים changes** (§3.5, §3.5.1, §4.7, §4.7.1, §11). Only the Caster was: a training moved to Zoom reached her change log and nobody else, though the מתחקרים need it too and hear only through the Tech. A change to the training on its own now stamps `trainingChangedAt` and raises a blue banner for Manager and Tech on Workshop Detail and the workshop table, under the §4.7.1 window. A postponement keeps its own banner, which now carries the moved training on the table too. The postponement confirmation and its training line no longer wait for casting to have been sent. Migration `20261011120000_add_training_changed_at`. |
+| **14 Oct 2026** | — | **F-06 Facilitator PPT Generation designed** (§14 F-06, §14.1). Spec only — nothing built. Replaces the earlier outline, which assumed a separate generation project: the engine is now JavaScript inside the CRM. Records the token inventory agreed slide by slide, how slides are found by their tokens rather than by name, how the schedule and scenario DOCX files are parsed into an editable preview, and a pilot visible to Daniel's account only, enforced server-side. The scenario parser is to be shared with F-03. |
 
 ---
 
