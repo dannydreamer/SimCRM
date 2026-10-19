@@ -105,7 +105,9 @@ function LoginForm() {
 
 export default function LoginPage() {
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50">
+    <div className="relative isolate min-h-screen flex items-center justify-center bg-gray-50">
+      {/* The last background chosen in this browser (§6.9) */}
+      <div className="appearance-bg fixed inset-0 -z-10 pointer-events-none" aria-hidden />
       <div className="w-full max-w-sm">
         {/* Card */}
         <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-8">

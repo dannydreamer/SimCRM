@@ -1,13 +1,17 @@
 "use client"
 
 import Link from "next/link"
-import Image from "next/image"
 import { usePathname } from "next/navigation"
 import { signOut } from "next-auth/react"
 import { NAV_ITEMS, ROLE_LABELS, displayRoles } from "@/lib/roles"
+import { appearanceInitScript } from "@/lib/appearance"
+import { AppearanceMenu } from "./AppearanceMenu"
+import { Greeting } from "./Greeting"
+import { LogoParty } from "./LogoParty"
 
 interface AppShellProps {
   user: {
+    id: string
     name: string
     email: string
     roles: string[]
@@ -31,18 +35,17 @@ export function AppShell({ user, version, backupWarning, children }: AppShellPro
     .join(", ")
 
   return (
-    <div className="min-h-screen flex flex-col bg-white" dir="rtl">
+    <div className="app-canvas min-h-screen flex flex-col" dir="rtl">
+      {/* Applies this user's theme before paint — see appearance.ts */}
+      <script dangerouslySetInnerHTML={{ __html: appearanceInitScript(user.id) }} />
       {/* Header */}
-      <header className="h-14 bg-white border-b border-gray-200 flex items-center px-4 md:px-6 shrink-0">
+      <header className="app-header relative isolate h-14 border-b border-gray-200 flex items-center px-4 md:px-6 shrink-0">
+        {/* Personal background pattern, hidden unless one is chosen (§6.9) */}
+        <div className="appearance-bg absolute inset-0 -z-10 pointer-events-none" aria-hidden />
         {/* Right: logo + system name */}
         <div className="flex items-center gap-3 flex-1">
-          <Image
-            src="/logo.png"
-            alt="כיתקטיקה"
-            width={36}
-            height={36}
-            className="object-contain"
-          />
+          {/* Five clicks on the logo open the party effects (§6.9) */}
+          <LogoParty userName={user.name} />
           <span className="hidden sm:inline text-sm font-semibold text-gray-500 tracking-wide">
             מערכת ניהול
           </span>
@@ -51,13 +54,14 @@ export function AppShell({ user, version, backupWarning, children }: AppShellPro
         {/* Left: user info + logout */}
         <div className="flex items-center gap-3 md:gap-4 min-w-0">
           <div className="flex items-center gap-2 text-sm text-gray-700 min-w-0">
-            <span className="font-medium truncate">{user.name}</span>
+            <Greeting name={user.name} />
             {roleLabels && (
               <span className="hidden md:inline px-2 py-0.5 rounded-full text-xs font-medium bg-navy-light text-navy">
                 {roleLabels}
               </span>
             )}
           </div>
+          <AppearanceMenu userId={user.id} />
           <button
             onClick={() => signOut({ callbackUrl: "/login" })}
             className="shrink-0 text-sm text-gray-400 hover:text-gray-700 transition-colors"
@@ -68,7 +72,7 @@ export function AppShell({ user, version, backupWarning, children }: AppShellPro
       </header>
 
       {/* Nav — scrolls sideways on a phone rather than wrapping */}
-      <nav className="bg-white border-b border-gray-100 px-4 md:px-6 flex items-center gap-1 h-10 shrink-0 overflow-x-auto">
+      <nav className="app-nav border-b border-gray-100 px-4 md:px-6 flex items-center gap-1 h-10 shrink-0 overflow-x-auto">
         {visibleNav.map((item) => {
           const active = pathname.startsWith(item.href)
           return (

@@ -1,6 +1,6 @@
 const STATUS_CONFIG: Record<string, { label: string; className: string }> = {
   NEW:       { label: "סדנה חדשה",          className: "bg-gray-100 text-gray-500" },
-  SPECIFIED: { label: "בוצע איתור צרכים",   className: "bg-navy-light text-navy" },
+  SPECIFIED: { label: "בוצע איתור צרכים",   className: "bg-status-navy-light text-status-navy" },
   READY:     { label: "מוכן",               className: "bg-rag-green text-brand-green-dark" },
   CLOSING:   { label: "בתהליך סגירה",       className: "bg-rag-amber text-rag-amber-text" },
   CLOSED:    { label: "סגור",               className: "bg-gray-200 text-gray-600" },
