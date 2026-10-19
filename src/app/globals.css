@@ -16,7 +16,102 @@
   --color-rag-amber:        #FFF3CD;
   --color-rag-amber-text:   #856404;
   --color-rag-red:          #F8D7DA;
+
+  /* ── Status navy — fixed, never follows the personal theme (§6.9) ── */
+  --color-status-navy:       #2C4B9A;
+  --color-status-navy-light: #EEF2FF;
 }
+
+/* ── Personal colour themes (§6.9) ───────────────────
+   Only the navy family and teal move. Green stays green because it means
+   "done", and the status / RAG tokens above are untouched. */
+/* App surfaces. Cards stay bg-white, so on a tinted canvas they lift off it. */
+.app-canvas { background-color: var(--app-canvas, #ffffff); }
+.app-header { background-color: var(--app-header, #ffffff); }
+.app-nav    { background-color: var(--app-nav, #ffffff); }
+
+html[data-theme="sea"] {
+  --app-canvas: #F2F8F8; --app-header: #DDEFEE; --app-nav: #EAF5F4; --color-gray-50: #EEF6F6;
+  --color-navy:       #0E7C86;
+  --color-navy-dark:  #0A5F67;
+  --color-navy-light: #E3F2F1;
+  --color-sim-teal:   #2F6FA3;
+}
+html[data-theme="sunset"] {
+  --app-canvas: #FDF6F2; --app-header: #F8E2D8; --app-nav: #FBEDE6; --color-gray-50: #FAF0EA;
+  --color-navy:       #B5533C;
+  --color-navy-dark:  #93402D;
+  --color-navy-light: #FBEDE7;
+  --color-sim-teal:   #A8682A;
+}
+html[data-theme="forest"] {
+  --app-canvas: #F4F8F4; --app-header: #DDEBDF; --app-nav: #EAF2EB; --color-gray-50: #EEF5EF;
+  --color-navy:       #2F6B3F;
+  --color-navy-dark:  #24532F;
+  --color-navy-light: #EAF3EC;
+  --color-sim-teal:   #5E7A24;
+}
+html[data-theme="lavender"] {
+  --app-canvas: #F7F5FB; --app-header: #E6E0F3; --app-nav: #EFEBF8; --color-gray-50: #F2EFF9;
+  --color-navy:       #6B5B9A;
+  --color-navy-dark:  #554780;
+  --color-navy-light: #F1EEF8;
+  --color-sim-teal:   #8A5A9E;
+}
+
+/* Night. Tailwind's utilities read their colours from variables, so turning
+   white and the gray scale around darkens nearly every screen at once. White
+   *text* is pinned back to white — it sits on navy buttons. Pastel banners
+   and the status / RAG colours stay as they are: light chips on a dark page. */
+html[data-theme="night"] {
+  color-scheme: dark;
+  --app-canvas: #10141C; --app-header: #171C27; --app-nav: #171C27;
+  --color-white:    #171C27;
+  --color-gray-50:  #1C2230;
+  --color-gray-100: #232A3A;
+  --color-gray-200: #2E3647;
+  --color-gray-300: #3D4659;
+  --color-gray-400: #6B7487;
+  --color-gray-500: #8D95A6;
+  --color-gray-600: #A9B0BE;
+  --color-gray-700: #C4C9D4;
+  --color-gray-800: #DDE1E8;
+  --color-gray-900: #EEF0F4;
+  --color-navy:       #5A7BE0;
+  --color-navy-dark:  #4766C8;
+  --color-navy-light: #253150;
+  --color-sim-teal:   #4FB7C2;
+  /* Pastel banners and chips, dimmed so they don't glare */
+  --color-amber-50: #33290F; --color-amber-100: #44361A; --color-amber-200: #6B5420; --color-amber-700: #F0C46A; --color-amber-800: #F3D58A;
+  --color-green-50: #10291A; --color-green-100: #163723; --color-green-700: #7DDB9A;
+  --color-red-50:   #33151A; --color-red-100:   #451C22; --color-red-200:   #6B2A33; --color-red-600: #F28B95;
+  --color-blue-50:  #14223F; --color-blue-100:  #1B2D52; --color-blue-700:  #93B4F5; --color-blue-800: #B3CBFA;
+}
+html[data-theme="night"] body { color: var(--color-gray-900); background: var(--app-canvas); }
+html[data-theme="night"] .text-white { color: #ffffff; }
+html[data-theme="night"] header img { background: #ffffff; border-radius: 9999px; }
+
+/* ── Header backgrounds (§6.9) ───────────────────────
+   Each pattern is a mask over a layer filled with the theme colour, so the
+   pattern follows the theme. Only the header and the login page carry it. */
+.appearance-bg { display: none; }
+/* :root lifts the menu's previews above whatever the header is showing. */
+html[data-bg] .appearance-bg,
+:root .appearance-bg[data-bg-preview] {
+  display: block;
+  background-color: var(--color-navy);
+  opacity: 0.16;
+  mask-repeat: repeat;
+  -webkit-mask-repeat: repeat;
+}
+html[data-bg="stone"] .appearance-bg,
+:root .appearance-bg[data-bg-preview="stone"] { background-color: #A8905F; opacity: 0.4; }
+html[data-bg="stone"] .appearance-bg, :root .appearance-bg[data-bg-preview="stone"] { mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='56'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' seed='3'/%3E%3CfeColorMatrix values='0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 .9 -.25'/%3E%3C/filter%3E%3Crect width='120' height='56' filter='url%28%23n%29'/%3E%3Cpath d='M0 .5H120M0 28H120M30 0V28M90 0V28M60 28V56' stroke='%23000' stroke-width='1.2' fill='none'/%3E%3C/svg%3E"); -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='56'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' seed='3'/%3E%3CfeColorMatrix values='0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 .9 -.25'/%3E%3C/filter%3E%3Crect width='120' height='56' filter='url%28%23n%29'/%3E%3Cpath d='M0 .5H120M0 28H120M30 0V28M90 0V28M60 28V56' stroke='%23000' stroke-width='1.2' fill='none'/%3E%3C/svg%3E"); }
+html[data-bg="waves"] .appearance-bg, :root .appearance-bg[data-bg-preview="waves"] { mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='80' height='20'%3E%3Cpath d='M0 10Q20 2 40 10T80 10' fill='none' stroke='%23000' stroke-width='1.4'/%3E%3C/svg%3E"); -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='80' height='20'%3E%3Cpath d='M0 10Q20 2 40 10T80 10' fill='none' stroke='%23000' stroke-width='1.4'/%3E%3C/svg%3E"); }
+html[data-bg="olive"] .appearance-bg, :root .appearance-bg[data-bg-preview="olive"] { mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='56'%3E%3Cg fill='%23000'%3E%3Cpath d='M8 42Q60 12 112 30' fill='none' stroke='%23000' stroke-width='1.3'/%3E%3Cellipse cx='26' cy='28' rx='9' ry='3' transform='rotate%28-35 26 28%29'/%3E%3Cellipse cx='34' cy='42' rx='9' ry='3' transform='rotate%2820 34 42%29'/%3E%3Cellipse cx='52' cy='18' rx='9' ry='3' transform='rotate%28-40 52 18%29'/%3E%3Cellipse cx='62' cy='33' rx='9' ry='3' transform='rotate%2825 62 33%29'/%3E%3Cellipse cx='82' cy='14' rx='9' ry='3' transform='rotate%28-10 82 14%29'/%3E%3Cellipse cx='92' cy='34' rx='9' ry='3' transform='rotate%2835 92 34%29'/%3E%3Cellipse cx='72' cy='44' rx='4' ry='5.5'/%3E%3Cellipse cx='104' cy='18' rx='4' ry='5.5'/%3E%3C/g%3E%3C/svg%3E"); -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='56'%3E%3Cg fill='%23000'%3E%3Cpath d='M8 42Q60 12 112 30' fill='none' stroke='%23000' stroke-width='1.3'/%3E%3Cellipse cx='26' cy='28' rx='9' ry='3' transform='rotate%28-35 26 28%29'/%3E%3Cellipse cx='34' cy='42' rx='9' ry='3' transform='rotate%2820 34 42%29'/%3E%3Cellipse cx='52' cy='18' rx='9' ry='3' transform='rotate%28-40 52 18%29'/%3E%3Cellipse cx='62' cy='33' rx='9' ry='3' transform='rotate%2825 62 33%29'/%3E%3Cellipse cx='82' cy='14' rx='9' ry='3' transform='rotate%28-10 82 14%29'/%3E%3Cellipse cx='92' cy='34' rx='9' ry='3' transform='rotate%2835 92 34%29'/%3E%3Cellipse cx='72' cy='44' rx='4' ry='5.5'/%3E%3Cellipse cx='104' cy='18' rx='4' ry='5.5'/%3E%3C/g%3E%3C/svg%3E"); }
+html[data-bg="geometric"] .appearance-bg, :root .appearance-bg[data-bg-preview="geometric"] { mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='40' height='40'%3E%3Cpath d='M20 1L39 20L20 39L1 20Z' fill='none' stroke='%23000' stroke-width='1'/%3E%3Ccircle cx='20' cy='20' r='2.5'/%3E%3C/svg%3E"); -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='40' height='40'%3E%3Cpath d='M20 1L39 20L20 39L1 20Z' fill='none' stroke='%23000' stroke-width='1'/%3E%3Ccircle cx='20' cy='20' r='2.5'/%3E%3C/svg%3E"); }
+html[data-bg="pomegranate"] .appearance-bg, :root .appearance-bg[data-bg-preview="pomegranate"] { mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='72' height='56'%3E%3Ccircle cx='36' cy='32' r='13'/%3E%3Cpath d='M29 21L30 13L33 18L36 12L39 18L42 13L43 21Z'/%3E%3Cpath d='M50 18q8-6 12 2q-8 4-12-2Z'/%3E%3C/svg%3E"); -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='72' height='56'%3E%3Ccircle cx='36' cy='32' r='13'/%3E%3Cpath d='M29 21L30 13L33 18L36 12L39 18L42 13L43 21Z'/%3E%3Cpath d='M50 18q8-6 12 2q-8 4-12-2Z'/%3E%3C/svg%3E"); }
+html[data-bg="blossom"] .appearance-bg, :root .appearance-bg[data-bg-preview="blossom"] { mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='64' height='56'%3E%3Cg transform='translate%2822 22%29'%3E%3Ccircle cx='0' cy='-6' r='4.5'/%3E%3Ccircle cx='5.7' cy='-1.9' r='4.5'/%3E%3Ccircle cx='3.5' cy='4.9' r='4.5'/%3E%3Ccircle cx='-3.5' cy='4.9' r='4.5'/%3E%3Ccircle cx='-5.7' cy='-1.9' r='4.5'/%3E%3C/g%3E%3Cg transform='translate%2850 44%29 scale%28.6%29'%3E%3Ccircle cx='0' cy='-6' r='4.5'/%3E%3Ccircle cx='5.7' cy='-1.9' r='4.5'/%3E%3Ccircle cx='3.5' cy='4.9' r='4.5'/%3E%3Ccircle cx='-3.5' cy='4.9' r='4.5'/%3E%3Ccircle cx='-5.7' cy='-1.9' r='4.5'/%3E%3C/g%3E%3C/svg%3E"); -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='64' height='56'%3E%3Cg transform='translate%2822 22%29'%3E%3Ccircle cx='0' cy='-6' r='4.5'/%3E%3Ccircle cx='5.7' cy='-1.9' r='4.5'/%3E%3Ccircle cx='3.5' cy='4.9' r='4.5'/%3E%3Ccircle cx='-3.5' cy='4.9' r='4.5'/%3E%3Ccircle cx='-5.7' cy='-1.9' r='4.5'/%3E%3C/g%3E%3Cg transform='translate%2850 44%29 scale%28.6%29'%3E%3Ccircle cx='0' cy='-6' r='4.5'/%3E%3Ccircle cx='5.7' cy='-1.9' r='4.5'/%3E%3Ccircle cx='3.5' cy='4.9' r='4.5'/%3E%3Ccircle cx='-3.5' cy='4.9' r='4.5'/%3E%3Ccircle cx='-5.7' cy='-1.9' r='4.5'/%3E%3C/g%3E%3C/svg%3E"); }
 
 * {
   box-sizing: border-box;
@@ -29,3 +124,29 @@ body {
   background: #ffffff;
   direction: rtl;
 }
+
+/* ── 🎭 Party effects (§6.9) ──────────────────────────
+   Classes and keyframes used by src/lib/fx/. Nothing here changes React's
+   DOM, so removing a class restores the page exactly. */
+html.fx-gentle main { animation: fx-gentle 1.8s ease-in-out; }
+@keyframes fx-gentle { 50% { filter: hue-rotate(120deg) saturate(1.3); } }
+
+/* Gravity: the real text goes transparent while its letters fall on a canvas. */
+html.fx-hide-text body *:not(.fx-keep) { color: transparent !important; -webkit-text-fill-color: transparent !important; text-shadow: none !important; }
+html.fx-hide-text body input::placeholder, html.fx-hide-text body textarea::placeholder { color: transparent !important; }
+
+@keyframes fx-note { from { transform: translate(0, 0) rotate(-10deg); opacity: 1; } to { transform: translate(40px, -120px) rotate(20deg); opacity: 0; } }
+@keyframes fx-float {
+  0%, 100% { transform: translate(0, 0) rotate(0deg); }
+  25%      { transform: translate(7px, -7px) rotate(0.7deg); }
+  75%      { transform: translate(-7px, 5px) rotate(-0.6deg); }
+}
+/* The logo's answer to each click on the way to five (§6.9) */
+@keyframes fx-logo-wobble {
+  0%   { transform: rotate(0) scale(1); }
+  25%  { transform: rotate(calc(var(--amp) * -1)) scale(var(--pop)); }
+  55%  { transform: rotate(var(--amp)) scale(var(--pop)); }
+  80%  { transform: rotate(calc(var(--amp) * -0.4)) scale(1); }
+  100% { transform: rotate(0) scale(1); }
+}
+@keyframes fx-hint { from { opacity: 0; transform: translate(50%, -4px); } to { opacity: 1; transform: translate(50%, 0); } }
