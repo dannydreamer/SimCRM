@@ -6,7 +6,7 @@ import { Sound, note } from "./fx/sound"
 
 const PALETTE = ["#31AA59", "#86C9BB", "#F9CFCC", "#0B8390", "#F4C542", "#FFFFFF"]
 
-export function celebrate(message?: string) {
+export function celebrate(message?: string, palette: string[] = PALETTE) {
   if (typeof window === "undefined") return
   const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches
   if (message) showToast(message)
@@ -28,7 +28,7 @@ export function celebrate(message?: string) {
   ctx.scale(dpr, dpr)
 
   const navy = getComputedStyle(document.documentElement).getPropertyValue("--color-navy").trim() || "#2C4B9A"
-  const colors = [navy, navy, ...PALETTE]
+  const colors = [navy, navy, ...palette]
 
   // Two cannons from the bottom corners, aimed up and inward.
   const pieces = Array.from({ length: 160 }, (_, i) => {

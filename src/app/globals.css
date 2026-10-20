@@ -87,6 +87,57 @@ html[data-theme="night"] {
   --color-red-50:   #33151A; --color-red-100:   #451C22; --color-red-200:   #6B2A33; --color-red-600: #F28B95;
   --color-blue-50:  #14223F; --color-blue-100:  #1B2D52; --color-blue-700:  #93B4F5; --color-blue-800: #B3CBFA;
 }
+/* נעם אסרף — pink and fabulous, still readable. Hot-pink actions on a pink
+   canvas strewn with faint hearts, plum text, a candy-striped header. */
+html[data-theme="noam"] {
+  --app-canvas: #FFF0F7;
+  --app-header: linear-gradient(90deg, #FFC2E0 0%, #FFA6D5 35%, #F7B5FF 70%, #FFC9DE 100%);
+  --app-nav: #FFE1F0;
+  --color-navy:       #D61F7F;
+  --color-navy-dark:  #A3145F;
+  --color-navy-light: #FFD6EC;
+  --color-sim-teal:   #9C27B0;
+  --color-gray-50:  #FFE8F3;
+  --color-gray-100: #FFDDEE;
+  --color-gray-200: #F7C4DD;
+  --color-gray-300: #EFA9CB;
+  --color-gray-400: #C97AA6;
+  --color-gray-500: #A24F82;
+  --color-gray-600: #873A6C;
+  --color-gray-700: #6E2757;
+  --color-gray-800: #561A43;
+  --color-gray-900: #3F0E31;
+}
+html[data-theme="noam"] .app-canvas {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='64' height='64'%3E%3Cpath d='M16 22c-3-5-11-3-10 3 1 5 10 10 10 10s9-5 10-10c1-6-7-8-10-3z' fill='%23FF7AB8' fill-opacity='.13'/%3E%3Cpath d='M48 50l1.6 3.4 3.4 1.6-3.4 1.6-1.6 3.4-1.6-3.4-3.4-1.6 3.4-1.6z' fill='%23E0218A' fill-opacity='.16'/%3E%3C/svg%3E");
+}
+html[data-theme="noam"] .app-header {
+  background: var(--app-header);
+  background-size: 300% 100%;
+  animation: fx-noam-shimmer 14s ease-in-out infinite alternate;
+}
+html[data-theme="noam"] .app-nav { background: linear-gradient(90deg, #FFE1F0, #FCE3FF, #FFE1F0); }
+/* The active tab: hot pink, white text */
+html[data-theme="noam"] nav a.bg-navy-light {
+  background-image: linear-gradient(135deg, #FF4FA8, #C2167A);
+  color: #fff;
+  box-shadow: 0 2px 8px rgba(214, 31, 127, .3);
+}
+/* Page titles in a pink-to-violet gradient */
+html[data-theme="noam"] main h1 {
+  background-image: linear-gradient(90deg, #D61F7F, #9C27B0);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+html[data-theme="noam"] ::selection { background: #FF8CC6; color: #3F0E31; }
+html[data-theme="noam"] * { scrollbar-color: #FF8CC6 #FFE8F3; }
+@keyframes fx-noam-shimmer { from { background-position: 0% 0; } to { background-position: 100% 0; } }
+html[data-theme="noam"] body { color: var(--color-gray-900); }
+html[data-theme="noam"] .bg-navy { background-image: linear-gradient(135deg, #FF4FA8, #C2167A); }
+html[data-theme="noam"] .bg-navy:hover { background-image: linear-gradient(135deg, #F03C98, #A3145F); }
+html[data-theme="noam"] .bg-white.border { box-shadow: 0 2px 10px rgba(214, 31, 127, .08); }
+
 html[data-theme="night"] body { color: var(--color-gray-900); background: var(--app-canvas); }
 html[data-theme="night"] .text-white { color: #ffffff; }
 html[data-theme="night"] header img { background: #ffffff; border-radius: 9999px; }

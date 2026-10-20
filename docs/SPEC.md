@@ -887,9 +887,11 @@ Gender appears on every casting-facing screen. It is shown as a **Hebrew word**,
 
 Cosmetic only, and per person: each user can make the CRM a little more their own without changing what anyone else sees. **Under trial** — the pieces below were built to be tried, and the ones that don't earn their place will be removed.
 
-**Colour themes (ערכת צבעים).** Six presets: **כיתקטיקה** (the default, unchanged from §6.1), **ים**, **שקיעה**, **יער**, **לבנדר**, and **לילה**, a dark theme. Each is a set of `html[data-theme]` overrides in `globals.css`. The four light themes replace the navy family (`navy`, `navy-dark`, `navy-light`) and `sim-teal`, and tint the app's surfaces: the page canvas, the header bar, the nav strip and `gray-50` (table headers, hover rows) take a pale wash of the theme colour, while cards stay white and lift off it. The surfaces are the `app-canvas`, `app-header` and `app-nav` classes in `AppShell`.
+**Colour themes (ערכת צבעים).** Seven presets: **כיתקטיקה** (the default, unchanged from §6.1), **ים**, **שקיעה**, **יער**, **לבנדר**, **לילה** (a dark theme), and **נעם אסרף** (below). Each is a set of `html[data-theme]` overrides in `globals.css`. The four light themes replace the navy family (`navy`, `navy-dark`, `navy-light`) and `sim-teal`, and tint the app's surfaces: the page canvas, the header bar, the nav strip and `gray-50` (table headers, hover rows) take a pale wash of the theme colour, while cards stay white and lift off it. The surfaces are the `app-canvas`, `app-header` and `app-nav` classes in `AppShell`.
 
 **לילה** turns Tailwind's white and gray scale around — every utility reads its colour from a variable, so one block darkens nearly every screen. White *text* stays white (it sits on navy buttons), the logo gets a white disc, and the amber, green, red and blue pastels used for banners and chips are dimmed. Status pills drawn from the RAG tokens stay light.
+
+**נעם אסרף** is pink and fabulous, and asks before it applies: choosing it opens *האם את נעם אסרף?* with **כן / לא**. **לא** answers *חבל 💔* and leaves the theme as it was. **כן** applies it with pink confetti, the closing fanfare and *יא מלכה נעם! 👑💖*. The theme: hot-pink actions with a gradient, a pink canvas strewn with faint hearts, a header in a slowly shimmering pink-to-violet gradient, a hot-pink active tab, gradient page titles, and the gray scale turned pink-to-plum so text stays dark and readable. Once chosen it is remembered like any theme, and doesn't ask again on reload.
 
 Deliberately fixed in every light theme:
 - **Green** — it means *done* (✓ marks, the מוכן pill).
@@ -1909,6 +1911,7 @@ Sessions 1–19 as built. Branch naming `session-N-*`, merged to `develop` then 
 | **13 Oct 2026** | — | **Party effects, round three** (§6.9). Dropped כוח משיכה, מטוס נייר, זיקוקים and רעידת אדמה. New: **נדידת ציפורים** (letters become birds flying off in a V across a sunny sky, to *Morning Mood*) and **ארנב אוריגמי** (the page folds into an origami bunny that hops away through a forest). The hula dancer has hair made of rows, a smile and a fuller figure. The Matrix greets the signed-in user by first name, drops *The Matrix has you*, knocks on the door, and the red pill now bends a spoon. Pac-Man runs at a fixed, slower pace along up to four lanes. Eight effects in all. **No schema change, no migration.** |
 | **14 Oct 2026** | — | **Trumpets for a closed workshop** (§6.9). The closing confetti now comes with a short synthesized trumpet fanfare, when sound is on in the 🎭 menu. **No schema change, no migration.** |
 | **14 Oct 2026** | — | **Effects move behind the logo; the fanfare always plays** (§6.8, §6.9). The 🎭 header button is gone: five quick clicks on the logo open the effects menu, with a wobble, a filling ring and a countdown hint on the way. The closing-workshop trumpets now play regardless of the sound toggle. **No schema change, no migration.** |
+| **20 Oct 2026** | — | **The נעם אסרף theme** (§6.9). A seventh, much pinker theme that first asks *האם את נעם אסרף?* — no leaves things as they were, yes brings pink confetti and trumpets. **No schema change, no migration.** |
 
 ---
 
