@@ -41,6 +41,6 @@ export function greetingFor(date: Date): Greeting {
   if (weekday === "Sat") return { text: "שבוע טוב", emoji: "✨" }
   if (hour >= 5 && hour < 12) return { text: "בוקר טוב", emoji: "☀️" }
   if (hour >= 12 && hour < 17) return { text: "צהריים טובים", emoji: "🌤️" }
-  if (hour >= 17 && hour < 21) return { text: "ערב טוב", emoji: "🌆" }
+  if (hour >= 17 && hour < 21) return { text: "ערב טוב", emoji: "🌙" }
   return { text: "לילה טוב", emoji: "🌙" }
 }

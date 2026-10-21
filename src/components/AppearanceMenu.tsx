@@ -5,12 +5,19 @@ import {
   THEMES, BACKGROUNDS, seasonalPattern, applyAppearance, loadAppearance, saveAppearance,
   DEFAULT_APPEARANCE, type Appearance,
 } from "@/lib/appearance"
+import { celebrate } from "@/lib/celebrate"
+
+const PINKS = ["#FF3D9A", "#FF8CC6", "#FFD6EC", "#C2167A", "#F7B5FF", "#FFFFFF", "#FFD34D"]
 
 /** The 🎨 button in the header and its popover. §6.9 */
 export function AppearanceMenu({ userId }: { userId: string }) {
   const [open, setOpen] = useState(false)
   const [appearance, setAppearance] = useState<Appearance>(DEFAULT_APPEARANCE)
   const ref = useRef<HTMLDivElement>(null)
+  // The נעם אסרף theme asks who's choosing it first.
+  const [noamAsk, setNoamAsk] = useState<null | "ask" | "no">(null)
+  // …and a yes brings her portrait out for a moment.
+  const [noamShow, setNoamShow] = useState<null | "in" | "out">(null)
 
   // The init script already painted the stored choice; re-apply in case it
   // ran for a different user (a sign-out and sign-in without a full reload).
@@ -31,6 +38,11 @@ export function AppearanceMenu({ userId }: { userId: string }) {
   }, [open])
 
   function update(patch: Partial<Appearance>) {
+    if (patch.theme === "noam" && appearance.theme !== "noam") { setNoamAsk("ask"); return }
+    apply(patch)
+  }
+
+  function apply(patch: Partial<Appearance>) {
     const next = { ...appearance, ...patch }
     setAppearance(next)
     applyAppearance(next)
@@ -108,6 +120,68 @@ export function AppearanceMenu({ userId }: { userId: string }) {
             </div>
           </div>
           <p className="text-[11px] text-gray-400">נשמר בדפדפן הזה בלבד.</p>
+        </div>
+      )}
+
+      {noamAsk && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/30" dir="rtl">
+          <div className="bg-white rounded-2xl shadow-2xl px-8 py-6 text-center w-72 border-4 border-pink-300">
+            {noamAsk === "ask" ? (
+              <>
+                <p className="text-lg font-bold text-gray-900 mb-5">האם את נעם אסרף?</p>
+                <div className="flex gap-3 justify-center">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setNoamAsk(null)
+                      setOpen(false)
+                      apply({ theme: "noam" })
+                      celebrate(undefined, PINKS)
+                      setNoamShow("in")
+                      setTimeout(() => setNoamShow("out"), 4200)
+                      setTimeout(() => setNoamShow(null), 4900)
+                    }}
+                    className="px-6 py-2 rounded-full text-white font-semibold bg-gradient-to-l from-pink-500 to-fuchsia-500 hover:scale-105 transition-transform"
+                  >
+                    כן
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setNoamAsk("no")
+                      setTimeout(() => setNoamAsk(null), 1500)
+                    }}
+                    className="px-6 py-2 rounded-full border border-gray-300 text-gray-700 hover:bg-gray-50"
+                  >
+                    לא
+                  </button>
+                </div>
+              </>
+            ) : (
+              <p className="text-lg font-bold text-gray-700">חבל 💔</p>
+            )}
+          </div>
+        </div>
+      )}
+
+      {noamShow && (
+        <div
+          className="fixed inset-0 z-[9998] flex items-center justify-center bg-pink-200/40 cursor-pointer"
+          style={{ opacity: noamShow === "out" ? 0 : 1, transition: "opacity .7s" }}
+          onClick={() => setNoamShow(null)}
+          dir="rtl"
+        >
+          <div
+            className="bg-white rounded-3xl shadow-2xl p-3 pb-4 text-center border-4 border-pink-300"
+            style={{ animation: "fx-noam-pop .6s cubic-bezier(.2,1.6,.4,1)" }}
+          >
+            {/* A plain <img>: the file sits behind the login, which the image optimiser can't pass. */}
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src="/noam.jpg" alt="נעם" width={240} height={397} className="rounded-2xl block" />
+            <p className="mt-3 text-xl font-extrabold">
+              <span className="bg-gradient-to-l from-pink-500 to-fuchsia-600 bg-clip-text text-transparent">יא מלכה נעם!</span> 👑💖
+            </p>
+          </div>
         </div>
       )}
     </div>
