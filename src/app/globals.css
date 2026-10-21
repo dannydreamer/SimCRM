@@ -109,7 +109,7 @@ html[data-theme="noam"] {
   --color-gray-900: #3F0E31;
 }
 html[data-theme="noam"] .app-canvas {
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='64' height='64'%3E%3Cpath d='M16 22c-3-5-11-3-10 3 1 5 10 10 10 10s9-5 10-10c1-6-7-8-10-3z' fill='%23FF7AB8' fill-opacity='.13'/%3E%3Cpath d='M48 50l1.6 3.4 3.4 1.6-3.4 1.6-1.6 3.4-1.6-3.4-3.4-1.6 3.4-1.6z' fill='%23E0218A' fill-opacity='.16'/%3E%3C/svg%3E");
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='72' height='72'%3E%3Cpath d='M18 24c-3-5-12-3-11 3 1 6 11 11 11 11s10-5 11-11c1-6-8-8-11-3z' fill='%23FF5FA8' fill-opacity='.32'/%3E%3Cpath d='M54 52c-2-3.5-8-2-7.5 2 .7 4 7.5 7.5 7.5 7.5s6.8-3.5 7.5-7.5c.5-4-5.5-5.5-7.5-2z' fill='%23E0218A' fill-opacity='.26'/%3E%3Cpath d='M56 14l1.5 3.5 3.5 1.5-3.5 1.5-1.5 3.5-1.5-3.5-3.5-1.5 3.5-1.5z' fill='%23F5B700' fill-opacity='.45'/%3E%3Cpath d='M16 58l1 2.3 2.3 1-2.3 1-1 2.3-1-2.3-2.3-1 2.3-1z' fill='%23F5B700' fill-opacity='.4'/%3E%3C/svg%3E");
 }
 html[data-theme="noam"] .app-header {
   background: var(--app-header);
@@ -132,6 +132,7 @@ html[data-theme="noam"] main h1 {
 }
 html[data-theme="noam"] ::selection { background: #FF8CC6; color: #3F0E31; }
 html[data-theme="noam"] * { scrollbar-color: #FF8CC6 #FFE8F3; }
+@keyframes fx-noam-pop { from { transform: scale(.3) rotate(-8deg); opacity: 0; } to { transform: none; opacity: 1; } }
 @keyframes fx-noam-shimmer { from { background-position: 0% 0; } to { background-position: 100% 0; } }
 html[data-theme="noam"] body { color: var(--color-gray-900); }
 html[data-theme="noam"] .bg-navy { background-image: linear-gradient(135deg, #FF4FA8, #C2167A); }
