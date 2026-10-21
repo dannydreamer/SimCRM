@@ -87,7 +87,7 @@ html[data-theme="night"] {
   --color-red-50:   #33151A; --color-red-100:   #451C22; --color-red-200:   #6B2A33; --color-red-600: #F28B95;
   --color-blue-50:  #14223F; --color-blue-100:  #1B2D52; --color-blue-700:  #93B4F5; --color-blue-800: #B3CBFA;
 }
-/* נעם אסרף — pink and fabulous, still readable. Hot-pink actions on a pink
+/* נועם אסרף — pink and fabulous, still readable. Hot-pink actions on a pink
    canvas strewn with faint hearts, plum text, a candy-striped header. */
 html[data-theme="noam"] {
   --app-canvas: #FFF0F7;
