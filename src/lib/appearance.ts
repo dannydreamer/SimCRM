@@ -13,7 +13,7 @@ export const THEMES = [
   { id: "lavender",  label: "לבנדר",     swatch: ["#6B5B9A", "#F1EEF8"] },
   { id: "night",     label: "לילה",      swatch: ["#171C27", "#5A7BE0"] },
   // Asks first — see AppearanceMenu.
-  { id: "noam",      label: "נעם אסרף",  swatch: ["#FF3D9A", "#FFD6EC"] },
+  { id: "noam",      label: "נועם אסרף",  swatch: ["#FF3D9A", "#FFD6EC"] },
 ] as const
 
 export type ThemeId = (typeof THEMES)[number]["id"]

@@ -14,7 +14,7 @@ export function AppearanceMenu({ userId }: { userId: string }) {
   const [open, setOpen] = useState(false)
   const [appearance, setAppearance] = useState<Appearance>(DEFAULT_APPEARANCE)
   const ref = useRef<HTMLDivElement>(null)
-  // The נעם אסרף theme asks who's choosing it first.
+  // The נועם אסרף theme asks who's choosing it first.
   const [noamAsk, setNoamAsk] = useState<null | "ask" | "no">(null)
   // …and a yes brings her portrait out for a moment.
   const [noamShow, setNoamShow] = useState<null | "in" | "out">(null)
@@ -128,7 +128,7 @@ export function AppearanceMenu({ userId }: { userId: string }) {
           <div className="bg-white rounded-2xl shadow-2xl px-8 py-6 text-center w-72 border-4 border-pink-300">
             {noamAsk === "ask" ? (
               <>
-                <p className="text-lg font-bold text-gray-900 mb-5">האם את נעם אסרף?</p>
+                <p className="text-lg font-bold text-gray-900 mb-5">האם את נועם אסרף?</p>
                 <div className="flex gap-3 justify-center">
                   <button
                     type="button"
@@ -177,9 +177,9 @@ export function AppearanceMenu({ userId }: { userId: string }) {
           >
             {/* A plain <img>: the file sits behind the login, which the image optimiser can't pass. */}
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src="/noam.jpg" alt="נעם" width={240} height={397} className="rounded-2xl block" />
+            <img src="/noam.jpg" alt="נועם" width={240} height={397} className="rounded-2xl block" />
             <p className="mt-3 text-xl font-extrabold">
-              <span className="bg-gradient-to-l from-pink-500 to-fuchsia-600 bg-clip-text text-transparent">יא מלכה נעם!</span> 👑💖
+              <span className="bg-gradient-to-l from-pink-500 to-fuchsia-600 bg-clip-text text-transparent">יא מלכה נועם!</span> 👑💖
             </p>
           </div>
         </div>
