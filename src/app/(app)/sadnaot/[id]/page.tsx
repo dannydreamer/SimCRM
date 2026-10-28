@@ -18,6 +18,7 @@ import {
   type TrainingInput,
 } from "@/lib/actor-training"
 import { celebrate } from "@/lib/celebrate"
+import { SharedDeckLink } from "@/components/SharedDeckLink"
 
 // The participants' feedback Google Form is a single standing form shared by every
 // workshop — the copied מחרוזת is pasted into it as a new option, so the link sits
@@ -2268,6 +2269,9 @@ export default function WorkshopDetailPage() {
             </span>
           )}
         </div>
+
+        {/* Renders nothing unless a facilitator shared a deck for this workshop. §14 F-06. */}
+        <SharedDeckLink workshopId={id} />
 
       </div>
 
