@@ -52,6 +52,8 @@ export function DeckStudio() {
   const [workshopId, setWorkshopId] = useState("")
   const [workshop, setWorkshop] = useState<WorkshopDetail | null>(null)
   const [icebreaker, setIcebreaker] = useState("")
+  const [coverOrg, setCoverOrg] = useState("")
+  const [coverGroup, setCoverGroup] = useState("")
   const [scheduleFile, setScheduleFile] = useState<string | null>(null)
   const [schedule, setSchedule] = useState<ScheduleRow[]>([])
   const [scenarios, setScenarios] = useState<ScenarioInput[]>([])
@@ -90,6 +92,8 @@ export function DeckStudio() {
     if (!res.ok) { setFormError("טעינת הסדנה נכשלה"); return }
     const w = (await res.json()) as WorkshopDetail
     setWorkshop(w)
+    setCoverOrg(w.organization)
+    setCoverGroup(w.group)
     setDeck(w.deck)
     setScenarios(w.scenarios.map((s) => blankScenario(s.id, { name: s.name, topic: s.topic })))
   }
@@ -154,6 +158,8 @@ export function DeckStudio() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         workshopId: workshop.id,
+        organization: coverOrg,
+        group: coverGroup,
         icebreakerQuestion: icebreaker,
         schedule,
         scenarios: scenarios.map((s) => ({ title: s.title, body: s.body.split("\n") })),
@@ -237,7 +243,17 @@ export function DeckStudio() {
           </select>
           {workshop && (
             <div className="text-gray-600 space-y-1">
-              <div>בשקף הפתיחה: <span className="text-gray-900">{workshop.organization} – {workshop.group}</span> · <span className="text-gray-900">{workshop.date}</span></div>
+              <div className="space-y-1">
+                <div>בשקף הפתיחה <span className="text-gray-400">(אפשר לתקן — לא משנה את ה-CRM)</span>:</div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <input value={coverOrg} onChange={(e) => setCoverOrg(e.target.value)} placeholder={workshop.organization}
+                    className={`${field} flex-1 min-w-48`} />
+                  <span className="text-gray-400">–</span>
+                  <input value={coverGroup} onChange={(e) => setCoverGroup(e.target.value)} placeholder={workshop.group}
+                    className={`${field} flex-1 min-w-48`} />
+                  <span className="text-gray-900">· {workshop.date}</span>
+                </div>
+              </div>
               <div>נושאים: <span className="text-gray-900">{workshop.topics.join(" · ") || "—"}</span></div>
             </div>
           )}
