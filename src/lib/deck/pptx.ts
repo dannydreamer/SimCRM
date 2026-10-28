@@ -265,6 +265,24 @@ function sizeScenarioShape(slide: Document, scenario: DeckScenario) {
   }
 }
 
+// ─── Scenario closing lines ──────────────────────────────────────────────────
+
+// The goal and the time allowed close the brief and stand apart from it:
+// centred, while the brief keeps the template's alignment (spec F-06).
+const CLOSING_LINE = /^\s*(מטרת\s|לרשות)/
+
+export function centerClosingLines(root: Element | Document) {
+  for (const p of descendants(root, NS.a, "p")) {
+    if (!CLOSING_LINE.test(paragraphText(p))) continue
+    let pPr = child(p, NS.a, "pPr")
+    if (!pPr) {
+      pPr = p.ownerDocument!.createElementNS(NS.a, "a:pPr")
+      p.insertBefore(pPr, p.firstChild)
+    }
+    pPr.setAttribute("algn", "ctr")
+  }
+}
+
 // ─── Cover line and schedule table size ──────────────────────────────────────
 
 const pt = (emu: number) => emu / EMU_PER_PT
@@ -430,6 +448,7 @@ export async function generateDeck(template: ArrayBuffer | Uint8Array, data: Dec
         "scenario.title": scenario.title,
         "scenario.body": scenario.body,
       }).forEach((k) => missing.add(k))
+      centerClosingLines(doc)
       const xml = serializeXml(doc)
 
       if (i === 0) { zip.file(scenarioSlide!.path, xml); return }

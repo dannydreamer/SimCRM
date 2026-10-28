@@ -20,7 +20,7 @@
 
 import JSZip from "jszip"
 import { parseSchedule, parseScenario, type DocxBlock } from "../src/lib/deck/docx"
-import { charsPerLine, fillTableRows, fillTokens, fitOneLine, fitScenarioText, fitTable, generateDeck, paragraphText } from "../src/lib/deck/pptx"
+import { centerClosingLines, charsPerLine, fillTableRows, fillTokens, fitOneLine, fitScenarioText, fitTable, generateDeck, paragraphText } from "../src/lib/deck/pptx"
 import { NS, children, descendants, parseXml } from "../src/lib/deck/xml"
 
 let failures = 0
@@ -162,6 +162,13 @@ const sizes = [5, 10, 20, 40].map((n) => fitScenarioText(box, "כותרת", Arra
 check("size: longer text never gets larger", sizes.every((s, i) => i === 0 || s <= sizes[i - 1]), true)
 check("size: absurdly long text bottoms out at the smallest step",
   fitScenarioText(box, "כותרת", Array(200).fill("א".repeat(200))), { title: 20, body: 16 })
+
+// ── Scenario closing lines ──────────────────────────────────────────────────
+doc = body(`<a:p><a:pPr algn="r"/>${run("{{scenario.body}}")}</a:p>`)
+fillTokens(doc, { "scenario.body": ["את מנהלת מעון.", "מטרת הסימולציה: בניית אמון.", "לרשותכן: 10 דקות", "הערה: חשבי עם הקבוצה"] })
+centerClosingLines(doc)
+check("closing lines: goal and minutes centred, the brief and הערה keep their alignment",
+  descendants(doc, NS.a, "p").map((p) => p.getElementsByTagNameNS(NS.a, "pPr")[0]?.getAttribute("algn")), ["r", "ctr", "ctr", "r"])
 
 // ── Cover line ──────────────────────────────────────────────────────────────
 // Daniel's cover: a 1314pt-wide box at 106pt.
