@@ -92,33 +92,60 @@ export type ScheduleRow = { activity: string; time: string }
 // arrival) drops out.
 const TIME_RANGE = /^\d{1,2}[:.]\d{2}\s*[-–—]\s*\d{1,2}[:.]\d{2}$/
 
-// Participants arrive during התכנסות; it is not part of the session they see.
-const DROPPED_ACTIVITIES = /^התכנסות/
+// Participants arrive during a bare התכנסות; it is not part of the session they
+// see. Only the bare word: "התכנסות ופתיחה של הקבוצה" is an opening, and stays.
+const DROPPED_ACTIVITY = /^התכנסות[\s.:,]*$/
 
+// A row naming the simulation track when the day splits into parallel groups
+// ("קבוצה א' / מרכז סימולציה" beside "קבוצה ב' / חדר 1.7").
+const SIMULATION_TRACK = /סימולציה/
+
+/**
+ * The schedule is read row by row, not by header. Files vary: some tables are
+ * two columns throughout; others split into a column per group for part of the
+ * day, so the same table has rows of two and three cells. Each row is judged on
+ * its own:
+ *
+ *   - its time is the cell holding a time range — no range, no row;
+ *   - its activity is the simulation track's cell when an earlier row marked
+ *     one for rows of that width, otherwise the non-empty cell nearest the
+ *     time (the columns sit side by side, so that is the one beside it).
+ */
 export function parseSchedule(blocks: DocxBlock[]): ScheduleRow[] {
   const tables = blocks.filter((b): b is Extract<DocxBlock, { kind: "table" }> => b.kind === "table")
   const table =
-    tables.find((t) => t.rows.length > 0 && hasHeader(t.rows[0])) ??
-    tables.find((t) => t.rows.some((r) => r.length >= 2))
+    tables.find((t) => t.rows.some((r) => r.some((c) => TIME_RANGE.test(cleanTime(c))))) ?? null
   if (!table) return []
 
-  const header = hasHeader(table.rows[0]) ? table.rows[0] : null
-  const activityCol = header ? header.findIndex((c) => /פעילות/.test(c)) : 0
-  const timeCol = header ? header.findIndex((c) => /זמן/.test(c)) : 1
-
+  // Width of row → index of the simulation track's column.
+  const track = new Map<number, number>()
   const rows: ScheduleRow[] = []
-  for (const row of header ? table.rows.slice(1) : table.rows) {
-    const activity = cleanLines(row[activityCol] ?? "")
-    const time = cleanLines(row[timeCol] ?? "").replace(/\s*([-–—])\s*/g, "$1")
-    if (!TIME_RANGE.test(time) || activity === "") continue
-    if (DROPPED_ACTIVITIES.test(activity)) continue
-    rows.push({ activity, time })
+  for (const row of table.rows) {
+    const cells = row.map(cleanLines)
+    const timeAt = cells.map(cleanTime).findLastIndex((c) => TIME_RANGE.test(c))
+    if (timeAt === -1) {
+      const marked = cells.findIndex((c) => SIMULATION_TRACK.test(c))
+      if (marked !== -1 && cells.length > 2) track.set(cells.length, marked)
+      continue
+    }
+    const marked = track.get(cells.length)
+    let activityAt = marked !== undefined && marked !== timeAt && cells[marked] ? marked : -1
+    if (activityAt === -1) {
+      let best = Infinity
+      cells.forEach((c, i) => {
+        if (i !== timeAt && c !== "" && Math.abs(i - timeAt) < best) { best = Math.abs(i - timeAt); activityAt = i }
+      })
+    }
+    if (activityAt === -1) continue
+    const activity = cells[activityAt]
+    if (DROPPED_ACTIVITY.test(activity)) continue
+    rows.push({ activity, time: cleanTime(cells[timeAt]) })
   }
   return rows
 }
 
-function hasHeader(row: string[]): boolean {
-  return row.some((c) => /פעילות/.test(c)) && row.some((c) => /זמן/.test(c))
+function cleanTime(text: string): string {
+  return cleanLines(text).replace(/\s*([-–—])\s*/g, "$1")
 }
 
 // ─── Stage 2b: a scenario ────────────────────────────────────────────────────
