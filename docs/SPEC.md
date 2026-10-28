@@ -1713,7 +1713,9 @@ Combines actor work activity with payment-order tracking, built on data already 
 
 > **Note:** this feature was unlabelled in the source notes — it appeared without a heading, nested inside the backup section. Assigned F-06 here, which was otherwise unused.
 
-The CRM generates a facilitator's presentation for a workshop: it fills a template PPTX with that workshop's data — cover details, schedule, topics, and one slide per scenario. Design settled with Daniel in October 2026; nothing is built yet.
+The CRM generates a facilitator's presentation for a workshop: it fills a template PPTX with that workshop's data — cover details, schedule, topics, and one slide per scenario. Design settled with Daniel in October 2026.
+
+**Status:** the engine and both DOCX parsers are built (`src/lib/deck/`, `npm run check:deck`) and tested on Daniel's deck and real scenario files. Not reachable from the UI yet — no route, no screen.
 
 **Engine:** JavaScript, inside the CRM — not a separate Python service. A PPTX (and a DOCX) is a zip of XML; the engine edits it directly. It needs only three operations: replace tokens, duplicate a slide, duplicate a table row. `python-pptx` was considered and rejected — it cannot duplicate slides either, so its advantage did not survive, and it would have put a second language and runtime into the deploy.
 
@@ -1721,7 +1723,8 @@ The CRM generates a facilitator's presentation for a workshop: it fills a templa
 
 The template is an ordinary deck the facilitator styles freely. Two kinds of anchor:
 
-- **Tokens** — `{{name}}` typed into slide text where the value goes. The value inherits the token's formatting. A token's whole paragraph is removed when its value is empty.
+- **Tokens** — `{{name}}` typed into slide text where the value goes. The value inherits the formatting of the run the token starts in. A token alone in its paragraph may take several lines — the paragraph is repeated once per line — and an empty value removes the paragraph (the last paragraph of a text box is emptied instead, since PowerPoint requires one). A token with no value is left visible in the deck and reported, so it gets noticed.
+- **No scenarios** — the scenario slide is removed from the deck entirely.
 - **Slides are identified by the tokens they contain**, not by name or position. (PowerPoint's Selection Pane names shapes, not slides, so slide names are not usable.) A slide holding `{{scenario.*}}` is the scenario slide; a table row holding `{{row.*}}` is the schedule row.
 
 The engine must tolerate a token split across several XML runs — PowerPoint splits text after spell-check or partial formatting.
@@ -1956,6 +1959,7 @@ Sessions 1–19 as built. Branch naming `session-N-*`, merged to `develop` then 
 | **21 Oct 2026** | — | **Solid tables in the נועם אסרף theme** (§6.9). The workshop table had no background of its own, so the hearts showed through the rows; in this theme every table now sits on white. **No schema change, no migration.** |
 | **22 Oct 2026** | — | **The name is נועם** (§6.9). The theme, its question and its caption spelled her name נעם; now נועם throughout. The theme's internal id stays `noam`, so anyone already on it keeps it. **No schema change, no migration.** |
 | **28 Oct 2026** | — | **F-06 reviewed against Daniel's own deck** (§14 F-06). Spec only. The debriefer is static text in each facilitator's template, so `{{debriefer}}` and its gender exception are gone; organization and group share one cover line; the topics sit on the `לשם מה התכנסנו` slide; the scenario slide opens with `תקציר {{scenario.number}} למשתתפים: {{scenario.title}}` and its body now ends with the minutes line, replacing `{{scenario.time}}`. The generator sizes the scenario text itself, starting with a fixed larger title and a stepped body size. |
+| **28 Oct 2026** | — | **F-06 engine and parsers built** (§14 F-06). `src/lib/deck/`: reads the schedule and scenario DOCX files, fills a template PPTX — tokens, the schedule row, one slide per scenario — and sizes the scenario text from the template's own spacing. Not wired to any route or screen yet. New dependencies `jszip` and `@xmldom/xmldom`; `npm run check:deck`. **No schema change, no migration.** |
 
 ---
 
