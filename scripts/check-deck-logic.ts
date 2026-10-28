@@ -50,10 +50,27 @@ check("schedule: internal row and התכנסות dropped", rows.map((r) => r.act
   ["פתיחה ואוריינטציה", "סימולציה 1 - 2*7\n+ שיקופים", "סיכום ומשוב"])
 check("schedule: a multi-line activity keeps its lines", rows[1].activity, "סימולציה 1 - 2*7\n+ שיקופים")
 check("schedule: spaces around the dash are dropped", rows[1].time, "10:00–10:20")
-check("schedule: columns found by header, whatever their order",
+check("schedule: column order does not matter",
   parseSchedule([table(["זמן", "פעילות"], ["9:30-10:00", "פתיחה"])]), [{ activity: "פתיחה", time: "9:30-10:00" }])
-check("schedule: no header — first two columns", parseSchedule([table(["פתיחה", "9:30-10:00"])]).length, 1)
+check("schedule: no header row needed", parseSchedule([table(["פתיחה", "9:30-10:00"])]).length, 1)
 check("schedule: no table, no rows", parseSchedule([p("כלום")]), [])
+
+// A day that splits into parallel groups: rows of two cells and of three in one table.
+const split = parseSchedule([table(
+  ["\t\t\tפעילות\t", "זמן"],
+  ["תדרוך שחקנים: דניאל\n\nמתחקרות: אביטל", "אימון שחקנים:\n9:00"],
+  ["התכנסות ופתיחה של הקבוצה\nבחדר 1.7", "9:00-9:50"],
+  ["קבוצה ב'\nחדר 1.7", "קבוצה א'\nמרכז סימולציה", "חלוקה שלהן לשתי קבוצות "],
+  ["המשך הרצאה ב1.7", "פתיחה ואוריינטציה ", "10:00-10:30"],
+  ["", "סימולציה +שיקוף\nשלשה חדרים", "10:30-10:50"],
+)])
+check("schedule: a split day takes the simulation track's column", split.map((r) => r.activity),
+  ["התכנסות ופתיחה של הקבוצה\nבחדר 1.7", "פתיחה ואוריינטציה", "סימולציה +שיקוף\nשלשה חדרים"])
+check("schedule: only a bare התכנסות is dropped, not an opening that starts with it",
+  parseSchedule([table(["התכנסות.", "8:30-9:00"], ["התכנסות ופתיחה", "9:00-9:30"])]).map((r) => r.activity),
+  ["התכנסות ופתיחה"])
+check("schedule: without a track marker, the cell beside the time",
+  parseSchedule([table(["הרצאה", "פתיחה", "10:00-10:30"])]).map((r) => r.activity), ["פתיחה"])
 
 // ── Scenario ────────────────────────────────────────────────────────────────
 const scenarioFile = [
