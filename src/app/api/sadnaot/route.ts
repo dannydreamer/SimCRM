@@ -179,6 +179,7 @@ export async function GET() {
         scenarios:  w.scenarios,
         castings:   w.castings,
         tiktakOrdered:    w.tiktakOrdered,
+        whatsappGroupOpened: w.whatsappGroupOpened,
         namesReceived:    w.namesReceived,
         scheduleSent:     w.scheduleSent,
         scenariosPrinted: w.scenariosPrinted,

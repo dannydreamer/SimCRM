@@ -94,6 +94,7 @@ interface Workshop {
   otherRoomApproved: boolean
   /** משימות נוספות — §4.3.1. Each box's own state; the x/y is derived. */
   tiktakOrdered: boolean
+  whatsappGroupOpened: boolean
   namesReceived: boolean
   scheduleSent: boolean
   scenariosPrinted: boolean

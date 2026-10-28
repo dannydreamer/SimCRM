@@ -194,6 +194,7 @@ model Workshop {
   // Order, labels and applicability live in src/lib/workshop-minor-tasks.ts;
   // that catalogue is the only place that decides which of these gate READY.
   tiktakOrdered         Boolean      @default(false)
+  whatsappGroupOpened   Boolean      @default(false)
   namesReceived         Boolean      @default(false)
   scheduleSent          Boolean      @default(false)
   scenariosPrinted      Boolean      @default(false)
