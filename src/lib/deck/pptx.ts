@@ -256,7 +256,7 @@ function sizeScenarioShape(slide: Document, scenario: DeckScenario) {
         spaceAfterPt: aftPts ? Number(aftPts.getAttribute("val")) / 100 : 0,
       },
       titleLine,
-      scenario.body.flatMap((b) => b.split("\n")),
+      scenario.body.flatMap((b) => b.split("\n")).map((l) => parseMarkup(l).map((seg) => seg.text).join("")),
     )
     for (const p of paras) {
       const isTitle = /\{\{\s*scenario\.title\s*\}\}/.test(paragraphText(p))
@@ -280,6 +280,67 @@ export function centerClosingLines(root: Element | Document) {
       p.insertBefore(pPr, p.firstChild)
     }
     pPr.setAttribute("algn", "ctr")
+  }
+}
+
+// ─── Scenario markup ─────────────────────────────────────────────────────────
+
+export type Segment = { text: string; bold: boolean; underline: boolean }
+
+/**
+ * `*bold*` and `_underline_` in scenario text, typed in the preview. A marker
+ * counts only when it has a partner later on the line; a lone `*` or `_` stays
+ * as written. The two may nest (`*_both_*`).
+ */
+export function parseMarkup(line: string): Segment[] {
+  const out: Segment[] = []
+  let bold = false
+  let underline = false
+  let text = ""
+  const flush = () => {
+    if (text) out.push({ text, bold, underline })
+    text = ""
+  }
+  for (let i = 0; i < line.length; i++) {
+    const ch = line[i]
+    if (ch === "*" || ch === "_") {
+      const on = ch === "*" ? bold : underline
+      // Opening needs a closing partner ahead; closing is always honoured.
+      if (on || line.indexOf(ch, i + 1) !== -1) {
+        flush()
+        if (ch === "*") bold = !bold
+        else underline = !underline
+        continue
+      }
+    }
+    text += ch
+  }
+  flush()
+  return out.length ? out : [{ text: "", bold: false, underline: false }]
+}
+
+/** Turn markup into formatting in every paragraph under `root`. Each segment becomes a run cloned from the paragraph's first. */
+export function applyMarkup(root: Element | Document) {
+  for (const p of descendants(root, NS.a, "p")) {
+    const text = paragraphText(p)
+    if (!/[*_]/.test(text)) continue
+    const segments = parseMarkup(text)
+    if (segments.length === 1 && segments[0].text === text) continue
+    const runs = children(p, NS.a, "r")
+    const model = runs[0]
+    for (const seg of segments) {
+      const r = model.cloneNode(true) as Element
+      setRunText(r, seg.text)
+      let rPr = child(r, NS.a, "rPr")
+      if (!rPr) {
+        rPr = r.ownerDocument!.createElementNS(NS.a, "a:rPr")
+        r.insertBefore(rPr, r.firstChild)
+      }
+      if (seg.bold) rPr.setAttribute("b", "1")
+      if (seg.underline) rPr.setAttribute("u", "sng")
+      p.insertBefore(r, model)
+    }
+    for (const r of runs) p.removeChild(r)
   }
 }
 
@@ -449,6 +510,7 @@ export async function generateDeck(template: ArrayBuffer | Uint8Array, data: Dec
         "scenario.body": scenario.body,
       }).forEach((k) => missing.add(k))
       centerClosingLines(doc)
+      applyMarkup(doc)
       const xml = serializeXml(doc)
 
       if (i === 0) { zip.file(scenarioSlide!.path, xml); return }

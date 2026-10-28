@@ -297,6 +297,11 @@ export function DeckStudio() {
                 {scheduleError && <p className="text-red-600">{scheduleError}</p>}
               </div>
 
+              {scenarios.length > 0 && (
+                <p className="text-xs text-gray-400 border-t border-gray-100 pt-4">
+                  עיצוב בתרחישים: <span dir="ltr">*מודגש*</span> · <span dir="ltr">_קו תחתון_</span>
+                </p>
+              )}
               {scenarios.length === 0 && (
                 <p className="text-gray-500">לסדנה אין תרחישים פעילים — המצגת תיווצר בלי שקף תקציר.</p>
               )}

@@ -20,7 +20,7 @@
 
 import JSZip from "jszip"
 import { parseSchedule, parseScenario, type DocxBlock } from "../src/lib/deck/docx"
-import { centerClosingLines, charsPerLine, fillTableRows, fillTokens, fitOneLine, fitScenarioText, fitTable, generateDeck, paragraphText } from "../src/lib/deck/pptx"
+import { applyMarkup, centerClosingLines, charsPerLine, parseMarkup, fillTableRows, fillTokens, fitOneLine, fitScenarioText, fitTable, generateDeck, paragraphText } from "../src/lib/deck/pptx"
 import { NS, children, descendants, parseXml } from "../src/lib/deck/xml"
 
 let failures = 0
@@ -169,6 +169,18 @@ fillTokens(doc, { "scenario.body": ["את מנהלת מעון.", "מטרת הס�
 centerClosingLines(doc)
 check("closing lines: goal and minutes centred, the brief and הערה keep their alignment",
   descendants(doc, NS.a, "p").map((p) => p.getElementsByTagNameNS(NS.a, "pPr")[0]?.getAttribute("algn")), ["r", "ctr", "ctr", "r"])
+
+// ── Scenario markup ─────────────────────────────────────────────────────────
+const segs = (l: string) => parseMarkup(l).map((s) => `${s.bold ? "B" : ""}${s.underline ? "U" : ""}:${s.text}`)
+check("markup: *bold* and _underline_", segs("את *מנהלת* מעון _אורים_."), [":את ", "B:מנהלת", ": מעון ", "U:אורים", ":."])
+check("markup: nested", segs("*_שניהם_* ורגיל"), ["BU:שניהם", ": ורגיל"])
+check("markup: a lone marker stays as written", segs("ציון 5*2 בלבד"), [":ציון 5*2 בלבד"])
+check("markup: plain text untouched", segs("בלי סימונים"), [":בלי סימונים"])
+doc = body(`<a:p>${run("לרשותך *10* דקות")}</a:p>`)
+applyMarkup(doc)
+check("markup: becomes runs, markers gone, bold set",
+  descendants(doc, NS.a, "r").map((r) => [r.textContent, r.getElementsByTagNameNS(NS.a, "rPr")[0].getAttribute("b")]),
+  [["לרשותך ", null], ["10", "1"], [" דקות", null]])
 
 // ── Cover line ──────────────────────────────────────────────────────────────
 // Daniel's cover: a 1314pt-wide box at 106pt.
