@@ -159,16 +159,19 @@ export function fillTableRows(root: Element | Document, rows: ScheduleRow[]): st
       tr.parentNode!.insertBefore(copy, tr)
       missing.push(...fillTokens(copy, { "row.activity": row.activity, "row.time": row.time }))
     }
-    tr.parentNode!.removeChild(tr)
+    const tbl = tr.parentNode as Element
+    tbl.removeChild(tr)
+    if (rows.length > 0) stretchTable(tbl)
   }
   return missing
 }
 
 // ─── Scenario text size ──────────────────────────────────────────────────────
 
-// Body sizes to try, largest first, in points. The title line is always a step
-// larger than the body and bold (spec F-06, "Scenario text size").
-const BODY_STEPS = [32, 28, 26, 24, 22, 20, 18, 16]
+// Body sizes to try, largest first, in points — large enough that a short
+// scenario fills the slide. The title line is always a step larger than the
+// body and bold (spec F-06, "Scenario text size").
+const BODY_STEPS = [40, 36, 32, 30, 28, 26, 24, 22, 20, 18, 16]
 const TITLE_EXTRA = 4
 // Rough metrics for Hebrew text: average glyph width as a share of the size,
 // and single line height as a multiple of it. Deliberately pessimistic — a
@@ -262,6 +265,100 @@ function sizeScenarioShape(slide: Document, scenario: DeckScenario) {
   }
 }
 
+// ─── Cover line and schedule table size ──────────────────────────────────────
+
+const pt = (emu: number) => emu / EMU_PER_PT
+const runSize = (p: Element): number | null => {
+  for (const r of children(p, NS.a, "r")) {
+    const sz = child(r, NS.a, "rPr")?.getAttribute("sz")
+    if (sz) return Number(sz) / 100
+  }
+  return null
+}
+
+/** How many characters fit on one line of `widthPt` at `sizePt`, by the same rough metric. */
+export function charsPerLine(widthPt: number, sizePt: number): number {
+  return Math.floor(widthPt / (sizePt * CHAR_WIDTH))
+}
+
+/**
+ * The size at which `text` fits one line of `widthPt`: the template's own size
+ * when it already fits, smaller when not — never below half of it, where a
+ * name long enough to need more is better wrapped than unreadable.
+ */
+export function fitOneLine(text: string, widthPt: number, sizePt: number): number {
+  if (text.length <= charsPerLine(widthPt, sizePt)) return sizePt
+  const fitted = Math.floor(widthPt / (text.length * CHAR_WIDTH))
+  return Math.max(Math.ceil(sizePt / 2), fitted)
+}
+
+/**
+ * Shrink the cover line naming the organization and group so a long name stays
+ * on one line instead of wrapping into the date below it. Runs before the
+ * tokens are filled; fixed line spacing shrinks with the text.
+ */
+function fitCoverLine(slide: Document, values: Values) {
+  for (const sp of descendants(slide, NS.p, "sp")) {
+    const ext = child(child(child(sp, NS.p, "spPr") ?? sp, NS.a, "xfrm") ?? sp, NS.a, "ext")
+    if (!ext) continue
+    const bodyPr = descendants(sp, NS.a, "bodyPr")[0]
+    const insets = Number(bodyPr?.getAttribute("lIns") ?? 91440) + Number(bodyPr?.getAttribute("rIns") ?? 91440)
+    const width = pt(Number(ext.getAttribute("cx")) - insets)
+    for (const p of descendants(sp, NS.a, "p")) {
+      const text = paragraphText(p)
+      if (!/\{\{\s*(organization|group)\s*\}\}/.test(text)) continue
+      const size = runSize(p)
+      if (!size) continue
+      const filled = text.replace(TOKEN, (m, key) => (key in values ? asLine(values[key]) : m))
+      const fitted = fitOneLine(filled, width, size)
+      if (fitted === size) continue
+      setSize(p, fitted, null)
+      const spcPts = descendants(p, NS.a, "spcPts").find((e) => (e.parentNode as Element)?.localName === "lnSpc")
+      if (spcPts) spcPts.setAttribute("val", String(Math.round(Number(spcPts.getAttribute("val")) * fitted / size)))
+    }
+  }
+}
+
+// Table text sizes to try, largest first. The table is then stretched to its
+// frame: rows share the frame's height in proportion to their lines.
+const TABLE_STEPS = [40, 36, 32, 30, 28, 26, 24, 22, 20, 18, 16, 14]
+const TABLE_LINE = 1.3
+// PowerPoint's default cell margins: 0.1" left and right, 0.05" top and bottom.
+const CELL_MARGIN_X_PT = 2 * 7.2
+const CELL_MARGIN_Y_PT = 2 * 3.6
+
+/** Largest size at which every row fits the height and every line fits its column. */
+export function fitTable(heightPt: number, colWidthsPt: number[], rows: string[][][]): number {
+  const linesOf = (row: string[][]) => Math.max(1, ...row.map((cell) => cell.length))
+  for (const size of TABLE_STEPS) {
+    const height = rows.reduce((sum, row) => sum + linesOf(row) * size * TABLE_LINE + CELL_MARGIN_Y_PT, 0)
+    const wide = rows.every((row) => row.every((cell, c) =>
+      cell.every((line) => line.length * size * CHAR_WIDTH <= (colWidthsPt[c] ?? Infinity) - CELL_MARGIN_X_PT)))
+    if (height <= heightPt && wide) return size
+  }
+  return TABLE_STEPS[TABLE_STEPS.length - 1]
+}
+
+/** Fill the frame of the table that held {{row.*}}: one text size throughout, rows stretched to the frame's height. */
+function stretchTable(tbl: Element) {
+  const frame = tbl.parentNode?.parentNode?.parentNode as Element | null // a:tbl ← a:graphicData ← a:graphic ← p:graphicFrame
+  const ext = frame && child(child(frame, NS.p, "xfrm") ?? frame, NS.a, "ext")
+  if (!ext) return
+  const heightEmu = Number(ext.getAttribute("cy"))
+  const grid = child(tbl, NS.a, "tblGrid")
+  const cols = grid ? children(grid, NS.a, "gridCol").map((g) => pt(Number(g.getAttribute("w")))) : []
+  const trs = children(tbl, NS.a, "tr")
+  const cells = trs.map((tr) => children(tr, NS.a, "tc").map((tc) =>
+    descendants(tc, NS.a, "p").map(paragraphText).filter((t) => t.trim() !== "")))
+  const size = fitTable(pt(heightEmu), cols, cells)
+  const lines = cells.map((row) => Math.max(1, ...row.map((c) => c.length)))
+  const total = lines.reduce((a, b) => a + b, 0)
+  trs.forEach((tr, i) => {
+    tr.setAttribute("h", String(Math.floor((heightEmu * lines[i]) / total)))
+    for (const p of descendants(tr, NS.a, "p")) setSize(p, size, null)
+  })
+}
+
 // ─── 3. The package: slides, relationships, content types ───────────────────
 
 const REL_SLIDE = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/slide"
@@ -312,6 +409,7 @@ export async function generateDeck(template: ArrayBuffer | Uint8Array, data: Dec
     if (!xml.includes("{{")) continue
     const doc = parseXml(xml)
     fillTableRows(doc, data.schedule).forEach((k) => missing.add(k))
+    fitCoverLine(doc, base)
     fillTokens(doc, base).forEach((k) => missing.add(k))
     zip.file(path, serializeXml(doc))
   }
