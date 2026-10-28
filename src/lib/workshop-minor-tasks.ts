@@ -16,6 +16,7 @@ import type { ReadyConditionKey } from "./workshop-readiness"
 
 export type MinorTaskKey =
   | "tiktakOrdered"
+  | "whatsappGroupOpened"
   | "namesReceived"
   | "scheduleSent"
   | "scenariosPrinted"
@@ -43,12 +44,13 @@ export interface MinorTaskDef {
  * to do" and "the first unticked box" have to be the same thing.
  */
 export const MINOR_TASKS: readonly MinorTaskDef[] = [
-  { key: "tiktakOrdered",    label: "הוזמן בתיקתק",                    blocking: true, scope: "ALL" },
-  { key: "namesReceived",    label: "שמות התקבלו",                     blocking: true, scope: "ALL" },
-  { key: "scheduleSent",     label: "לוח זמנים + נשלח בקבוצה",          blocking: true, scope: "ALL" },
-  { key: "scenariosPrinted", label: "תרחישים הודפסו + נשלחו בקבוצה",    blocking: true, scope: "ALL" },
-  { key: "summariesPrinted", label: "תקצירים הודפסו",                   blocking: true, scope: "ALL" },
-  { key: "propsPrepared",    label: "הוכנו תיקיות ואביזרי תפאורה",      blocking: true, scope: "EXTERNAL_ONLY" },
+  { key: "tiktakOrdered",       label: "הוזמן בתיקתק",                    blocking: true, scope: "ALL" },
+  { key: "whatsappGroupOpened", label: "נפתחה קבוצת וואטסאפ",             blocking: true, scope: "ALL" },
+  { key: "namesReceived",       label: "שמות התקבלו",                     blocking: true, scope: "ALL" },
+  { key: "scheduleSent",        label: "לוח זמנים + נשלח בקבוצה",          blocking: true, scope: "ALL" },
+  { key: "scenariosPrinted",    label: "תרחישים הודפסו + נשלחו בקבוצה",    blocking: true, scope: "ALL" },
+  { key: "summariesPrinted",    label: "תקצירים הודפסו",                   blocking: true, scope: "ALL" },
+  { key: "propsPrepared",       label: "הוכנו תיקיות ואביזרי תפאורה",      blocking: true, scope: "EXTERNAL_ONLY" },
 ] as const
 
 export const MINOR_TASK_LABEL: Record<MinorTaskKey, string> =
