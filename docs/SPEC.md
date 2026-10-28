@@ -494,6 +494,8 @@ Feedback is scoped to **Actor × Workshop × Room**, so two facilitators who wor
 - **AnnualGoal** — `year, shiyuchTakzivi, allocation`. Unique on `(year, shiyuchTakzivi)`.
 - **AppSettings** — singleton (`id = 1`): `driveFolderId`, `googleAccessToken`, `googleRefreshToken`, `googleTokenExpiry`.
 - **BackupLog** — `type, status, filePath, fileSize, errorMsg, createdAt`.
+- **DeckFile** — `kind` (`TEMPLATE`/`DECK`), `ownerId`, `workshopId` (deck only), `fileName, size, chunkCount, complete, sharedAt, createdAt`. Templates and generated facilitator decks, §14 F-06.
+- **DeckFileChunk** — `fileId, index, data` (bytes). Primary key `(fileId, index)`; cascades with its file.
 
 ---
 
@@ -1448,6 +1450,8 @@ Table order: Person, PersonRole, Organization, ParticipantGroup, Workshop, Room,
 
 > Any new table must be added to `TABLE_ORDER` in `src/lib/backup.ts` **before** the tables that reference it, or it is silently omitted from every backup.
 
+**Deliberately omitted:** `DeckFile` and `DeckFileChunk` (§14 F-06). They hold files, not records — the template's owner keeps the original and a deck can be regenerated — and the dump's text escaping would not carry binary data anyway.
+
 ### 9.4 Nightly automatic backup
 
 Vercel Cron, `"schedule": "0 1 * * *"` — **01:00 UTC**. `[code]`
@@ -1715,7 +1719,7 @@ Combines actor work activity with payment-order tracking, built on data already 
 
 The CRM generates a facilitator's presentation for a workshop: it fills a template PPTX with that workshop's data — cover details, schedule, topics, and one slide per scenario. Design settled with Daniel in October 2026.
 
-**Status:** the engine and both DOCX parsers are built (`src/lib/deck/`, `npm run check:deck`) and tested on Daniel's deck and real scenario files. Not reachable from the UI yet — no route, no screen.
+**Status:** live as a pilot. Engine and DOCX parsers in `src/lib/deck/` (`npm run check:deck`); screen `/matzgot`; routes under `/api/matzgot`; tables `DeckFile` and `DeckFileChunk` (§3.14).
 
 **Engine:** JavaScript, inside the CRM — not a separate Python service. A PPTX (and a DOCX) is a zip of XML; the engine edits it directly. It needs only three operations: replace tokens, duplicate a slide, duplicate a table row. `python-pptx` was considered and rejected — it cannot duplicate slides either, so its advantage did not survive, and it would have put a second language and runtime into the deploy.
 
@@ -1759,12 +1763,31 @@ Both files are read, never written. Each parse feeds an **editable preview**: th
 
 **Shared with F-03.** The scenario parser yields a full structured record (topic, population, name, character, brief, goal, time, debrief points, context, staging notes). The Scenario Library should store that record on upload, so a scenario already in the library needs no file attached here.
 
+#### The screen — `/matzgot`
+
+Not in the nav; reached by typing the address. Four steps on one page:
+
+1. **התבנית** — the pilot's current template, and *החלפת תבנית* to upload a new `.pptx`. It must open as a PowerPoint file; it replaces the previous template.
+2. **הסדנה** — every non-cancelled workshop from 30 days back onwards, marked `✓ מצגת` when a deck exists and `(משותפת)` when it is shared. Shows the cover line and the topics exactly as the deck will.
+3. **תוכן** — the icebreaker question; the schedule `.docx`; one `.docx` per active scenario, in scenario order. The Word files are **parsed in the browser and never uploaded**. Everything lands in editable fields — schedule rows (add, delete, edit), each scenario's title and body (one line per paragraph) — with any parser warnings beside them. Generation is refused while the template, the schedule, or any scenario's title or body is missing.
+4. **המצגת** — after *יצירת מצגת*: download, and *שיתוף עם המפעילות* / *ביטול השיתוף*. Tokens the template holds but the generator had no value for are listed.
+
+Cover details and topics are read from the CRM on the server, never taken from the browser. Generating again replaces the workshop's previous deck and **keeps its shared state**, so a corrected deck does not vanish from the Techs.
+
+#### Sharing with the Techs
+
+A shared deck can be downloaded by **any Tech** (Senior Tech included, §5.4) — on Workshop Detail, and deliberately out of the way: nothing at all unless a deck is shared for that workshop, then only a faint **⋯** at the foot of the page, which opens *מצגת המתחקר/ת* with a download button. Two clicks. Unsharing removes it at once. No other role sees it.
+
+#### Storage
+
+Files live in Postgres: `DeckFile` (metadata) and `DeckFileChunk` (bytes, ≤ 3 MB per row). Chunked because a Vercel function accepts and returns at most 4.5 MB and a template alone is about 4 MB, so the browser uploads and downloads in pieces. A file is served only once `complete`. One template per owner and one deck per owner per workshop are kept; a replacement deletes its predecessor. **Not in the nightly backup** (§9.3): the owner holds the original template, and a deck can be generated again. The migration revokes `anon`/`authenticated` privileges on both tables (§2.3.1).
+
 #### Access — pilot first
 
-- **Pilot:** visible to **Daniel's account only**, live in production so it runs on real workshop data. Enforced in the API route, not just by hiding the button — an obscured button or a second password is not access control.
+- **Pilot:** **Daniel's account only** (`DECK_PILOT_EMAILS` in `src/lib/deck/access.ts`), live in production so it runs on real workshop data. Every `/api/matzgot` route checks it on the server and answers anyone else with 404; the page answers 404 too. Techs reach shared decks only through `/api/matzgot/shared` and the file routes, which serve a deck to a Tech only while it is shared.
 - **Later:** widened to every facilitator (one deck per Room's facilitator, each from their own template), and to Tech generating on their behalf, as originally envisioned — per-facilitator base templates uploaded by Tech, and a **"צור מצגות"** button on Workshop Detail. Going wide should be a change to who is allowed, not a rewrite.
 
-**Deferred:** where templates and generated decks are stored, and whether a deck is kept on the workshop or only downloaded; whether preconditions (scenarios written, facilitators slotted, schedule present) hard-block or soft-warn; regeneration after later changes; topic-specific content slides chosen automatically by topic.
+**Deferred:** whether preconditions (scenarios written, facilitators slotted, schedule present) hard-block or soft-warn; regeneration after later changes; topic-specific content slides chosen automatically by topic.
 
 ---
 
@@ -1806,7 +1829,7 @@ Built as the first V2 item, on branch `sim_model`. It is now as-built behaviour 
 | F-03 | Scenario Library | Manager, Tech, Facilitator | — |
 | F-04 | WhatsApp Message Generator | Tech | — |
 | F-05 | Actor Activity & Payments | Manager | — |
-| F-06 | Facilitator PPT Generation | Daniel only (pilot) → Facilitator, Tech | Shares scenario parser with F-03 |
+| F-06 | Facilitator PPT Generation | **Pilot live:** Daniel only; Techs download shared decks | Shares scenario parser with F-03 |
 | F-07 | Backup Management | **Admin** | Admin role (§14.0) |
 | ~~F-08~~ | ~~מודל סימולציה field~~ | — | **Shipped** — remaining scope is group-history surfacing |
 
@@ -1960,6 +1983,7 @@ Sessions 1–19 as built. Branch naming `session-N-*`, merged to `develop` then 
 | **22 Oct 2026** | — | **The name is נועם** (§6.9). The theme, its question and its caption spelled her name נעם; now נועם throughout. The theme's internal id stays `noam`, so anyone already on it keeps it. **No schema change, no migration.** |
 | **28 Oct 2026** | — | **F-06 reviewed against Daniel's own deck** (§14 F-06). Spec only. The debriefer is static text in each facilitator's template, so `{{debriefer}}` and its gender exception are gone; organization and group share one cover line; the topics sit on the `לשם מה התכנסנו` slide; the scenario slide opens with `תקציר {{scenario.number}} למשתתפים: {{scenario.title}}` and its body now ends with the minutes line, replacing `{{scenario.time}}`. The generator sizes the scenario text itself, starting with a fixed larger title and a stepped body size. |
 | **28 Oct 2026** | — | **F-06 engine and parsers built** (§14 F-06). `src/lib/deck/`: reads the schedule and scenario DOCX files, fills a template PPTX — tokens, the schedule row, one slide per scenario — and sizes the scenario text from the template's own spacing. Not wired to any route or screen yet. New dependencies `jszip` and `@xmldom/xmldom`; `npm run check:deck`. **No schema change, no migration.** |
+| **28 Oct 2026** | — | **F-06 pilot: the `/matzgot` screen and sharing with the Techs** (§14 F-06, §3.14, §9.3). A hidden screen, Daniel's account only and enforced on every route: upload the template, pick a workshop, read the schedule and scenario Word files into an editable preview in the browser, generate, download. A deck can be shared with the Techs, who then find it behind a faint ⋯ at the foot of Workshop Detail. Files are stored in Postgres in chunks to stay under Vercel's 4.5 MB request and response limit. Migration `20261028120000_add_deck_files` (two new tables, `anon`/`authenticated` privileges revoked on both); both tables are left out of the nightly backup. |
 
 ---
 

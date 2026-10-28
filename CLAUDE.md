@@ -35,7 +35,7 @@ Next.js 16 (App Router) · React 19 · Prisma 7 + `@prisma/adapter-pg` · Postgr
 - **Hebrew UI, RTL, always.** Every label, button, placeholder, and error message is in Hebrew. Build RTL-first — never LTR flipped with `direction: rtl`.
 - **Dates render `DD.MM.YY`** (e.g. `7.5.26`).
 - **Negative numbers need `dir="ltr"` on the cell**, or they render as `9-` instead of `-9`.
-- Routes use Hebrew transliteration: `sadnaot` (workshops), `lihukim` (casting), `shakhanim` (actors), `irgunnim` (organizations), `nosim` (topics), `omas` (facilitator load), `yaadot` (goals), `luach` (calendar).
+- Routes use Hebrew transliteration: `sadnaot` (workshops), `lihukim` (casting), `shakhanim` (actors), `irgunnim` (organizations), `nosim` (topics), `omas` (facilitator load), `yaadot` (goals), `luach` (calendar), `matzgot` (facilitator decks).
 - Roles: MANAGER, TECH, SENIOR_TECH, CASTER, FEEDBACK_DOCUMENTER, FACILITATOR. Nav visibility is centralised in `src/lib/roles.ts`. **Permissions must be enforced in the API route, not only in the UI.**
 - **SENIOR_TECH implies TECH**, expanded once in `authorize()` via `expandRoles()`. A guard that names TECH already admits her — do **not** add SENIOR_TECH beside an existing TECH test. Only a right a plain Tech must not have names the senior role, through a capability list in `roles.ts`. Store SENIOR_TECH alone, never both. The expansion does not reach Prisma queries filtering on the role column. Spec §5.4; `npm run check:roles`.
 
