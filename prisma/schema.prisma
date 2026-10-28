@@ -103,6 +103,7 @@ model Person {
   roomsFacilitated       Room[]
   feedbackEntered        Feedback[]
   developmentLogsEntered ActorDevelopmentLog[]
+  deckFiles              DeckFile[]
 }
 
 model PersonRole {
@@ -238,6 +239,7 @@ model Workshop {
   feedbacks           Feedback[]
   castingChangeLogs   CastingChangeLog[]
   roomLocations       WorkshopRoomLocation[]
+  deckFiles           DeckFile[]
 }
 
 // ─── Workshop Room Location (physical room) ──────────────────────────────────
@@ -468,4 +470,45 @@ model BackupLog {
   fileSize  Int?
   errorMsg  String?
   createdAt DateTime     @default(now())
+}
+
+// ─── Facilitator deck files (§14 F-06) ───────────────────────────────────────
+//
+// A facilitator's template and the decks generated from it. The bytes live in
+// DeckFileChunk, a few MB at most per row: a Vercel function accepts and
+// returns at most 4.5 MB, so files travel in chunks both ways. A row with
+// complete=false is an upload still in progress, and is never served.
+//
+// Not in the nightly backup (TABLE_ORDER in src/lib/backup.ts): the template's
+// owner keeps the original, and a deck can be generated again.
+
+model DeckFile {
+  id         String    @id @default(uuid())
+  kind       String // "TEMPLATE" | "DECK"
+  ownerId    String
+  workshopId String? // DECK only
+  fileName   String
+  size       Int
+  chunkCount Int
+  complete   Boolean   @default(false)
+  // DECK only: when the owner made it downloadable by the Techs. Null = private.
+  sharedAt   DateTime?
+  createdAt  DateTime  @default(now())
+
+  owner    Person          @relation(fields: [ownerId], references: [id])
+  workshop Workshop?       @relation(fields: [workshopId], references: [id], onDelete: Cascade)
+  chunks   DeckFileChunk[]
+
+  @@index([ownerId, kind])
+  @@index([workshopId])
+}
+
+model DeckFileChunk {
+  fileId String
+  index  Int
+  data   Bytes
+
+  file DeckFile @relation(fields: [fileId], references: [id], onDelete: Cascade)
+
+  @@id([fileId, index])
 }
