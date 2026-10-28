@@ -1685,20 +1685,20 @@ The engine must tolerate a token split across several XML runs — PowerPoint sp
 
 #### Token inventory
 
-Agreed slide by slide against a test deck (`סימולציה 27.8`); Daniel's own deck, still to be supplied, will carry the same tokens. Every slide not listed is static.
+Agreed slide by slide on a test deck, then reviewed against Daniel's own 13-slide deck, which is the template for the pilot. Every slide not listed is static.
 
 | Slide | Token | Source | Repeats |
 |---|---|---|---|
-| Cover | `{{debriefer}}` | The whole line, label included: `מתחקר: <name>` for Daniel, `מתחקרת: <name>` for everyone else. Name from the Room's facilitator. `Person` holds no gender, so the masculine form is a one-name exception in the generator. | — |
-| Cover | `{{organization}}` | `Organization.name` | — |
-| Cover | `{{group}}` | `ParticipantGroup.name` | — |
+| Cover | `{{organization}} – {{group}}` | `Organization.name` and `ParticipantGroup.name`, on one line under `סדנת סימולציה` | — |
 | Cover | `{{date}}` | `Workshop.date`, Gregorian only, `D.M.YY` (e.g. `27.8.26`) | — |
-| Icebreaker | `{{icebreaker_question}}` | Optional free-text field in the generator. Empty → the question paragraph is removed; the slide and its title stay. | — |
-| Schedule | `{{row.activity}}` · `{{row.time}}` | The workshop's schedule DOCX (below) | **Table row**, once per schedule line; header row untouched |
-| Topics | `{{topics}}` | Distinct `Topic.name` of the workshop's active scenarios, one per line | — |
-| Scenario | `{{scenario.title}}` · `{{scenario.body}}` · `{{scenario.time}}` | That scenario's DOCX (below) | **Slide**, once per active scenario, in scenario order |
+| שבירת קרח | `{{icebreaker_question}}` | Optional free-text field in the generator. Empty → the question paragraph is removed; the slide and its title stay. | — |
+| לוחות זמנים | `{{row.activity}}` · `{{row.time}}` | The workshop's schedule DOCX (below) | **Table row**, once per schedule line; header row untouched |
+| לשם מה התכנסנו כאן היום? | `{{topics}}` | Distinct `Topic.name` of the workshop's active scenarios, one per line, under the question | — |
+| Scenario (תקציר) | `תקציר {{scenario.number}} למשתתפים: {{scenario.title}}` · `{{scenario.body}}` | `number` is the scenario's position in scenario order (1, 2 …); the rest from that scenario's DOCX (below) | **Slide**, once per active scenario, in scenario order |
 
-The cover's manager and technical-operator lines, the simulation-model slide and the feedback QR code are static text in the template, edited by hand when they change.
+**The debriefer is not a token.** Each facilitator's template carries their own name as static text (`מתחקר: דניאל פראג`), so the generator needs neither the Room's facilitator nor anyone's gender. The cover's manager line (`מירב מלול`) and technical-operator line (`נועם אסרף, תהל צביק, עפרי אמויאל, רעות דגו`), the simulation-model slide and the feedback QR code are also static, edited by hand in the template when they change.
+
+**Scenario text size.** The scenario slide's text box fills most of the slide, and PowerPoint re-fits text only when it is edited, not when a file opens — so the generator sizes the text itself. Start simple: the title line keeps a fixed size, a step larger than the body and bold; the body steps down in a few fixed sizes as its length grows. Thresholds are tuned on real scenario files and refined only if real decks need it. The editable preview is of the text, not a rendering of the slide, so a generated deck is still worth a glance in PowerPoint.
 
 #### Input parsing — schedule and scenario DOCX
 
@@ -1707,8 +1707,7 @@ Both files are read, never written. Each parse feeds an **editable preview**: th
 - **Schedule DOCX** — a two-column table, `פעילות | זמן`. Keep only rows whose time cell is a range (`9:30-10:00`); this drops the internal logistics row (actor training and debriefer arrival carry single times). **Drop `התכנסות`.** Activity names are copied exactly as written.
 - **Scenario DOCX** — one scenario per file: a header block (`תרחיש N`, `נושא האימון`, `אוכלוסיית מתאמנים/ות`, `שם התרחיש`, sometimes `הדמות`), the participants' section, then a 6-row facilitator table (`מטרת תרחיש`, `נקודות לתחקיר`, `זמן ומשתתפים`, `הקשר`, `הדמות/ות`, `דגשים לתפעול`).
   - `{{scenario.title}}` ← `שם התרחיש`, exactly as written, quotes included.
-  - `{{scenario.body}}` ← everything from `תקציר למשתתפים/ות` down to the table: the brief, `מטרת הסימולציה`/`מטרת השיחה`, and `הערה` when present. Plain text — source bold is not kept. `*****` separator lines are dropped.
-  - `{{scenario.time}}` ← the `לרשותך`/`לרשותכן N דקות` line.
+  - `{{scenario.body}}` ← everything after the `תקציר למשתתפים/ות` line down to the table: the brief, `מטרת הסימולציה`/`מטרת השיחה`, `הערה` when present, and the `לרשותך`/`לרשותכן N דקות` line, in file order. Plain text — source bold is not kept. `*****` separator lines are dropped.
   - The header block and the facilitator table never reach the slide.
   - Label wording varies between files (gendered endings, a goal line stated twice); the parser must allow for it rather than expect one exact form.
 
@@ -1717,7 +1716,7 @@ Both files are read, never written. Each parse feeds an **editable preview**: th
 #### Access — pilot first
 
 - **Pilot:** visible to **Daniel's account only**, live in production so it runs on real workshop data. Enforced in the API route, not just by hiding the button — an obscured button or a second password is not access control.
-- **Later:** widened to every facilitator (one deck per Room's facilitator, each with its own `{{debriefer}}`), and to Tech generating on their behalf, as originally envisioned — per-facilitator base templates uploaded by Tech, and a **"צור מצגות"** button on Workshop Detail. Going wide should be a change to who is allowed, not a rewrite.
+- **Later:** widened to every facilitator (one deck per Room's facilitator, each from their own template), and to Tech generating on their behalf, as originally envisioned — per-facilitator base templates uploaded by Tech, and a **"צור מצגות"** button on Workshop Detail. Going wide should be a change to who is allowed, not a rewrite.
 
 **Deferred:** where templates and generated decks are stored, and whether a deck is kept on the workshop or only downloaded; whether preconditions (scenarios written, facilitators slotted, schedule present) hard-block or soft-warn; regeneration after later changes; topic-specific content slides chosen automatically by topic.
 
@@ -1896,6 +1895,7 @@ Sessions 1–19 as built. Branch naming `session-N-*`, merged to `develop` then 
 | **10 Oct 2026** | — | **אימון שחקנים — the actors' pre-workshop training** (new §3.5.1, §3.5, §3.12, §4.7, §5.2, §7.2, §8.4, §8.5, §11). The Caster had nowhere to read when and where the actors train, though they need it before they commit. Stored as an offset from the workshop's start (default -60) plus an *אימון בזום* override; the place follows the workshop. Preset on every new workshop, so it is never missing and is not a send precondition — it opens the send form instead. Workshops already sent to casting were left **empty** by the migration rather than given a guessed time. A date or start-time change moves it, with a confirmation, a red banner line and the new training in the Caster's `DATE_CHANGED` entry; other changes write the new `TRAINING_CHANGED`. Migration `20261010120000_add_actor_training`; `npm run check:training`. |
 | **11 Oct 2026** | — | **The Tech is told when the אימון שחקנים changes** (§3.5, §3.5.1, §4.7, §4.7.1, §11). Only the Caster was: a training moved to Zoom reached her change log and nobody else, though the מתחקרים need it too and hear only through the Tech. A change to the training on its own now stamps `trainingChangedAt` and raises a blue banner for Manager and Tech on Workshop Detail and the workshop table, under the §4.7.1 window. A postponement keeps its own banner, which now carries the moved training on the table too. The postponement confirmation and its training line no longer wait for casting to have been sent. Migration `20261011120000_add_training_changed_at`. |
 | **14 Oct 2026** | — | **F-06 Facilitator PPT Generation designed** (§14 F-06, §14.1). Spec only — nothing built. Replaces the earlier outline, which assumed a separate generation project: the engine is now JavaScript inside the CRM. Records the token inventory agreed slide by slide, how slides are found by their tokens rather than by name, how the schedule and scenario DOCX files are parsed into an editable preview, and a pilot visible to Daniel's account only, enforced server-side. The scenario parser is to be shared with F-03. |
+| **28 Oct 2026** | — | **F-06 reviewed against Daniel's own deck** (§14 F-06). Spec only. The debriefer is static text in each facilitator's template, so `{{debriefer}}` and its gender exception are gone; organization and group share one cover line; the topics sit on the `לשם מה התכנסנו` slide; the scenario slide opens with `תקציר {{scenario.number}} למשתתפים: {{scenario.title}}` and its body now ends with the minutes line, replacing `{{scenario.time}}`. The generator sizes the scenario text itself, starting with a fixed larger title and a stepped body size. |
 
 ---
 
