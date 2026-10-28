@@ -22,11 +22,10 @@ type WorkshopDetail = {
   scenarios: { id: string; name: string | null; topic: string }[]
   deck: DeckFileMeta | null
 }
-// One per scenario slide. `crm` is the CRM scenario it stands for; null for a
-// scenario added here that the workshop does not (yet) list.
+// One per scenario slide — exactly the workshop's active CRM scenarios, in order.
 type ScenarioInput = {
   key: string
-  crm: { name: string | null; topic: string } | null
+  crm: { name: string | null; topic: string }
   fileName: string | null; title: string; body: string; warnings: string[]
 }
 const blankScenario = (key: string, crm: ScenarioInput["crm"]): ScenarioInput =>
@@ -290,21 +289,13 @@ export function DeckStudio() {
                   <div className="flex items-center justify-between gap-3">
                     <span className="font-medium text-gray-700">
                       תרחיש {i + 1}
-                      {s.crm
-                        ? <>{s.crm.name ? ` — ${s.crm.name}` : ""} <span className="text-gray-400 font-normal">· {s.crm.topic}</span></>
-                        : <span className="text-gray-400 font-normal"> · נוסף כאן, לא רשום בסדנה</span>}
+                      {s.crm.name ? ` — ${s.crm.name}` : ""} <span className="text-gray-400 font-normal">· {s.crm.topic}</span>
                     </span>
-                    <div className="flex items-center gap-2 shrink-0">
-                      <label className={`${quiet} cursor-pointer`}>
-                        {s.fileName ? "קובץ אחר" : "בחירת קובץ Word"}
-                        <input type="file" accept=".docx" className="hidden"
-                          onChange={(e) => { onScenarioFile(i, e.target.files?.[0]); e.target.value = "" }} />
-                      </label>
-                      {!s.crm && (
-                        <button onClick={() => setScenarios((p) => p.filter((_, j) => j !== i))}
-                          className="px-2 py-1.5 text-gray-400 hover:text-red-600" title="הסרת התרחיש">✕</button>
-                      )}
-                    </div>
+                    <label className={`${quiet} cursor-pointer shrink-0`}>
+                      {s.fileName ? "קובץ אחר" : "בחירת קובץ Word"}
+                      <input type="file" accept=".docx" className="hidden"
+                        onChange={(e) => { onScenarioFile(i, e.target.files?.[0]); e.target.value = "" }} />
+                    </label>
                   </div>
                   {s.fileName && <p className="text-xs text-gray-400">{s.fileName}</p>}
                   {s.warnings.map((w) => <p key={w} className="text-xs text-amber-700">{w}</p>)}
@@ -315,10 +306,6 @@ export function DeckStudio() {
                     className={input} />
                 </div>
               ))}
-              <button onClick={() => setScenarios((p) => [...p, blankScenario(`extra-${Date.now()}`, null)])}
-                className="text-xs text-navy hover:underline">
-                + הוספת תרחיש
-              </button>
 
               {formError && <p className="text-red-600">{formError}</p>}
               <div className="flex justify-end">
