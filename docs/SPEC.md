@@ -1739,16 +1739,22 @@ Agreed slide by slide on a test deck, then reviewed against Daniel's own 13-slid
 
 | Slide | Token | Source | Repeats |
 |---|---|---|---|
-| Cover | `{{organization}} – {{group}}` | `Organization.name` and `ParticipantGroup.name`, on one line under `סדנת סימולציה` | — |
+| Cover | `{{organization}} – {{group}}` | `Organization.name` and `ParticipantGroup.name`, prefilled and **editable in the preview** (CRM names are not always written as they should appear on a slide; editing does not change the CRM). On one line under `סדנת סימולציה`, shrunk to stay on one line (below) | — |
 | Cover | `{{date}}` | `Workshop.date`, Gregorian only, `D.M.YY` (e.g. `27.8.26`) | — |
 | שבירת קרח | `{{icebreaker_question}}` | Optional free-text field in the generator. Empty → the question paragraph is removed; the slide and its title stay. | — |
-| לוחות זמנים | `{{row.activity}}` · `{{row.time}}` | The workshop's schedule DOCX (below) | **Table row**, once per schedule line; header row untouched |
+| לוחות זמנים | `{{row.activity}}` · `{{row.time}}` | The workshop's schedule DOCX (below) | **Table row**, once per schedule line; header row untouched; the table is then stretched to its frame (below) |
 | לשם מה התכנסנו כאן היום? | `{{topics}}` | Distinct `Topic.name` of the workshop's active scenarios, one per line, under the question | — |
 | Scenario (תקציר) | `תקציר {{scenario.number}} למשתתפים: {{scenario.title}}` · `{{scenario.body}}` | `number` is the scenario's position in scenario order (1, 2 …); the rest from that scenario's DOCX (below) | **Slide**, once per active scenario, in scenario order |
 
 **The debriefer is not a token.** Each facilitator's template carries their own name as static text (`מתחקר: דניאל פראג`), so the generator needs neither the Room's facilitator nor anyone's gender. The cover's manager line (`מירב מלול`) and technical-operator line (`נועם אסרף, תהל צביק, עפרי אמויאל, רעות דגו`), the simulation-model slide and the feedback QR code are also static, edited by hand in the template when they change.
 
-**Scenario text size.** The scenario slide's text box fills most of the slide, and PowerPoint re-fits text only when it is edited, not when a file opens — so the generator sizes the text itself. Start simple: the title line keeps a fixed size, a step larger than the body and bold; the body steps down in a few fixed sizes as its length grows. Thresholds are tuned on real scenario files and refined only if real decks need it. The editable preview is of the text, not a rendering of the slide, so a generated deck is still worth a glance in PowerPoint.
+**Text sizing.** PowerPoint re-fits text only when it is edited, not when a file opens — so the generator sizes text itself, from a rough glyph-width estimate and the template's own box sizes and spacing:
+
+- **Scenario slide.** The title line is a step larger than the body and bold; the body takes the largest of 40 → 16pt that fits the box, so a short scenario fills the slide and a long one shrinks.
+- **Cover line** (`{{organization}} – {{group}}`). Kept on one line: at the template's 106pt about **22 characters** fit (spaces and the dash included); a longer line shrinks to fit, never below half the template's size, past which it wraps. Fixed line spacing shrinks with it.
+- **Schedule table.** One text size for the whole table, the largest of 40 → 14pt at which every row fits the frame's height and every line its column; rows then share the frame's height in proportion to their lines, so the table fills the frame.
+
+The template sets where each box and the table frame sit; the generator only fills them. Thresholds are tuned on real scenario files and refined only if real decks need it. The editable preview is of the text, not a rendering of the slide, so a generated deck is still worth a glance in PowerPoint.
 
 #### Input parsing — schedule and scenario DOCX
 
@@ -1769,10 +1775,10 @@ Not in the nav; reached by typing the address. Four steps on one page:
 
 1. **התבנית** — the pilot's current template, and *החלפת תבנית* to upload a new `.pptx`. It must open as a PowerPoint file; it replaces the previous template.
 2. **הסדנה** — every non-cancelled workshop from 30 days back onwards, marked `✓ מצגת` when a deck exists and `(משותפת)` when it is shared. Shows the cover line and the topics exactly as the deck will.
-3. **תוכן** — the icebreaker question; the schedule `.docx`; one `.docx` per active scenario, in scenario order. The Word files are **parsed in the browser and never uploaded**. Everything lands in editable fields — schedule rows (add, delete, edit), each scenario's title and body (one line per paragraph) — with any parser warnings beside them. Generation is refused while the template, the schedule, or any scenario's title or body is missing.
+3. **תוכן** — the icebreaker question; the schedule `.docx`; one `.docx` per active scenario, in scenario order. The Word files are **parsed in the browser and never uploaded**. Everything lands in editable fields — schedule rows (add, delete, edit), each scenario's title and body (one line per paragraph) — with any parser warnings, and a schedule that yielded no rows, flagged in place. There is one scenario slot per active CRM scenario, in scenario order, and no way to add another here: a missing scenario is added to the workshop in the CRM. Generation is refused while the template, the schedule, or any scenario's title or body is missing.
 4. **המצגת** — after *יצירת מצגת*: download, and *שיתוף עם המפעילות* / *ביטול השיתוף*. Tokens the template holds but the generator had no value for are listed.
 
-Cover details and topics are read from the CRM on the server, never taken from the browser. Generating again replaces the workshop's previous deck and **keeps its shared state**, so a corrected deck does not vanish from the Techs.
+The date and the topics are read from the CRM on the server, never taken from the browser; the organization and group arrive from the preview, and an empty field falls back to the CRM's name. Generating again replaces the workshop's previous deck and **keeps its shared state**, so a corrected deck does not vanish from the Techs.
 
 #### Sharing with the Techs
 
@@ -1985,6 +1991,8 @@ Sessions 1–19 as built. Branch naming `session-N-*`, merged to `develop` then 
 | **28 Oct 2026** | — | **F-06 engine and parsers built** (§14 F-06). `src/lib/deck/`: reads the schedule and scenario DOCX files, fills a template PPTX — tokens, the schedule row, one slide per scenario — and sizes the scenario text from the template's own spacing. Not wired to any route or screen yet. New dependencies `jszip` and `@xmldom/xmldom`; `npm run check:deck`. **No schema change, no migration.** |
 | **28 Oct 2026** | — | **F-06 pilot: the `/matzgot` screen and sharing with the Techs** (§14 F-06, §3.14, §9.3). A hidden screen, Daniel's account only and enforced on every route: upload the template, pick a workshop, read the schedule and scenario Word files into an editable preview in the browser, generate, download. A deck can be shared with the Techs, who then find it behind a faint ⋯ at the foot of Workshop Detail. Files are stored in Postgres in chunks to stay under Vercel's 4.5 MB request and response limit. Migration `20261028120000_add_deck_files` (two new tables, `anon`/`authenticated` privileges revoked on both); both tables are left out of the nightly backup. |
 | **28 Oct 2026** | — | **F-06: schedules for a day split into groups** (§14 F-06). A schedule whose table splits into a column per group for part of the day (`קבוצה א' / מרכז סימולציה` beside `קבוצה ב' / חדר 1.7`) yielded no rows: the reader trusted the two-column header. Rows are now read one by one — the time is whichever cell holds a range, the activity the simulation track's cell or else the one beside the time. Only a bare `התכנסות` is dropped now, so `התכנסות ופתיחה של הקבוצה` stays. |
+| **28 Oct 2026** | — | **F-06: the schedule's error in its place** (§14 F-06). A schedule file yielding no rows reported it at the foot of the form, below the scenarios; it now shows under the schedule. |
+| **28 Oct 2026** | — | **F-06: decks that fill their slides** (§14 F-06). A long organization name wrapped into the date: the cover line now shrinks to stay on one line. The schedule table was small and cramped: it now takes one size for the whole table and stretches to its frame, which the template makes much larger. Short scenarios now grow to 40pt, and the scenario text starts lower on its slide (template). The cover's organization and group are editable in the preview, since CRM names are not always slide-ready. Needs the revised template uploaded. |
 
 ---
 

@@ -22,7 +22,14 @@ type WorkshopDetail = {
   scenarios: { id: string; name: string | null; topic: string }[]
   deck: DeckFileMeta | null
 }
-type ScenarioInput = { fileName: string | null; title: string; body: string; warnings: string[] }
+// One per scenario slide — exactly the workshop's active CRM scenarios, in order.
+type ScenarioInput = {
+  key: string
+  crm: { name: string | null; topic: string }
+  fileName: string | null; title: string; body: string; warnings: string[]
+}
+const blankScenario = (key: string, crm: ScenarioInput["crm"]): ScenarioInput =>
+  ({ key, crm, fileName: null, title: "", body: "", warnings: [] })
 
 const card = "border border-gray-200 rounded-lg overflow-hidden"
 const cardHead = "bg-gray-50 border-b border-gray-200 px-5 py-3 text-sm font-semibold text-gray-700"
@@ -45,12 +52,15 @@ export function DeckStudio() {
   const [workshopId, setWorkshopId] = useState("")
   const [workshop, setWorkshop] = useState<WorkshopDetail | null>(null)
   const [icebreaker, setIcebreaker] = useState("")
+  const [coverOrg, setCoverOrg] = useState("")
+  const [coverGroup, setCoverGroup] = useState("")
   const [scheduleFile, setScheduleFile] = useState<string | null>(null)
   const [schedule, setSchedule] = useState<ScheduleRow[]>([])
   const [scenarios, setScenarios] = useState<ScenarioInput[]>([])
 
   const [generating, setGenerating] = useState(false)
   const [formError, setFormError] = useState<string | null>(null)
+  const [scheduleError, setScheduleError] = useState<string | null>(null)
   const [unresolved, setUnresolved] = useState<string[]>([])
   const [deck, setDeck] = useState<DeckFileMeta | null>(null)
   const [deckBusy, setDeckBusy] = useState<string | null>(null)
@@ -73,6 +83,7 @@ export function DeckStudio() {
     setSchedule([])
     setScenarios([])
     setFormError(null)
+    setScheduleError(null)
     setUnresolved([])
     setDeck(null)
     setDeckError(null)
@@ -81,8 +92,10 @@ export function DeckStudio() {
     if (!res.ok) { setFormError("טעינת הסדנה נכשלה"); return }
     const w = (await res.json()) as WorkshopDetail
     setWorkshop(w)
+    setCoverOrg(w.organization)
+    setCoverGroup(w.group)
     setDeck(w.deck)
-    setScenarios(w.scenarios.map(() => ({ fileName: null, title: "", body: "", warnings: [] })))
+    setScenarios(w.scenarios.map((s) => blankScenario(s.id, { name: s.name, topic: s.topic })))
   }
 
   async function onTemplate(file: File | undefined) {
@@ -103,9 +116,9 @@ export function DeckStudio() {
       const rows = parseSchedule(await readDocxBlocks(await file.arrayBuffer()))
       setSchedule(rows)
       setScheduleFile(file.name)
-      setFormError(rows.length === 0 ? "לא נמצאו בקובץ שורות עם טווח שעות — אפשר להוסיף ידנית" : null)
+      setScheduleError(rows.length === 0 ? "לא נמצאו בקובץ שורות עם טווח שעות — אפשר להוסיף ידנית" : null)
     } catch {
-      setFormError("לא ניתן לקרוא את קובץ לוח הזמנים — האם זה קובץ Word ‏(‎.docx‎)?")
+      setScheduleError("לא ניתן לקרוא את קובץ לוח הזמנים — האם זה קובץ Word ‏(‎.docx‎)?")
     }
   }
 
@@ -114,7 +127,7 @@ export function DeckStudio() {
     try {
       const s = parseScenario(await readDocxBlocks(await file.arrayBuffer()))
       setScenarios((prev) => prev.map((x, j) => (j === i
-        ? { fileName: file.name, title: s.title, body: s.body.join("\n"), warnings: s.warnings }
+        ? { ...x, fileName: file.name, title: s.title, body: s.body.join("\n"), warnings: s.warnings }
         : x)))
     } catch {
       setScenarios((prev) => prev.map((x, j) => (j === i
@@ -145,6 +158,8 @@ export function DeckStudio() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         workshopId: workshop.id,
+        organization: coverOrg,
+        group: coverGroup,
         icebreakerQuestion: icebreaker,
         schedule,
         scenarios: scenarios.map((s) => ({ title: s.title, body: s.body.split("\n") })),
@@ -228,7 +243,17 @@ export function DeckStudio() {
           </select>
           {workshop && (
             <div className="text-gray-600 space-y-1">
-              <div>בשקף הפתיחה: <span className="text-gray-900">{workshop.organization} – {workshop.group}</span> · <span className="text-gray-900">{workshop.date}</span></div>
+              <div className="space-y-1">
+                <div>בשקף הפתיחה <span className="text-gray-400">(אפשר לתקן — לא משנה את ה-CRM)</span>:</div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <input value={coverOrg} onChange={(e) => setCoverOrg(e.target.value)} placeholder={workshop.organization}
+                    className={`${field} flex-1 min-w-48`} />
+                  <span className="text-gray-400">–</span>
+                  <input value={coverGroup} onChange={(e) => setCoverGroup(e.target.value)} placeholder={workshop.group}
+                    className={`${field} flex-1 min-w-48`} />
+                  <span className="text-gray-900">· {workshop.date}</span>
+                </div>
+              </div>
               <div>נושאים: <span className="text-gray-900">{workshop.topics.join(" · ") || "—"}</span></div>
             </div>
           )}
@@ -269,36 +294,34 @@ export function DeckStudio() {
                 <button onClick={() => setSchedule((p) => [...p, { activity: "", time: "" }])} className="text-xs text-navy hover:underline">
                   + הוספת שורה
                 </button>
+                {scheduleError && <p className="text-red-600">{scheduleError}</p>}
               </div>
 
-              {workshop.scenarios.length === 0 && (
+              {scenarios.length === 0 && (
                 <p className="text-gray-500">לסדנה אין תרחישים פעילים — המצגת תיווצר בלי שקף תקציר.</p>
               )}
-              {workshop.scenarios.map((crm, i) => {
-                const s = scenarios[i]
-                if (!s) return null
-                return (
-                  <div key={crm.id} className="space-y-2 border-t border-gray-100 pt-4">
-                    <div className="flex items-center justify-between gap-3">
-                      <span className="font-medium text-gray-700">
-                        תרחיש {i + 1}{crm.name ? ` — ${crm.name}` : ""} <span className="text-gray-400 font-normal">· {crm.topic}</span>
-                      </span>
-                      <label className={`${quiet} cursor-pointer shrink-0`}>
-                        {s.fileName ? "קובץ אחר" : "בחירת קובץ Word"}
-                        <input type="file" accept=".docx" className="hidden"
-                          onChange={(e) => { onScenarioFile(i, e.target.files?.[0]); e.target.value = "" }} />
-                      </label>
-                    </div>
-                    {s.fileName && <p className="text-xs text-gray-400">{s.fileName}</p>}
-                    {s.warnings.map((w) => <p key={w} className="text-xs text-amber-700">{w}</p>)}
-                    <input value={s.title} onChange={(e) => setScenario(i, { title: e.target.value })}
-                      placeholder="שם התרחיש" className={`${input} font-semibold`} />
-                    <textarea value={s.body} onChange={(e) => setScenario(i, { body: e.target.value })}
-                      placeholder="תקציר — כל שורה היא פסקה בשקף" rows={Math.min(14, Math.max(4, s.body.split("\n").length + 1))}
-                      className={input} />
+              {scenarios.map((s, i) => (
+                <div key={s.key} className="space-y-2 border-t border-gray-100 pt-4">
+                  <div className="flex items-center justify-between gap-3">
+                    <span className="font-medium text-gray-700">
+                      תרחיש {i + 1}
+                      {s.crm.name ? ` — ${s.crm.name}` : ""} <span className="text-gray-400 font-normal">· {s.crm.topic}</span>
+                    </span>
+                    <label className={`${quiet} cursor-pointer shrink-0`}>
+                      {s.fileName ? "קובץ אחר" : "בחירת קובץ Word"}
+                      <input type="file" accept=".docx" className="hidden"
+                        onChange={(e) => { onScenarioFile(i, e.target.files?.[0]); e.target.value = "" }} />
+                    </label>
                   </div>
-                )
-              })}
+                  {s.fileName && <p className="text-xs text-gray-400">{s.fileName}</p>}
+                  {s.warnings.map((w) => <p key={w} className="text-xs text-amber-700">{w}</p>)}
+                  <input value={s.title} onChange={(e) => setScenario(i, { title: e.target.value })}
+                    placeholder="שם התרחיש" className={`${input} font-semibold`} />
+                  <textarea value={s.body} onChange={(e) => setScenario(i, { body: e.target.value })}
+                    placeholder="תקציר — כל שורה היא פסקה בשקף" rows={Math.min(14, Math.max(4, s.body.split("\n").length + 1))}
+                    className={input} />
+                </div>
+              ))}
 
               {formError && <p className="text-red-600">{formError}</p>}
               <div className="flex justify-end">

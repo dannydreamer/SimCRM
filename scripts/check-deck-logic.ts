@@ -20,7 +20,7 @@
 
 import JSZip from "jszip"
 import { parseSchedule, parseScenario, type DocxBlock } from "../src/lib/deck/docx"
-import { fillTableRows, fillTokens, fitScenarioText, generateDeck, paragraphText } from "../src/lib/deck/pptx"
+import { charsPerLine, fillTableRows, fillTokens, fitOneLine, fitScenarioText, fitTable, generateDeck, paragraphText } from "../src/lib/deck/pptx"
 import { NS, children, descendants, parseXml } from "../src/lib/deck/xml"
 
 let failures = 0
@@ -157,11 +157,29 @@ check("rows: an empty schedule leaves the header alone", rowTexts(doc), ["פעי
 // ── Scenario text size ──────────────────────────────────────────────────────
 const box = { widthEmu: 14303472, heightEmu: 9593395, lineSpacing: 1.15, spaceAfterPt: 10 }
 const short = fitScenarioText(box, "תקציר 1 למשתתפים: ״תתמודדו!״", ["משפט קצר.", "לרשותך 7 דקות"])
-check("size: a short scenario keeps the largest size, title a step above", short, { title: 36, body: 32 })
+check("size: a short scenario takes the largest size, title a step above", short, { title: 44, body: 40 })
 const sizes = [5, 10, 20, 40].map((n) => fitScenarioText(box, "כותרת", Array(n).fill("א".repeat(120))).body)
 check("size: longer text never gets larger", sizes.every((s, i) => i === 0 || s <= sizes[i - 1]), true)
 check("size: absurdly long text bottoms out at the smallest step",
   fitScenarioText(box, "כותרת", Array(200).fill("א".repeat(200))), { title: 20, body: 16 })
+
+// ── Cover line ──────────────────────────────────────────────────────────────
+// Daniel's cover: a 1314pt-wide box at 106pt.
+check("cover: about 22 characters fit one line at the template's size", charsPerLine(1314, 106), 22)
+check("cover: a name that fits keeps the template's size", fitOneLine("אורות – צוות חינוכי", 1314, 106), 106)
+const longName = "תיכון מקיף עירוני רבין – מחנכי י״א"
+check("cover: a longer name shrinks to fit one line",
+  fitOneLine(longName, 1314, 106) < 106 && longName.length <= charsPerLine(1314, fitOneLine(longName, 1314, 106)), true)
+check("cover: never below half the template's size", fitOneLine("א".repeat(300), 1314, 106), 53)
+
+// ── Schedule table ──────────────────────────────────────────────────────────
+const cols = [580, 350]
+const header = [["פעילות"], ["זמן"]]
+const day = (n: number) => [header, ...Array.from({ length: n }, () => [["תחקיר מבוסס וידאו"], ["10:20-11:00"]])]
+check("table: a short day gets the largest size", fitTable(560, cols, day(4)), 40)
+check("table: a longer day gets smaller text", fitTable(560, cols, day(12)) < fitTable(560, cols, day(4)), true)
+check("table: a long activity is limited by its column's width",
+  fitTable(560, cols, [header, [["פתיחה ואוריינטציה והצגת מטרות היום והכרות קצרה"], ["9:00-9:30"]]]) < 40, true)
 
 // ── The package ─────────────────────────────────────────────────────────────
 const P = `xmlns:a="${NS.a}" xmlns:p="${NS.p}" xmlns:r="${NS.r}"`

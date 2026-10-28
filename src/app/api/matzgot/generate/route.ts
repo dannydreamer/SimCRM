@@ -10,8 +10,10 @@ export const maxDuration = 60
 const str = (v: unknown, max = 5000) => (typeof v === "string" ? v.slice(0, max) : "")
 
 // Generate the pilot's deck for one workshop from their template and the text
-// approved in the preview. Cover details and topics come from the CRM, never
-// from the browser. The deck replaces the previous one for this workshop. §14 F-06.
+// approved in the preview. The cover's organization and group are prefilled
+// from the CRM and may be corrected in the preview — names there are not always
+// written as they should appear; empty falls back to the CRM's. The date and the
+// topics always come from the CRM. The deck replaces the previous one for this workshop. §14 F-06.
 export async function POST(req: NextRequest) {
   const { session, error } = await requirePilot()
   if (error) return error
@@ -35,8 +37,8 @@ export async function POST(req: NextRequest) {
   if (!template) return NextResponse.json({ error: "יש להעלות תבנית לפני יצירת מצגת" }, { status: 400 })
 
   const date = shortDate(w.date.toISOString().slice(0, 10))
-  const organization = w.participantGroup.organization.name
-  const group = w.participantGroup.name
+  const organization = str(body?.organization, 200).trim() || w.participantGroup.organization.name
+  const group = str(body?.group, 200).trim() || w.participantGroup.name
 
   let result
   try {
