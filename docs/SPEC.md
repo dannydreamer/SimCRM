@@ -1750,7 +1750,7 @@ Agreed slide by slide on a test deck, then reviewed against Daniel's own 13-slid
 
 **Text sizing.** PowerPoint re-fits text only when it is edited, not when a file opens — so the generator sizes text itself, from a rough glyph-width estimate and the template's own box sizes and spacing:
 
-- **Scenario slide.** The title line is a step larger than the body and bold; the body takes the largest of 40 → 16pt that fits the box, so a short scenario fills the slide and a long one shrinks.
+- **Scenario slide.** The goal line (`מטרת הסימולציה`/`מטרת השיחה`) and the minutes line (`לרשותך`…) are centred; the rest of the body keeps the template's alignment. The title line is a step larger than the body and bold; the body takes the largest of 40 → 16pt that fits the box, so a short scenario fills the slide and a long one shrinks.
 - **Cover line** (`{{organization}} – {{group}}`). Kept on one line: at the template's 106pt about **22 characters** fit (spaces and the dash included); a longer line shrinks to fit, never below half the template's size, past which it wraps. Fixed line spacing shrinks with it.
 - **Schedule table.** One text size for the whole table, the largest of 40 → 14pt at which every row fits the frame's height and every line its column; rows then share the frame's height in proportion to their lines, so the table fills the frame.
 
@@ -1763,7 +1763,7 @@ Both files are read, never written. Each parse feeds an **editable preview**: th
 - **Schedule DOCX** — a table of `פעילות | זמן`, read row by row rather than by header, because some days split into parallel groups and the same table then has rows of two and three cells. A row is kept only if one of its cells is a time range (`9:30-10:00`); this drops the internal logistics row (actor training and debriefer arrival carry single times). Its activity is the simulation track's cell — the column an earlier row marks with `סימולציה` (`קבוצה א' / מרכז סימולציה`) for rows of that width — or else the non-empty cell beside the time. **A bare `התכנסות` is dropped**; an opening that merely starts with it (`התכנסות ופתיחה של הקבוצה`) stays. Activity names are copied exactly as written.
 - **Scenario DOCX** — one scenario per file: a header block (`תרחיש N`, `נושא האימון`, `אוכלוסיית מתאמנים/ות`, `שם התרחיש`, sometimes `הדמות`), the participants' section, then a 6-row facilitator table (`מטרת תרחיש`, `נקודות לתחקיר`, `זמן ומשתתפים`, `הקשר`, `הדמות/ות`, `דגשים לתפעול`).
   - `{{scenario.title}}` ← `שם התרחיש`, exactly as written, quotes included.
-  - `{{scenario.body}}` ← everything after the `תקציר למשתתפים/ות` line down to the table: the brief, `מטרת הסימולציה`/`מטרת השיחה`, `הערה` when present, and the `לרשותך`/`לרשותכן N דקות` line, in file order. Plain text — source bold is not kept. `*****` separator lines are dropped.
+  - `{{scenario.body}}` ← everything after the `תקציר למשתתפים/ות` line down to the table: the brief, `מטרת הסימולציה`/`מטרת השיחה`, `הערה` when present, and the `לרשותך`/`לרשותכן N דקות` line, in file order. Plain text — source bold is not kept. `*****` separator lines are dropped. In the preview, `*text*` makes it bold and `_text_` underlined on the slide (title and body; the two may nest); a lone `*` or `_` with no partner later on the line stays as written.
   - The header block and the facilitator table never reach the slide.
   - Label wording varies between files (gendered endings, a goal line stated twice); the parser must allow for it rather than expect one exact form.
 
@@ -1993,6 +1993,8 @@ Sessions 1–19 as built. Branch naming `session-N-*`, merged to `develop` then 
 | **28 Oct 2026** | — | **F-06: schedules for a day split into groups** (§14 F-06). A schedule whose table splits into a column per group for part of the day (`קבוצה א' / מרכז סימולציה` beside `קבוצה ב' / חדר 1.7`) yielded no rows: the reader trusted the two-column header. Rows are now read one by one — the time is whichever cell holds a range, the activity the simulation track's cell or else the one beside the time. Only a bare `התכנסות` is dropped now, so `התכנסות ופתיחה של הקבוצה` stays. |
 | **28 Oct 2026** | — | **F-06: the schedule's error in its place** (§14 F-06). A schedule file yielding no rows reported it at the foot of the form, below the scenarios; it now shows under the schedule. |
 | **28 Oct 2026** | — | **F-06: decks that fill their slides** (§14 F-06). A long organization name wrapped into the date: the cover line now shrinks to stay on one line. The schedule table was small and cramped: it now takes one size for the whole table and stretches to its frame, which the template makes much larger. Short scenarios now grow to 40pt, and the scenario text starts lower on its slide (template). The cover's organization and group are editable in the preview, since CRM names are not always slide-ready. Needs the revised template uploaded. |
+| **28 Oct 2026** | — | **F-06: goal and minutes centred** (§14 F-06). On the scenario slide, the `מטרת…` and `לרשות…` lines are now centred; the brief keeps its alignment. |
+| **28 Oct 2026** | — | **F-06: bold and underline in scenario text** (§14 F-06). In the preview, `*…*` becomes bold and `_…_` underlined on the scenario slide; a marker with no partner on its line stays as written. A hint above the scenarios says so. |
 
 ---
 
