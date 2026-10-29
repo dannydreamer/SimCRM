@@ -66,6 +66,7 @@ export async function checkAndAdvanceStatus(workshopId: string): Promise<string 
       otherRoomApproved: true,
       // משימות נוספות — the second half of the READY gate (§4.3.1).
       tiktakOrdered: true,
+      whatsappGroupOpened: true,
       namesReceived: true,
       scheduleSent: true,
       scenariosPrinted: true,
@@ -124,6 +125,7 @@ export async function checkAndAdvanceStatus(workshopId: string): Promise<string 
     return unmetMinorTasks({
       locationType:     w!.locationType,
       tiktakOrdered:    w!.tiktakOrdered,
+      whatsappGroupOpened: w!.whatsappGroupOpened,
       namesReceived:    w!.namesReceived,
       scheduleSent:     w!.scheduleSent,
       scenariosPrinted: w!.scenariosPrinted,

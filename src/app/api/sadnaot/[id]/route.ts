@@ -138,6 +138,7 @@ export async function GET(
     // overlay needs each box's own state, and the page derives the x/y and the
     // chip's colour from them with the same helpers the server uses.
     tiktakOrdered: w.tiktakOrdered,
+    whatsappGroupOpened: w.whatsappGroupOpened,
     namesReceived: w.namesReceived,
     scheduleSent: w.scheduleSent,
     scenariosPrinted: w.scenariosPrinted,
@@ -294,7 +295,7 @@ export async function PATCH(
   if (!isFrozen) {
     // משימות נוספות (§4.3.1). Driven off the catalogue rather than a hand-written
     // list, so adding a task to MINOR_TASKS makes it saveable without touching
-    // this route. Frozen workshops are excluded with everything else below: these
+    // this loop (the GET and PATCH responses still echo each flag by name). Frozen workshops are excluded with everything else below: these
     // are preparation tasks, and a workshop that has already run cannot gain them.
     for (const t of MINOR_TASKS) {
       if (body[t.key] !== undefined) data[t.key] = !!body[t.key]
@@ -529,6 +530,7 @@ export async function PATCH(
     // than its optimistic one, and so a tick that completes the list updates the
     // chip and the readiness banner in the same render.
     tiktakOrdered:    updated.tiktakOrdered,
+    whatsappGroupOpened: updated.whatsappGroupOpened,
     namesReceived:    updated.namesReceived,
     scheduleSent:     updated.scheduleSent,
     scenariosPrinted: updated.scenariosPrinted,

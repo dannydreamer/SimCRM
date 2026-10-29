@@ -3,7 +3,7 @@
 //   npm run check:minor-tasks
 //
 // Pure functions only: no database, no session, nothing to set up. These exist
-// because this feature quietly changed the meaning of מוכן. Six new booleans
+// because this feature quietly changed the meaning of מוכן. Seven booleans
 // block it, and the two claims the whole design rests on are easy to break
 // without noticing:
 //
@@ -37,13 +37,13 @@ function check(name: string, actual: unknown, expected: unknown) {
 
 const ALL_KEYS = MINOR_TASKS.map((t) => t.key)
 
-/** All six false unless overridden. */
+/** All false unless overridden. */
 function tasks(over: Partial<MinorTaskInput> = {}): MinorTaskInput {
   const base = Object.fromEntries(ALL_KEYS.map((k) => [k, false])) as Record<MinorTaskKey, boolean>
   return { locationType: "CENTER", ...base, ...over }
 }
 
-/** All six true unless overridden. */
+/** All true unless overridden. */
 function allTicked(over: Partial<MinorTaskInput> = {}): MinorTaskInput {
   const base = Object.fromEntries(ALL_KEYS.map((k) => [k, true])) as Record<MinorTaskKey, boolean>
   return { locationType: "CENTER", ...base, ...over }
@@ -51,22 +51,24 @@ function allTicked(over: Partial<MinorTaskInput> = {}): MinorTaskInput {
 
 console.log("\n── the catalogue ─────────────────────────────────────────────────")
 
-check("six tasks", MINOR_TASKS.length, 6)
+check("seven tasks", MINOR_TASKS.length, 7)
 check("keys, in working order", ALL_KEYS, [
-  "tiktakOrdered", "namesReceived", "scheduleSent",
+  "tiktakOrdered", "whatsappGroupOpened", "namesReceived", "scheduleSent",
   "scenariosPrinted", "summariesPrinted", "propsPrepared",
 ])
+check("the WhatsApp group is second, straight after תיקתק",
+  MINOR_TASKS[1], { key: "whatsappGroupOpened", label: "נפתחה קבוצת וואטסאפ", blocking: true, scope: "ALL" })
 check("every task blocks READY today", MINOR_TASKS.every((t) => t.blocking), true)
 check("exactly one task is EXTERNAL-only",
   MINOR_TASKS.filter((t) => t.scope === "EXTERNAL_ONLY").map((t) => t.key), ["propsPrepared"])
 
 console.log("\n── applicability: the props folder is EXTERNAL-only ──────────────")
 
-check("CENTER has five tasks",
-  applicableMinorTasks({ locationType: "CENTER" }).map((t) => t.key), ALL_KEYS.slice(0, 5))
-check("ZOOM has five tasks — zoom is not 'out'",
-  applicableMinorTasks({ locationType: "ZOOM" }).map((t) => t.key), ALL_KEYS.slice(0, 5))
-check("EXTERNAL has all six",
+check("CENTER has six tasks",
+  applicableMinorTasks({ locationType: "CENTER" }).map((t) => t.key), ALL_KEYS.slice(0, 6))
+check("ZOOM has six tasks — zoom is not 'out'",
+  applicableMinorTasks({ locationType: "ZOOM" }).map((t) => t.key), ALL_KEYS.slice(0, 6))
+check("EXTERNAL has all seven",
   applicableMinorTasks({ locationType: "EXTERNAL" }).map((t) => t.key), ALL_KEYS)
 
 check("a CENTER workshop with props unticked is still complete",
@@ -74,17 +76,17 @@ check("a CENTER workshop with props unticked is still complete",
 check("the same workshop moved EXTERNAL is not",
   unmetMinorTasks(allTicked({ locationType: "EXTERNAL", propsPrepared: false })), ["propsPrepared"])
 check("EXTERNAL → CENTER keeps the ticked value rather than losing it",
-  minorTaskProgress(allTicked({ locationType: "CENTER" })), { done: 5, total: 5, unmet: [] })
+  minorTaskProgress(allTicked({ locationType: "CENTER" })), { done: 6, total: 6, unmet: [] })
 
 console.log("\n── the x/y counter ──────────────────────────────────────────────")
 
 check("nothing done, at the centre", minorTaskProgress(tasks()),
-  { done: 0, total: 5, unmet: ALL_KEYS.slice(0, 5) })
+  { done: 0, total: 6, unmet: ALL_KEYS.slice(0, 6) })
 check("nothing done, outside", minorTaskProgress(tasks({ locationType: "EXTERNAL" })),
-  { done: 0, total: 6, unmet: ALL_KEYS })
+  { done: 0, total: 7, unmet: ALL_KEYS })
 check("two done", minorTaskProgress(tasks({ tiktakOrdered: true, namesReceived: true })),
-  { done: 2, total: 5, unmet: ["scheduleSent", "scenariosPrinted", "summariesPrinted"] })
-check("all done", minorTaskProgress(allTicked()), { done: 5, total: 5, unmet: [] })
+  { done: 2, total: 6, unmet: ["whatsappGroupOpened", "scheduleSent", "scenariosPrinted", "summariesPrinted"] })
+check("all done", minorTaskProgress(allTicked()), { done: 6, total: 6, unmet: [] })
 
 console.log("\n── unmet order is catalogue order, not tick order ────────────────")
 
@@ -92,14 +94,14 @@ console.log("\n── unmet order is catalogue order, not tick order ───�
 // Tech works in — otherwise "+2 נוספות" hides the wrong two.
 check("ticking out of sequence does not reorder the remainder",
   unmetMinorTasks(tasks({ summariesPrinted: true, namesReceived: true })),
-  ["tiktakOrdered", "scheduleSent", "scenariosPrinted"])
+  ["tiktakOrdered", "whatsappGroupOpened", "scheduleSent", "scenariosPrinted"])
 
 console.log("\n── the alert slice ──────────────────────────────────────────────")
 
 check("cap is three", MINOR_TASKS_SHOWN_IN_ALERT, 3)
-check("five outstanding → three named, two counted",
-  splitAlertMinorTasks(ALL_KEYS.slice(0, 5)),
-  { shown: ["tiktakOrdered", "namesReceived", "scheduleSent"], hidden: 2 })
+check("six outstanding → three named, three counted",
+  splitAlertMinorTasks(ALL_KEYS.slice(0, 6)),
+  { shown: ["tiktakOrdered", "whatsappGroupOpened", "namesReceived"], hidden: 3 })
 check("three outstanding → all named, none hidden",
   splitAlertMinorTasks(ALL_KEYS.slice(0, 3)),
   { shown: ALL_KEYS.slice(0, 3), hidden: 0 })
@@ -108,7 +110,7 @@ check("one outstanding", splitAlertMinorTasks(["summariesPrinted"]),
 check("none outstanding", splitAlertMinorTasks([]), { shown: [], hidden: 0 })
 check("the named three are the first three unticked",
   splitAlertMinorTasks(unmetMinorTasks(tasks({ tiktakOrdered: true, scheduleSent: true, locationType: "EXTERNAL" }))).shown,
-  ["namesReceived", "scenariosPrinted", "summariesPrinted"])
+  ["whatsappGroupOpened", "namesReceived", "scenariosPrinted"])
 
 console.log("\n── chip tone: graduated, and quiet for the past ──────────────────")
 
@@ -121,11 +123,11 @@ check("two weeks out is a warning", minorTaskTone(3, 14), "warn")
 check("beyond two weeks is quiet", minorTaskTone(5, 15), "neutral")
 check("three months out is quiet — red there trains people to ignore red",
   minorTaskTone(5, 90), "neutral")
-check("a past workshop is quiet, not an eternal 0/5", minorTaskTone(5, -1), "neutral")
+check("a past workshop is quiet, not an eternal 0/6", minorTaskTone(6, -1), "neutral")
 
 console.log("\n── readinessAlert: the migration needs no backfill ───────────────")
 
-// The claim: applying six false columns cannot light up historical workshops.
+// The claim: applying false columns cannot light up historical workshops.
 // Everything below is a workshop with NOTHING ticked — the state every existing
 // row lands in — and only the future, still-open ones may raise anything.
 const NOW = new Date("2026-09-15T09:00:00Z")
@@ -168,7 +170,7 @@ console.log("\n── readinessAlert: what it does raise ───────�
 
 check("SPECIFIED, three days out, big conditions met, no minor tasks done",
   alertFor("SPECIFIED", "2026-09-18"),
-  { daysUntil: 3, unmet: [], minorUnmet: ALL_KEYS.slice(0, 5) })
+  { daysUntil: 3, unmet: [], minorUnmet: ALL_KEYS.slice(0, 6) })
 check("minor tasks alone are enough to raise it — this is the new behaviour",
   alertFor("SPECIFIED", "2026-09-18")!.unmet.length, 0)
 check("everything ticked → silent, nothing left to shout about",
@@ -180,13 +182,13 @@ check("everything ticked → silent, nothing left to shout about",
 // than work blocked behind something else.
 check("סדנה חדשה reports איתור צרכים AND its minor tasks",
   alertFor("NEW", "2026-09-18"),
-  { daysUntil: 3, unmet: ["needsAssessment"], minorUnmet: ALL_KEYS.slice(0, 5) })
+  { daysUntil: 3, unmet: ["needsAssessment"], minorUnmet: ALL_KEYS.slice(0, 6) })
 check("סדנה חדשה still hides the four downstream big conditions",
   alertFor("NEW", "2026-09-18")!.unmet, ["needsAssessment"])
 check("a סדנה חדשה with every minor task ticked reports only איתור צרכים",
   readinessAlert({ ...bigConditionsMet(), ...allTicked(), status: "NEW", cancelled: false, date: "2026-09-18" }, NOW),
   { daysUntil: 3, unmet: ["needsAssessment"], minorUnmet: [] })
-check("an EXTERNAL סדנה חדשה reports all six",
+check("an EXTERNAL סדנה חדשה reports all seven",
   alertFor("NEW", "2026-09-18", { locationType: "EXTERNAL" })!.minorUnmet, ALL_KEYS)
 
 // A big blocker and minor tasks together — the shape the Detail banner renders
@@ -198,10 +200,10 @@ const both = readinessAlert(
 )
 check("both halves reported separately", both,
   { daysUntil: 1, unmet: ["feedbackForm"],
-    minorUnmet: ["namesReceived", "scheduleSent", "scenariosPrinted", "summariesPrinted"] })
-check("and the banner names three of the four",
+    minorUnmet: ["whatsappGroupOpened", "namesReceived", "scheduleSent", "scenariosPrinted", "summariesPrinted"] })
+check("and the banner names three of the five",
   splitAlertMinorTasks(both!.minorUnmet),
-  { shown: ["namesReceived", "scheduleSent", "scenariosPrinted"], hidden: 1 })
+  { shown: ["whatsappGroupOpened", "namesReceived", "scheduleSent"], hidden: 2 })
 
 console.log(
   failures === 0

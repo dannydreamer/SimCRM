@@ -289,12 +289,13 @@ Multiple groups with the same name under one organization are permitted — no d
 | **estimatedParticipants** | Int? | מספר משתתפים משוער. Nullable in the database so existing rows need no backfill, but **required by the business rules** — a precondition for READY (§4.3) |
 | **otherRoomNotes** | String? | Free text, only meaningful while `OTHER` is among the selected room locations |
 | **otherRoomApproved** | Boolean | Default false. Only consulted when `OTHER` is selected |
-| **tiktakOrdered** | Boolean | משימות נוספות 1 — הוזמן בתיקתק. Default false. All six below are blocking READY conditions; see §4.3.1 |
-| **namesReceived** | Boolean | משימות נוספות 2 — שמות התקבלו |
-| **scheduleSent** | Boolean | משימות נוספות 3 — לוח זמנים + נשלח בקבוצה |
-| **scenariosPrinted** | Boolean | משימות נוספות 4 — תרחישים הודפסו + נשלחו בקבוצה |
-| **summariesPrinted** | Boolean | משימות נוספות 5 — תקצירים הודפסו |
-| **propsPrepared** | Boolean | משימות נוספות 6 — הוכנו תיקיות ואביזרי תפאורה. **Only consulted when `locationType = EXTERNAL`** |
+| **tiktakOrdered** | Boolean | משימות נוספות 1 — הוזמן בתיקתק. Default false. All seven here are blocking READY conditions; see §4.3.1 |
+| **whatsappGroupOpened** | Boolean | משימות נוספות 2 — נפתחה קבוצת וואטסאפ. Added after the other six; existing rows were backfilled (§4.3.1) |
+| **namesReceived** | Boolean | משימות נוספות 3 — שמות התקבלו |
+| **scheduleSent** | Boolean | משימות נוספות 4 — לוח זמנים + נשלח בקבוצה |
+| **scenariosPrinted** | Boolean | משימות נוספות 5 — תרחישים הודפסו + נשלחו בקבוצה |
+| **summariesPrinted** | Boolean | משימות נוספות 6 — תקצירים הודפסו |
+| **propsPrepared** | Boolean | משימות נוספות 7 — הוכנו תיקיות ואביזרי תפאורה. **Only consulted when `locationType = EXTERNAL`** |
 | **scenarioOrderFlexible** | Boolean | Default false. Ticked = the scenarios may be run in any order; unticked = they run in `orderIndex` order. Tech-facing bookkeeping only — see §8.4 |
 | **pivotNotes** | String? | Free text on the טבלאות פיבוט row (§8.12). Manager + Tech. Deliberately separate from `notes` — the two are read by different people for different reasons |
 | **countedRoomsOverride** | Int? | חדרים לספירה override (§8.12). Null = use the computed default. A set value wins **everywhere** capacity is measured against the annual allocation |
@@ -581,19 +582,20 @@ right**, in this order:
 | # | Task | Applies to |
 |---|---|---|
 | 1 | הוזמן בתיקתק | every workshop |
-| 2 | שמות התקבלו | every workshop |
-| 3 | לוח זמנים + נשלח בקבוצה | every workshop |
-| 4 | תרחישים הודפסו + נשלחו בקבוצה | every workshop |
-| 5 | תקצירים הודפסו | every workshop |
-| 6 | הוכנו תיקיות ואביזרי תפאורה | **`locationType = EXTERNAL` only** |
+| 2 | נפתחה קבוצת וואטסאפ | every workshop |
+| 3 | שמות התקבלו | every workshop |
+| 4 | לוח זמנים + נשלח בקבוצה | every workshop |
+| 5 | תרחישים הודפסו + נשלחו בקבוצה | every workshop |
+| 6 | תקצירים הודפסו | every workshop |
+| 7 | הוכנו תיקיות ואביזרי תפאורה | **`locationType = EXTERNAL` only** |
 
 תיקתק is the building's own external booking system, outside this CRM.
 
-**Task 6 is absent, not merely satisfied, for a workshop at the centre or on Zoom** — it is hidden from the overlay and excluded from the `x/y` count, so such a workshop shows `x/5` and an חיצוני one shows `x/6`. Its stored boolean is never cleared when the location changes, so moving EXTERNAL → CENTER → EXTERNAL does not lose the tick. Changing a `מוכן` workshop's location to חיצוני adds an unticked task and therefore **regresses it to `בוצע איתור צרכים`** — correct, and already wired, since the workshop PATCH route calls `checkAndAdvanceStatus()`.
+**Task 7 is absent, not merely satisfied, for a workshop at the centre or on Zoom** — it is hidden from the overlay and excluded from the `x/y` count, so such a workshop shows `x/6` and an חיצוני one shows `x/7`. Its stored boolean is never cleared when the location changes, so moving EXTERNAL → CENTER → EXTERNAL does not lose the tick. Changing a `מוכן` workshop's location to חיצוני adds an unticked task and therefore **regresses it to `בוצע איתור צרכים`** — correct, and already wired, since the workshop PATCH route calls `checkAndAdvanceStatus()`.
 
 **The order is load-bearing.** It is the order the Techs work through, and the readiness alert (§4.8) names only the *first few* outstanding tasks — so "the next thing to do" and "the first unticked box" have to be the same thing.
 
-**All six block today, but `blocking` is a per-task flag.** `MINOR_TASKS` in `src/lib/workshop-minor-tasks.ts` carries `{ key, label, blocking, scope }` for each. Demoting a task to advisory is flipping `blocking` to false: it stays visible in the overlay and drops out of the gate. Adding a task means a column, a catalogue row, and nothing else — the PATCH route saves whatever the catalogue lists.
+**All seven block today, but `blocking` is a per-task flag.** `MINOR_TASKS` in `src/lib/workshop-minor-tasks.ts` carries `{ key, label, blocking, scope }` for each. Demoting a task to advisory is flipping `blocking` to false: it stays visible in the overlay and drops out of the gate. Adding a task means a column, a catalogue row, and the column added to the handful of places that pass the flags through by name (the `checkAndAdvanceStatus()` select, both `/api/sadnaot` responses, the page's `Workshop` type) — the compiler finds each one, because `MinorTaskInput` requires every key. The PATCH route needs nothing: it saves whatever the catalogue lists.
 
 **They are live from the moment the workshop exists**, not from `בוצע איתור צרכים`. תיקתק is booked and names are chased while the workshop is still `סדנה חדשה`, so the overlay is reachable at every status (§8.4) and the readiness alert lists these tasks for a `סדנה חדשה` too — unlike the four big conditions downstream of the needs assessment, which it suppresses (§4.8).
 
@@ -602,6 +604,8 @@ right**, in this order:
 **Where the gate lives.** `unmetMinorTasks()` is the counterpart to `unmetReadyConditions()`, and `checkAndAdvanceStatus()` requires **both** to be empty. Regression is identical: unticking any applicable blocking task before the date takes READY → SPECIFIED.
 
 **No backfill was needed for this feature, and none was done.** The obvious fear is that six `false` columns regress every historical `מוכן` workshop. They cannot: the `CLOSING` and `CLOSED` branches of `checkAndAdvanceStatus()` never evaluate the READY conditions at all, and `readinessAlert()` returns null for any status other than NEW/SPECIFIED and for any past date. Future-dated workshops *are* affected, deliberately — that is the feature. `npm run check:minor-tasks` asserts both halves of this.
+
+**Task 2 (נפתחה קבוצת וואטסאפ) was added later, and *was* backfilled** (migration `20261028120000_add_whatsapp_group_task`). New workshops start unticked. An existing workshop was ticked if it had task 4 or task 5 ticked — both say something was sent *to the group*, so the group demonstrably exists — or if it was already past or in `בתהליך סגירה` / `סגור`. Every `מוכן` workshop had both ticked, so **none regressed**. That mattered: status is re-evaluated only when a workshop is opened or edited, and the readiness alert is silent for `מוכן`, so a regression would have sat behind a stale `מוכן` badge on the table until someone happened to open the workshop.
 
 ### 4.4 Critical rules
 
@@ -1146,7 +1150,7 @@ Two-column layout: right (~65%) content sections, left (~35%) checklist sidebar.
 
 > 🚨 הסדנה בעוד N ימים ואינה מוכנה
 > חסר: `מצגות` `ליהוק`
-> משימות נוספות: `הוזמן בתיקתק` `שמות התקבלו` `לוח זמנים + נשלח בקבוצה` `+2 נוספות`
+> משימות נוספות: `הוזמן בתיקתק` `נפתחה קבוצת וואטסאפ` `שמות התקבלו` `+3 נוספות`
 
 Visible to **everyone who can open the workshop**, Manager and Tech included — like every other banner on this page, it is not role-gated. It has no × button (§4.8). The two rows are independent: either may be absent when that half of the gate is satisfied. The minor-task row names at most three, in catalogue order, and the trailing `+N נוספות` (or `פתח` when nothing is hidden) opens the משימות נוספות overlay. The **readiness checklist** in the header card turns red to match, so the banner's chips and the checklist's `○` items are the same list read two ways. Both are computed from live page state, so ticking the last missing condition clears the alarm immediately, without a reload.
 
@@ -1154,9 +1158,9 @@ Visible to **everyone who can open the workshop**, Manager and Tech included —
 
 Inside the overlay, a task that does not apply is **absent with no explanation** — a מרכז or זום workshop shows five rows and no line about תיקיות ואביזרי תפאורה. A task that does not apply is not news.
 
-The chip's colour is **graduated by date**, not flat red: green when complete, red inside 7 days (the same `READINESS_ALERT_DAYS` boundary as the alert, so the chip reddens exactly when the banner appears), amber from 8 to 14 days, and grey beyond that or once the date has passed. Every task here blocks READY, but a workshop three months out with nothing ticked is normal, and colouring that red teaches the Tech to ignore red. A past-dated workshop therefore shows a quiet grey `0/5` rather than a permanent alarm.
+The chip's colour is **graduated by date**, not flat red: green when complete, red inside 7 days (the same `READINESS_ALERT_DAYS` boundary as the alert, so the chip reddens exactly when the banner appears), amber from 8 to 14 days, and grey beyond that or once the date has passed. Every task here blocks READY, but a workshop three months out with nothing ticked is normal, and colouring that red teaches the Tech to ignore red. A past-dated workshop therefore shows a quiet grey `0/6` rather than a permanent alarm.
 
-The overlay lists the applicable tasks numbered in catalogue order with a checkbox each. **Each box saves on the tick** — no שמור — but the write is awaited and the checkbox renders the server's value, because ticking the last one flips the workshop to `מוכן` and an optimistic box would race the status change. Manager and Tech may tick; a frozen or cancelled workshop shows the list read-only with the reason. For a non-EXTERNAL workshop the sixth task is replaced by a grey note explaining there is nothing to prepare.
+The overlay lists the applicable tasks numbered in catalogue order with a checkbox each. **Each box saves on the tick** — no שמור — but the write is awaited and the checkbox renders the server's value, because ticking the last one flips the workshop to `מוכן` and an optimistic box would race the status change. Manager and Tech may tick; a frozen or cancelled workshop shows the list read-only with the reason. For a non-EXTERNAL workshop the EXTERNAL-only task is simply absent (see above).
 
 **Right column:**
 - **תרחישים** — columns: נושא · **מודל סימולציה** · דרישות שחקנים (with per-scenario male/female counts) · נכתב · actions. Actor requirements are **required** when adding a scenario (`7b59553`). An author must be set before scenarios can be added (`b628323`).
@@ -1993,6 +1997,7 @@ Sessions 1–19 as built. Branch naming `session-N-*`, merged to `develop` then 
 | **28 Oct 2026** | — | **F-06: schedules for a day split into groups** (§14 F-06). A schedule whose table splits into a column per group for part of the day (`קבוצה א' / מרכז סימולציה` beside `קבוצה ב' / חדר 1.7`) yielded no rows: the reader trusted the two-column header. Rows are now read one by one — the time is whichever cell holds a range, the activity the simulation track's cell or else the one beside the time. Only a bare `התכנסות` is dropped now, so `התכנסות ופתיחה של הקבוצה` stays. |
 | **28 Oct 2026** | — | **F-06: the schedule's error in its place** (§14 F-06). A schedule file yielding no rows reported it at the foot of the form, below the scenarios; it now shows under the schedule. |
 | **28 Oct 2026** | — | **F-06: decks that fill their slides** (§14 F-06). A long organization name wrapped into the date: the cover line now shrinks to stay on one line. The schedule table was small and cramped: it now takes one size for the whole table and stretches to its frame, which the template makes much larger. Short scenarios now grow to 40pt, and the scenario text starts lower on its slide (template). The cover's organization and group are editable in the preview, since CRM names are not always slide-ready. Needs the revised template uploaded. |
+| **28 Oct 2026** | — | **A seventh משימה נוספת: נפתחה קבוצת וואטסאפ** (§4.3.1, §3.5, §8.4). Inserted as task 2, straight after הוזמן בתיקתק, so the rest shift down one and the counts become `x/6` (centre/Zoom) and `x/7` (חיצוני). It blocks מוכן like the others. Migration `20261028120000_add_whatsapp_group_task` adds `whatsappGroupOpened BOOLEAN NOT NULL DEFAULT false` and — **unlike the original six — backfills it**: true wherever לוח זמנים + נשלח בקבוצה or תרחישים הודפסו + נשלחו בקבוצה is already ticked (both were sent *to the group*, so the group exists), and on every past or בתהליך סגירה / סגור workshop. Every מוכן workshop has both group tasks ticked, so none regresses — which matters because status is re-checked only when a workshop is opened or edited, and the readiness alert is silent for מוכן, so a regression would have hidden behind a stale badge. New workshops start unticked. Also corrected two stale lines in §8.4 (the overlay no longer shows a grey note for the EXTERNAL-only task) and the §4.3.1 claim that a new task is only a column and a catalogue row. |
 | **28 Oct 2026** | — | **F-06: goal and minutes centred** (§14 F-06). On the scenario slide, the `מטרת…` and `לרשות…` lines are now centred; the brief keeps its alignment. |
 | **28 Oct 2026** | — | **F-06: bold and underline in scenario text** (§14 F-06). In the preview, `*…*` becomes bold and `_…_` underlined on the scenario slide; a marker with no partner on its line stays as written. A hint above the scenarios says so. |
 
