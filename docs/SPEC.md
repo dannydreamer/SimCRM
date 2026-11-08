@@ -1795,7 +1795,20 @@ Files live in Postgres: `DeckFile` (metadata) and `DeckFileChunk` (bytes, ≤ 3 
 #### Access — pilot first
 
 - **Pilot:** **Daniel's account only** (`DECK_PILOT_EMAILS` in `src/lib/deck/access.ts`), live in production so it runs on real workshop data. Every `/api/matzgot` route checks it on the server and answers anyone else with 404; the page answers 404 too. Techs reach shared decks only through `/api/matzgot/shared` and the file routes, which serve a deck to a Tech only while it is shared.
-- **Later:** widened to every facilitator (one deck per Room's facilitator, each from their own template), and to Tech generating on their behalf, as originally envisioned — per-facilitator base templates uploaded by Tech, and a **"צור מצגות"** button on Workshop Detail. Going wide should be a change to who is allowed, not a rewrite.
+- **Later:** widened to the Techs — see below. Going wide should be a change to who is allowed, not a rewrite.
+
+#### Widening to the Techs — decided, not built `[spec]`
+
+Decisions taken with Daniel on 8 Nov 2026. **Whether to build it at all is still open**, pending his conversations with the facilitators.
+
+- **The Tech's flow.** On Workshop Detail, each Room's facilitator shows a deck status — *אין תבנית* / *טרם נוצרה* / *נוצרה <date>* — and a **"צור מצגת"** button. It opens the `/matzgot` screen with the workshop and the facilitator already chosen; the Tech checks the preview, approves, and generates. The deck is kept on the workshop, beside that facilitator.
+- **One template per facilitator.** Each facilitator's own deck, prepared by Daniel together with that facilitator; Claude adds the tokens. Some facilitators may build a new deck for every workshop: for them the template is their latest deck, tokenized, or they stay outside the tool — to be found out facilitator by facilitator.
+- **Each template uses its own subset of tokens.** The engine fills only what a template contains, so a deck without an icebreaker slide simply has no `{{icebreaker_question}}`. A new *kind* of token (e.g. `{{zoom_link}}`) is a code change plus a field on the screen, and is then available to every template. On upload the system lists the tokens it found and those it expected but missed, and the screen shows only the fields that facilitator's template uses.
+- **All Techs see every finished deck.** The share toggle goes away.
+- **Enter once, reuse for every facilitator.** The text approved for a workshop's first deck — schedule rows, scenario texts, cover names, icebreaker — is saved on the workshop and prefills every later deck for it. It is kept **inside the deck screen only**; Workshop Detail does not show it. This saved scenario text is also the start of F-03.
+- **Permissions.** The pilot's email check gives way to a capability list in `roles.ts` (Manager, Tech), enforced in every `/api/matzgot` route. `DeckFile` records both whose deck it is (the facilitator) and who generated it (the Tech) — one migration.
+- **Later still:** a **"צור לכל המתחקרים"** button for every facilitator at once; facilitators downloading their own decks; a deck marked *לא מעודכנת* when the date, scenarios or schedule change after it was made; and automatic deletion of decks some weeks after the workshop, since at 2–4 MB each they would otherwise grow the database without end.
+- **Order, when built:** templates and Tech access together first — the minimum for a Tech to use it — then input reuse, then the later items.
 
 **Deferred:** whether preconditions (scenarios written, facilitators slotted, schedule present) hard-block or soft-warn; regeneration after later changes; topic-specific content slides chosen automatically by topic.
 
@@ -2000,6 +2013,7 @@ Sessions 1–19 as built. Branch naming `session-N-*`, merged to `develop` then 
 | **28 Oct 2026** | — | **A seventh משימה נוספת: נפתחה קבוצת וואטסאפ** (§4.3.1, §3.5, §8.4). Inserted as task 2, straight after הוזמן בתיקתק, so the rest shift down one and the counts become `x/6` (centre/Zoom) and `x/7` (חיצוני). It blocks מוכן like the others. Migration `20261028120000_add_whatsapp_group_task` adds `whatsappGroupOpened BOOLEAN NOT NULL DEFAULT false` and — **unlike the original six — backfills it**: true wherever לוח זמנים + נשלח בקבוצה or תרחישים הודפסו + נשלחו בקבוצה is already ticked (both were sent *to the group*, so the group exists), and on every past or בתהליך סגירה / סגור workshop. Every מוכן workshop has both group tasks ticked, so none regresses — which matters because status is re-checked only when a workshop is opened or edited, and the readiness alert is silent for מוכן, so a regression would have hidden behind a stale badge. New workshops start unticked. Also corrected two stale lines in §8.4 (the overlay no longer shows a grey note for the EXTERNAL-only task) and the §4.3.1 claim that a new task is only a column and a catalogue row. |
 | **28 Oct 2026** | — | **F-06: goal and minutes centred** (§14 F-06). On the scenario slide, the `מטרת…` and `לרשות…` lines are now centred; the brief keeps its alignment. |
 | **28 Oct 2026** | — | **F-06: bold and underline in scenario text** (§14 F-06). In the preview, `*…*` becomes bold and `_…_` underlined on the scenario slide; a marker with no partner on its line stays as written. A hint above the scenarios says so. |
+| **8 Nov 2026** | — | **F-06: decisions for widening to the Techs** (§14 F-06). Spec only — nothing built, and whether to build is still open. One template per facilitator, each using its own subset of tokens; a "צור מצגת" per Room's facilitator on Workshop Detail, opening the same screen prefilled; all Techs see every deck, replacing the share toggle; approved text saved per workshop and reused for every facilitator's deck, kept inside the deck screen. |
 
 ---
 
