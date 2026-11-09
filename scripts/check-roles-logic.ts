@@ -14,6 +14,7 @@
 import {
   expandRoles, displayRoles, impliedRoles, hasAny,
   CAN_MANAGE_ORGS, CAN_CREATE_WORKSHOP, CAN_CANCEL_WORKSHOP, CAN_DELETE_ORG,
+  CAN_GENERATE_DECKS, CAN_MANAGE_DECK_TEMPLATES,
   NAV_ITEMS, LOGIN_ROLES, ROLE_LABELS, homePathFor,
 } from "../src/lib/roles"
 
@@ -74,6 +75,20 @@ check("deletion: Senior Tech no",  hasAny(senior, CAN_DELETE_ORG),      false)
 check("deletion: plain Tech no",   hasAny(tech, CAN_DELETE_ORG),        false)
 check("deletion is stricter than managing, never the same list",
   CAN_MANAGE_ORGS.some((r) => !CAN_DELETE_ORG.includes(r)), true)
+
+console.log("\n── facilitator decks (§14 F-06) ──────────────────────────────────")
+
+// Generating is ordinary Tech work, so it names TECH and a Senior Tech gets it
+// by implication. Templates stay with the Manager: their tokens are set up by hand.
+check("decks: Manager generates",        hasAny(["MANAGER"], CAN_GENERATE_DECKS), true)
+check("decks: plain Tech generates",     hasAny(tech, CAN_GENERATE_DECKS),        true)
+check("decks: Senior Tech generates",    hasAny(senior, CAN_GENERATE_DECKS),      true)
+check("decks: list names TECH, not SENIOR_TECH", CAN_GENERATE_DECKS.includes("SENIOR_TECH"), false)
+check("decks: Facilitator does not",     hasAny(["FACILITATOR"], CAN_GENERATE_DECKS), false)
+check("decks: Caster does not",          hasAny(["CASTER"], CAN_GENERATE_DECKS),  false)
+check("templates: Manager yes",          hasAny(["MANAGER"], CAN_MANAGE_DECK_TEMPLATES), true)
+check("templates: Senior Tech no",       hasAny(senior, CAN_MANAGE_DECK_TEMPLATES),      false)
+check("templates: plain Tech no",        hasAny(tech, CAN_MANAGE_DECK_TEMPLATES),        false)
 
 console.log("\n── how she is described back to the user ─────────────────────────")
 

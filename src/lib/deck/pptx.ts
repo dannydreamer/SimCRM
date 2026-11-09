@@ -12,6 +12,8 @@
 //
 // A token alone in its paragraph may take several lines (topics, a scenario
 // body): the paragraph is repeated once per line. An empty value removes it.
+// A token with no value at all — one the engine does not know, or one nobody
+// filled — comes out empty too: any placeholder may be empty (spec F-06).
 
 import JSZip from "jszip"
 import { NS, child, children, descendants, parseXml, serializeXml, type Document, type Element } from "./xml"
@@ -24,8 +26,6 @@ export type DeckData = {
   group: string
   /** Already formatted — the house short date, e.g. "27.8.26". */
   date: string
-  /** Optional; empty removes the question line. */
-  icebreakerQuestion: string
   topics: string[]
   schedule: ScheduleRow[]
   scenarios: DeckScenario[]
@@ -33,7 +33,7 @@ export type DeckData = {
 
 export type DeckResult = {
   file: Uint8Array
-  /** Tokens in the template with no value — left visible in the deck so they are noticed. */
+  /** Tokens in the template the engine has no value for — emptied in the deck. */
   unresolved: string[]
 }
 
@@ -41,6 +41,22 @@ type Value = string | string[]
 type Values = Record<string, Value>
 
 const TOKEN = /\{\{\s*([a-zA-Z_][\w.]*)\s*\}\}/g
+
+/**
+ * Every token the engine fills. A template uses any subset of them.
+ * `icebreaker_question` is known but never filled — the Techs cannot write a
+ * facilitator's question, so its line always comes out empty (spec F-06).
+ */
+export const KNOWN_TOKENS = [
+  "organization", "group", "date", "topics", "icebreaker_question",
+  "row.activity", "row.time",
+  "scenario.number", "scenario.title", "scenario.body",
+] as const
+
+/** The tokens a template is expected to hold; the report on upload names any it lacks. */
+export const EXPECTED_TOKENS = [
+  "organization", "group", "date", "topics", "row.activity", "row.time", "scenario.title", "scenario.body",
+] as const
 
 // ─── 1. Tokens in paragraphs ─────────────────────────────────────────────────
 
@@ -115,10 +131,14 @@ function removeParagraph(p: Element) {
   for (const r of children(p, NS.a, "r")) p.removeChild(r)
 }
 
-/** Fill every token under `root`. Returns the keys left without a value. */
+/** Fill every token under `root`; a key with no value comes out empty. Returns the keys that had none. */
 export function fillTokens(root: Element | Document, values: Values): string[] {
   const missing: string[] = []
-  const lookup = (key: string) => (key in values ? asLine(values[key]) : undefined)
+  const lookup = (key: string) => {
+    if (key in values) return asLine(values[key])
+    missing.push(key)
+    return ""
+  }
   for (const p of descendants(root, NS.a, "p")) {
     const text = paragraphText(p)
     const matches = [...text.matchAll(TOKEN)]
@@ -127,8 +147,8 @@ export function fillTokens(root: Element | Document, values: Values): string[] {
     // A token alone in its paragraph: one paragraph per line, none if empty.
     if (matches.length === 1 && text.trim() === matches[0][0]) {
       const key = matches[0][1]
-      if (!(key in values)) { missing.push(key); continue }
-      const lines = asLines(values[key])
+      if (!(key in values)) missing.push(key)
+      const lines = asLines(values[key] ?? "")
       if (lines.length === 0) { removeParagraph(p); continue }
       let prev = p
       for (const line of lines.slice(1)) {
@@ -141,7 +161,7 @@ export function fillTokens(root: Element | Document, values: Values): string[] {
       continue
     }
 
-    missing.push(...replaceInline(p, lookup))
+    replaceInline(p, lookup)
   }
   return missing
 }
@@ -471,7 +491,6 @@ export async function generateDeck(template: ArrayBuffer | Uint8Array, data: Dec
     organization: data.organization,
     group: data.group,
     date: data.date,
-    icebreaker_question: data.icebreakerQuestion,
     topics: data.topics,
   }
   const missing = new Set<string>()
@@ -555,7 +574,38 @@ export async function generateDeck(template: ArrayBuffer | Uint8Array, data: Dec
   await updateSlideCount(zip, children(sldIdLst, NS.p, "sldId").length)
 
   const file = await zip.generateAsync({ type: "uint8array", compression: "DEFLATE" })
-  return { file, unresolved: [...missing].sort() }
+  return { file, unresolved: [...missing].filter((k) => k !== "icebreaker_question").sort() }
+}
+
+// ─── Reading a template on upload ────────────────────────────────────────────
+
+export type TemplateReport = {
+  /** Every token the template holds, sorted. */
+  tokens: string[]
+  /** Expected tokens it lacks — fine if deliberate, worth a look if not. */
+  missing: string[]
+  /** Tokens the engine does not know — usually a typo; they come out empty. */
+  unknown: string[]
+}
+
+/** The tokens in a template's slides, as the engine will see them. */
+export async function inspectTemplate(template: ArrayBuffer | Uint8Array): Promise<TemplateReport> {
+  const zip = await JSZip.loadAsync(template)
+  if (!zip.file("ppt/presentation.xml")) throw new Error("not a presentation")
+  const found = new Set<string>()
+  const slides = Object.keys(zip.files).filter((f) => /^ppt\/slides\/slide\d+\.xml$/.test(f))
+  for (const path of slides) {
+    const doc = parseXml(await zip.file(path)!.async("string"))
+    for (const p of descendants(doc, NS.a, "p")) {
+      for (const m of paragraphText(p).matchAll(TOKEN)) found.add(m[1])
+    }
+  }
+  const tokens = [...found].sort()
+  return {
+    tokens,
+    missing: EXPECTED_TOKENS.filter((t) => !found.has(t)),
+    unknown: tokens.filter((t) => !(KNOWN_TOKENS as readonly string[]).includes(t)),
+  }
 }
 
 /**

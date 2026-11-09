@@ -20,7 +20,8 @@
 
 import JSZip from "jszip"
 import { parseSchedule, parseScenario, type DocxBlock } from "../src/lib/deck/docx"
-import { applyMarkup, centerClosingLines, charsPerLine, parseMarkup, fillTableRows, fillTokens, fitOneLine, fitScenarioText, fitTable, generateDeck, paragraphText } from "../src/lib/deck/pptx"
+import { EMPTY_CONTENT, cleanContent, emptyFields, fieldsFor, fromRow, scenarioTexts, scheduleRows, toRow } from "../src/lib/deck/content"
+import { applyMarkup, centerClosingLines, charsPerLine, parseMarkup, fillTableRows, fillTokens, fitOneLine, fitScenarioText, fitTable, generateDeck, inspectTemplate, paragraphText } from "../src/lib/deck/pptx"
 import { NS, children, descendants, parseXml } from "../src/lib/deck/xml"
 
 let failures = 0
@@ -133,8 +134,12 @@ fillTokens(doc, { icebreaker_question: "" })
 check("tokens: …but the last paragraph of a box is emptied, not removed", texts(doc), [""])
 
 doc = body(`<a:p>${run("{{date}} {{mystery}}")}</a:p>`)
-check("tokens: an unknown token is reported and left visible", [fillTokens(doc, { date: "7.5.26" }), texts(doc)],
-  [["mystery"], ["7.5.26 {{mystery}}"]])
+check("tokens: a token with no value is reported and comes out empty", [fillTokens(doc, { date: "7.5.26" }), texts(doc)],
+  [["mystery"], ["7.5.26 "]])
+
+doc = body(`<a:p>${run("שבירת קרח")}</a:p>`, `<a:p>${run("{{icebreaker_question}}")}</a:p>`)
+fillTokens(doc, {})
+check("tokens: a token alone with no value removes its paragraph", texts(doc), ["שבירת קרח"])
 
 check("tokens: an inline multi-line value becomes one line",
   (() => { const d = body(`<a:p>${run("נושאים: {{topics}}")}</a:p>`); fillTokens(d, { topics: ["א", "ב"] }); return texts(d) })(),
@@ -223,7 +228,7 @@ async function miniDeck(): Promise<Uint8Array> {
 }
 
 const data = {
-  organization: "אורות", group: "צוות", date: "27.8.26", icebreakerQuestion: "", topics: [], schedule: [],
+  organization: "אורות", group: "צוות", date: "27.8.26", topics: [], schedule: [],
   scenarios: [
     { title: "״תתמודדו!״", body: ["את בצוות החינוכי.", "לרשותך 7 דקות"] },
     { title: "״לא בא לי לדבר...״", body: ["את יועצת."] },
@@ -257,6 +262,12 @@ async function packageChecks() {
   check("package: other slides are filled too", texts(await read("ppt/slides/slide1.xml")), ["אורות – צוות", "27.8.26"])
   check("package: the slide count is updated", await zip.file("docProps/app.xml")!.async("string"), "<Properties><Slides>3</Slides></Properties>")
 
+  check("template: the tokens it holds, and the expected ones it lacks", await inspectTemplate(await miniDeck()), {
+    tokens: ["date", "group", "organization", "scenario.body", "scenario.number", "scenario.title"],
+    missing: ["topics", "row.activity", "row.time"],
+    unknown: [],
+  })
+
   const none = await JSZip.loadAsync((await generateDeck(await miniDeck(), { ...data, scenarios: [] })).file)
   const noneTypes = await none.file("[Content_Types].xml")!.async("string")
   check("package: no scenarios — the slide, its relationship, its notes and their overrides all go", [
@@ -268,6 +279,37 @@ async function packageChecks() {
   ], [false, false, false, false, false])
 
 }
+
+// ── Saved content (§14 F-06, "Enter once") ─────────────────────────────────
+const saved = cleanContent({
+  organization: "אורות", group: "", schedule: [{ activity: "פתיחה", time: "9:00-9:30" }, { activity: " ", time: "" }],
+  scenarios: [
+    { scenarioId: "s1", title: "״תתמודדו!״", body: "את בצוות.", fileName: "a.docx" },
+    { scenarioId: "s1", title: "כפילות", body: "", fileName: null },
+    { scenarioId: "", title: "בלי מזהה", body: "x" },
+    { scenarioId: "s3", title: "", body: "רק תקציר" },
+  ],
+  extra: "ignored",
+})
+check("content: a duplicate or id-less scenario is dropped", saved.scenarios.map((s) => s.scenarioId), ["s1", "s3"])
+check("content: survives the round trip through its row", fromRow(toRow(saved)), saved)
+check("content: a damaged row reads as empty, not as an error",
+  fromRow({ organization: "", groupName: "", schedule: "{oops", scheduleFileName: null, scenarios: "null" }).scenarios, [])
+check("content: blank schedule rows do not become table rows", scheduleRows(saved), [{ activity: "פתיחה", time: "9:00-9:30" }])
+check("content: scenario texts follow the CRM's order, blank where none was saved",
+  scenarioTexts(saved, ["s3", "s2", "s1"]).map((s) => s.title), ["", "", "״תתמודדו!״"])
+
+check("fields: a field shows when any template uses it",
+  fieldsFor([["organization", "date"], ["row.time"]]), { cover: true, schedule: true, scenarios: false })
+check("fields: no templates, no fields", fieldsFor([]), { cover: false, schedule: false, scenarios: false })
+
+const full = ["organization", "row.activity", "row.time", "scenario.title", "scenario.body"]
+check("empty: names each empty field the template uses, in scenario order",
+  emptyFields(saved, ["s1", "s2", "s3"], full), ["שם תרחיש 2", "תקציר תרחיש 2", "שם תרחיש 3"])
+check("empty: an empty schedule counts only if the template has a schedule",
+  [emptyFields(EMPTY_CONTENT, [], ["row.time"]), emptyFields(EMPTY_CONTENT, [], ["date"])], [["לוח הזמנים"], []])
+check("empty: a field the template does not use is never reported",
+  emptyFields(saved, ["s1", "s2"], ["scenario.title"]), ["שם תרחיש 2"])
 
 packageChecks().then(() => {
   console.log(failures === 0 ? "\n✓ all checks passed\n" : `\n✗ ${failures} check(s) failed\n`)

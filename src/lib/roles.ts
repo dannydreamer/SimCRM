@@ -81,6 +81,14 @@ export const CAN_CREATE_WORKSHOP = ["MANAGER", "SENIOR_TECH"]
 // Cancel a workshop, and clear the postponement warning a date change raises.
 export const CAN_CANCEL_WORKSHOP = ["MANAGER", "SENIOR_TECH"]
 
+// Facilitator decks (§14 F-06): generate any facilitator's deck for a workshop,
+// download it, and save the text it is made from. TECH admits a Senior Tech.
+export const CAN_GENERATE_DECKS = ["MANAGER", "TECH"]
+
+// Upload, replace or remove a facilitator's deck template. Setting a template's
+// tokens up is skilled work, so it stays with the Manager.
+export const CAN_MANAGE_DECK_TEMPLATES = ["MANAGER"]
+
 export function hasAny(roles: string[], allowed: readonly string[]): boolean {
   return allowed.some((r) => roles.includes(r))
 }

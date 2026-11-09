@@ -2,6 +2,7 @@
 
 import { useEffect, useState, Suspense } from "react"
 import { useSearchParams } from "next/navigation"
+import { DeckTemplates } from "./DeckTemplates"
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -246,6 +247,8 @@ function SettingsInner() {
             )}
           </div>
         </section>
+
+        <DeckTemplates />
 
       </div>
     </div>

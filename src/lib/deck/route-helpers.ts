@@ -4,31 +4,39 @@ import { NextResponse } from "next/server"
 import { getServerSession, type Session } from "next-auth"
 import { authOptions } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
-import { canDownloadSharedDeck, isDeckPilot } from "./access"
+import { CAN_GENERATE_DECKS, CAN_MANAGE_DECK_TEMPLATES, hasAny } from "@/lib/roles"
 
 type Guard = { session: Session; error: null } | { session: null; error: NextResponse }
 
-/** The pilot user, or a 404 — to anyone else the feature does not exist. */
-export async function requirePilot(): Promise<Guard> {
+/** The signed-in user if they hold one of `allowed`; else 401 or 403. */
+export async function requireRoles(allowed: readonly string[]): Promise<Guard> {
   const session = await getServerSession(authOptions)
   if (!session) return { session: null, error: NextResponse.json({ error: "Unauthorized" }, { status: 401 }) }
-  if (!isDeckPilot(session.user)) return { session: null, error: NextResponse.json({ error: "Not found" }, { status: 404 }) }
+  if (!hasAny(session.user.roles, allowed))
+    return { session: null, error: NextResponse.json({ error: "Forbidden" }, { status: 403 }) }
   return { session, error: null }
 }
 
+export const requireDeckUser = () => requireRoles(CAN_GENERATE_DECKS)
+export const requireTemplateManager = () => requireRoles(CAN_MANAGE_DECK_TEMPLATES)
+
 /**
- * A complete file the caller may download: their own file if they are the
- * pilot, or a deck shared with the Techs if they are a Tech. Anything else is
- * a 404, so a file id reveals nothing.
+ * A complete file the caller may download: any deck for whoever generates
+ * decks; a template for whoever manages templates. Anything else is a 404, so
+ * a file id reveals nothing.
  */
 export async function readableFile(fileId: string) {
   const session = await getServerSession(authOptions)
   if (!session) return { file: null, error: NextResponse.json({ error: "Unauthorized" }, { status: 401 }) }
-  const file = await prisma.deckFile.findUnique({ where: { id: fileId } })
+  const file = await prisma.deckFile.findUnique({
+    where: { id: fileId },
+    include: { generatedBy: { select: { name: true } } },
+  })
+  const roles = session.user.roles
   const ok =
     file?.complete &&
-    ((isDeckPilot(session.user) && file.ownerId === session.user.id) ||
-      (file.kind === "DECK" && file.sharedAt !== null && canDownloadSharedDeck(session.user.roles)))
+    ((file.kind === "DECK" && hasAny(roles, CAN_GENERATE_DECKS)) ||
+      (file.kind === "TEMPLATE" && hasAny(roles, CAN_MANAGE_DECK_TEMPLATES)))
   if (!file || !ok) return { file: null, error: NextResponse.json({ error: "Not found" }, { status: 404 }) }
   return { file, error: null }
 }
