@@ -10,6 +10,7 @@ const TABLE_ORDER = [
   "Workshop", "Room", "Topic", "SimulationModel", "Scenario", "Actor", "Casting",
   "ActorWorkshopAvailability", "WorkshopConfirmedActor", "CastingChangeLog",
   "Feedback", "ActorDevelopmentLog", "AnnualGoal", "AppSettings", "BackupLog",
+  "WorkshopDeckContent",
 ]
 
 // ─── SQL value escaping ───────────────────────────────────────────────────────

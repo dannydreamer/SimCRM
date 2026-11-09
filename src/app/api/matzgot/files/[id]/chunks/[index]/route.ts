@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
-import { readableFile, requirePilot } from "@/lib/deck/route-helpers"
+import { readableFile, requireTemplateManager } from "@/lib/deck/route-helpers"
 import { CHUNK_SIZE } from "@/lib/deck/files"
 
 type Params = { params: Promise<{ id: string; index: string }> }
@@ -18,15 +18,15 @@ export async function GET(_req: NextRequest, { params }: Params) {
   })
 }
 
-// Upload one piece of the pilot's own template, while the upload is open.
+// Upload one piece of a template, while its upload is open. Manager only.
 export async function PUT(req: NextRequest, { params }: Params) {
-  const { session, error } = await requirePilot()
+  const { error } = await requireTemplateManager()
   if (error) return error
   const { id, index: raw } = await params
   const index = Number(raw)
 
   const file = await prisma.deckFile.findUnique({ where: { id } })
-  if (!file || file.ownerId !== session.user.id || file.complete)
+  if (!file || file.kind !== "TEMPLATE" || file.complete)
     return NextResponse.json({ error: "Not found" }, { status: 404 })
   if (!Number.isInteger(index) || index < 0 || index >= file.chunkCount)
     return NextResponse.json({ error: "Bad chunk" }, { status: 400 })

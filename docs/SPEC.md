@@ -495,7 +495,8 @@ Feedback is scoped to **Actor × Workshop × Room**, so two facilitators who wor
 - **AnnualGoal** — `year, shiyuchTakzivi, allocation`. Unique on `(year, shiyuchTakzivi)`.
 - **AppSettings** — singleton (`id = 1`): `driveFolderId`, `googleAccessToken`, `googleRefreshToken`, `googleTokenExpiry`.
 - **BackupLog** — `type, status, filePath, fileSize, errorMsg, createdAt`.
-- **DeckFile** — `kind` (`TEMPLATE`/`DECK`), `ownerId`, `workshopId` (deck only), `fileName, size, chunkCount, complete, sharedAt, createdAt`. Templates and generated facilitator decks, §14 F-06.
+- **DeckFile** — `kind` (`TEMPLATE`/`DECK`), `facilitatorId` (whose template or deck), `generatedById` (deck only: who generated it), `templateId` (deck only: the template it came from; nulled if that template goes), `workshopId` (deck only), `label` (template only, optional name — unused until a facilitator may hold several), `tokens` (template only: JSON array of the tokens found in it), `fileName, size, chunkCount, complete, createdAt`. Facilitators' templates and the decks generated from them, §14 F-06.
+- **WorkshopDeckContent** — one per workshop, keyed by `workshopId` (cascades with it): `organization`, `groupName` (the cover's names; `""` = the CRM's), `schedule` (JSON `[{activity, time}]`), `scheduleFileName`, `scenarios` (JSON `[{scenarioId, title, body, fileName}]`), `updatedAt`, `updatedById`. The text every facilitator deck for the workshop is made from, §14 F-06. JSON is stored as TEXT so the backup dump writes it as a plain string.
 - **DeckFileChunk** — `fileId, index, data` (bytes). Primary key `(fileId, index)`; cascades with its file.
 
 ---
@@ -775,6 +776,8 @@ A workshop still `בוצע איתור צרכים` with **nothing** outstanding r
 | Pivot — edit חדרים לספירה / הערות | ✓ | ✓ | ✓ | — | — | — |
 | Pivot — edit **יעד שנתי** | ✓ | — | — | — | — | — |
 | Pivot — export | ✓ | ✓ | ✓ | — | — | — |
+| Facilitator decks — enter text, generate, download (§14 F-06) | ✓ | ✓ | ✓ | — | — | — |
+| Facilitator deck **templates** — upload, replace, remove | ✓ | — | — | — | — | — |
 | Facilitator Load, Goals, Users, Settings | ✓ | — | — | — | — | — |
 
 > The Senior Tech column differs from the Tech column in exactly four rows, all bolded above. Everywhere else the two are identical **by construction, not by coincidence** — no code grants those rows to SENIOR_TECH by name (§5.4).
@@ -1168,6 +1171,7 @@ The overlay lists the applicable tasks numbered in catalogue order with a checkb
   - The **מודל סימולציה** selector is editable by Manager and Tech under the existing "Scenarios — create/edit" permission, and saves on change independently of the row's edit form. Empty state is a neutral placeholder — *"מודל טרם נבחר"*, not an error. It is enforced only at שלח לליהוק (§7.2), never at the card level, and never locked.
   - **אפשר לשנות את סדר התרחישים** — a checkbox above the table, `scenarioOrderFlexible` (§3.5). Unticked (the default) means the scenarios run in the order listed; ticking it is the deliberate act that permits varying that order. Editable by Manager and Tech under the same "Scenarios — create/edit" permission, saving on change. **Rendered only when the workshop has two or more non-cancelled scenarios** — with one scenario the question is meaningless, so the checkbox is absent rather than disabled. Cancelling scenarios back down to one hides it without clearing the stored value, which is harmless because nothing else reads the field. **Purely internal bookkeeping: it does not propagate to the casting panel, the calendar, Facilitator-facing views, or any generated document, and it does not affect the READY conditions.**
 - **חדרים ושיבוץ מתחקרים** — one card per room: room number, facilitator (or red *"לא שובצ/ה"*), `?` badge if tentative, ✓ מצגת, ✓ מכתב, soft-cancel link. PPT checkbox disabled until facilitator assigned **and** all scenarios written (lifted in CLOSING).
+  - **מצגות מתחקרים** — a button beside the card's heading, **Manager and Tech**, opening the facilitator-deck screen for this workshop (`/matzgot?workshop=<id>`, §14 F-06). Disabled, with the reason on hover, while the workshop has no active scenarios or no assigned facilitator; absent once it is cancelled. `[code]`
 - **ליהוק** — one state line and the collapsible actor list. Once casting has been sent: **⏳ הליהוק בתהליך** or **✓ הליהוק הושלם** (§7.7), beneath the existing `נשלח לליהוק ✓ <date>`. No fraction, and no separate director line — the director is inside `complete` and appears in the expanded list. הצג שחקנים expands to the room-by-room detail, which is where the Tech actually reads what is missing.
 - **משוב משתתפים** — the auto-generated Google Form string with a copy button, a **לינק למשוב** link, and the confirmation checkbox. The link opens the participants' feedback form in a new tab, so the copied string can be pasted straight in. It is a **single standing form shared by every workshop**, so the URL is a hard-coded constant in the page, not a per-workshop field; it is shown to every role and is not gated on the string existing.
 - **חדר** — the physical-room multi-select (חדר 1 · חדר 2 · חדר 3 · חדר אחר), in the header card below the workshop fields, **shown only when the location is מרכז**. Any combination allowed, **Manager and Tech**, saving on each change rather than behind a שמור button. Selecting **חדר אחר** reveals the free-text `otherRoomNotes` area and the **חדר אושר** checkbox beside the picker. See §3.6.1.
@@ -1426,6 +1430,8 @@ Manager only. Table of all users: name, email, roles, active status. New-user fo
 
 Manager only. Google Drive connection, backup status display, and manual backup. See §9.
 
+**תבניות מצגת** — every active facilitator, with their deck template: upload (*העלאה*), replace (*החלפה*), download and remove (*הסרה*). Under each template, the tokens found in it; in red, tokens the engine does not know (usually a typo — they come out empty); in amber, expected tokens it lacks (fine when deliberate). Removing a template leaves the decks already made from it. §14 F-06. `[code]`
+
 ---
 
 ## 9. Backup System
@@ -1450,11 +1456,11 @@ Root folder **`SimCRM Files`** — created automatically on first backup, its ID
 
 PostgreSQL SQL dump. Tables are dumped in FK-safe order, wrapped in `SET session_replication_role = replica` so foreign-key checks are disabled during restore, and written as `INSERT ... ON CONFLICT DO NOTHING`.
 
-Table order: Person, PersonRole, Organization, ParticipantGroup, Workshop, Room, Topic, SimulationModel, Scenario, Actor, Casting, ActorWorkshopAvailability, WorkshopConfirmedActor, CastingChangeLog, Feedback, ActorDevelopmentLog, AnnualGoal, AppSettings, BackupLog. `[code]`
+Table order: Person, PersonRole, Organization, ParticipantGroup, Workshop, Room, Topic, SimulationModel, Scenario, Actor, Casting, ActorWorkshopAvailability, WorkshopConfirmedActor, CastingChangeLog, Feedback, ActorDevelopmentLog, AnnualGoal, AppSettings, BackupLog, WorkshopDeckContent. `[code]`
 
 > Any new table must be added to `TABLE_ORDER` in `src/lib/backup.ts` **before** the tables that reference it, or it is silently omitted from every backup.
 
-**Deliberately omitted:** `DeckFile` and `DeckFileChunk` (§14 F-06). They hold files, not records — the template's owner keeps the original and a deck can be regenerated — and the dump's text escaping would not carry binary data anyway.
+**Deliberately omitted:** `DeckFile` and `DeckFileChunk` (§14 F-06). They hold files, not records — the Manager keeps the original templates and a deck can be regenerated — and the dump's text escaping would not carry binary data anyway. `WorkshopDeckContent` **is** backed up: it is small text a Tech approved by hand.
 
 ### 9.4 Nightly automatic backup
 
@@ -1723,7 +1729,7 @@ Combines actor work activity with payment-order tracking, built on data already 
 
 The CRM generates a facilitator's presentation for a workshop: it fills a template PPTX with that workshop's data — cover details, schedule, topics, and one slide per scenario. Design settled with Daniel in October 2026.
 
-**Status:** live as a pilot. Engine and DOCX parsers in `src/lib/deck/` (`npm run check:deck`); screen `/matzgot`; routes under `/api/matzgot`; tables `DeckFile` and `DeckFileChunk` (§3.14).
+**Status:** live for Managers and Techs. Engine and DOCX parsers in `src/lib/deck/` (`npm run check:deck`); screen `/matzgot`, reached from Workshop Detail (§8.4); templates in `/settings` (§8.14); routes under `/api/matzgot`; tables `DeckFile`, `DeckFileChunk` and `WorkshopDeckContent` (§3.14). Widened from a Daniel-only pilot on 9 Nov 2026.
 
 **Engine:** JavaScript, inside the CRM — not a separate Python service. A PPTX (and a DOCX) is a zip of XML; the engine edits it directly. It needs only three operations: replace tokens, duplicate a slide, duplicate a table row. `python-pptx` was considered and rejected — it cannot duplicate slides either, so its advantage did not survive, and it would have put a second language and runtime into the deploy.
 
@@ -1731,7 +1737,8 @@ The CRM generates a facilitator's presentation for a workshop: it fills a templa
 
 The template is an ordinary deck the facilitator styles freely. Two kinds of anchor:
 
-- **Tokens** — `{{name}}` typed into slide text where the value goes. The value inherits the formatting of the run the token starts in. A token alone in its paragraph may take several lines — the paragraph is repeated once per line — and an empty value removes the paragraph (the last paragraph of a text box is emptied instead, since PowerPoint requires one). A token with no value is left visible in the deck and reported, so it gets noticed.
+- **Tokens** — `{{name}}` typed into slide text where the value goes. The value inherits the formatting of the run the token starts in. A token alone in its paragraph may take several lines — the paragraph is repeated once per line — and an empty value removes the paragraph (the last paragraph of a text box is emptied instead, since PowerPoint requires one). **Any token may be empty, and then it is empty in the deck** — a value nobody filled, and a token the engine does not know, alike. Typos are caught earlier instead, when the template is uploaded (below).
+- **Each template uses its own subset of tokens.** The engine fills only what a template contains, so a deck without an icebreaker slide simply has no `{{icebreaker_question}}`. A new *kind* of token (e.g. `{{zoom_link}}`) is a code change, and is then available to every template.
 - **No scenarios** — the scenario slide is removed from the deck entirely.
 - **Slides are identified by the tokens they contain**, not by name or position. (PowerPoint's Selection Pane names shapes, not slides, so slide names are not usable.) A slide holding `{{scenario.*}}` is the scenario slide; a table row holding `{{row.*}}` is the schedule row.
 
@@ -1745,7 +1752,7 @@ Agreed slide by slide on a test deck, then reviewed against Daniel's own 13-slid
 |---|---|---|---|
 | Cover | `{{organization}} – {{group}}` | `Organization.name` and `ParticipantGroup.name`, prefilled and **editable in the preview** (CRM names are not always written as they should appear on a slide; editing does not change the CRM). On one line under `סדנת סימולציה`, shrunk to stay on one line (below) | — |
 | Cover | `{{date}}` | `Workshop.date`, Gregorian only, `D.M.YY` (e.g. `27.8.26`) | — |
-| שבירת קרח | `{{icebreaker_question}}` | Optional free-text field in the generator. Empty → the question paragraph is removed; the slide and its title stay. | — |
+| שבירת קרח | `{{icebreaker_question}}` | **Always empty** — the Techs cannot write a facilitator's question, and a Tech-run deck must need no input from them. The question paragraph is removed; the slide and its title stay. A facilitator who wants their own question adds it to the deck by hand. | — |
 | לוחות זמנים | `{{row.activity}}` · `{{row.time}}` | The workshop's schedule DOCX (below) | **Table row**, once per schedule line; header row untouched; the table is then stretched to its frame (below) |
 | לשם מה התכנסנו כאן היום? | `{{topics}}` | Distinct `Topic.name` of the workshop's active scenarios, one per line, under the question | — |
 | Scenario (תקציר) | `תקציר {{scenario.number}} למשתתפים: {{scenario.title}}` · `{{scenario.body}}` | `number` is the scenario's position in scenario order (1, 2 …); the rest from that scenario's DOCX (below) | **Slide**, once per active scenario, in scenario order |
@@ -1775,29 +1782,53 @@ Both files are read, never written. Each parse feeds an **editable preview**: th
 
 #### The screen — `/matzgot`
 
-Not in the nav; reached by typing the address. Four steps on one page:
+For **Managers and Techs** (`CAN_GENERATE_DECKS`, §5.2). Not in the nav: reached from the **מצגות מתחקרים** button on Workshop Detail's rooms card (§8.4), which opens it on that workshop (`?workshop=<id>`). Opened without one, it offers a picker of live workshops from 30 days back, each with how many of its facilitators have a deck. A cancelled workshop, or one with no active scenarios or no assigned facilitator, shows the reason and nothing else.
 
-1. **התבנית** — the pilot's current template, and *החלפת תבנית* to upload a new `.pptx`. It must open as a PowerPoint file; it replaces the previous template.
-2. **הסדנה** — every non-cancelled workshop from 30 days back onwards, marked `✓ מצגת` when a deck exists and `(משותפת)` when it is shared. Shows the cover line and the topics exactly as the deck will.
-3. **תוכן** — the icebreaker question; the schedule `.docx`; one `.docx` per active scenario, in scenario order. The Word files are **parsed in the browser and never uploaded**. Everything lands in editable fields — schedule rows (add, delete, edit), each scenario's title and body (one line per paragraph) — with any parser warnings, and a schedule that yielded no rows, flagged in place. There is one scenario slot per active CRM scenario, in scenario order, and no way to add another here: a missing scenario is added to the workshop in the CRM. Generation is refused while the template, the schedule, or any scenario's title or body is missing.
-4. **המצגת** — after *יצירת מצגת*: download, and *שיתוף עם המפעילות* / *ביטול השיתוף*. Tokens the template holds but the generator had no value for are listed.
+Two parts on one page:
 
-The date and the topics are read from the CRM on the server, never taken from the browser; the organization and group arrive from the preview, and an empty field falls back to the CRM's name. Generating again replaces the workshop's previous deck and **keeps its shared state**, so a corrected deck does not vanish from the Techs.
+1. **תוכן** — the text every deck for the workshop is made from, **entered once and saved on the workshop** (`WorkshopDeckContent`): the cover's organization and group (prefilled from the CRM as placeholders, editable without changing the CRM), the schedule, and one title and body per active scenario, in scenario order. The schedule `.docx` and each scenario's `.docx` are **parsed in the browser and never uploaded**; everything lands in editable fields — schedule rows (add, delete, edit), each scenario's title and body (one line per paragraph) — with any parser warnings, and a schedule that yielded no rows, flagged in place. The date and the topics are shown as the CRM has them. There is one scenario slot per active CRM scenario and no way to add another here: a missing scenario is added to the workshop in the CRM.
+   - **Only the fields some template uses are shown** — the union over the templates of the workshop's facilitators, so a field one facilitator's template uses shows even if another's does not. No template at all → nothing to fill, and a Manager is pointed to the templates in /settings.
+   - Saved by *שמירת התוכן*, and automatically before generating. Unsaved changes are marked, and leaving the page asks first. On a later visit the saved text is there to correct. It lives **inside the deck screen only**; Workshop Detail does not show it. This saved scenario text is also the start of F-03.
+2. **מצגות** — one row per active room with a facilitator, `?` beside a tentative one: room, facilitator, the deck's state — *אין תבנית* / *טרם נוצרה* / *נוצרה D.M.YY · <who generated it>* — *צור* (or *צור מחדש*), *הורדה*, and the room's **מצגת** box. **צור לכל מי שיש לו תבנית** generates every facilitator with a template, one after another (one request per deck, for Vercel's limits).
+   - **Generating is blocked exactly as the מצגת box is** (`generateBlockReason` beside `pptBlockReason` in `src/lib/room-ppt.ts`, one rule set): every active scenario marked נכתב, and the workshop date not yet passed. Until then *צור* and *צור לכל…* are disabled and the reason shows above the table; the server refuses too. The text can be entered meanwhile, and decks already made can still be downloaded.
+   - **Empty fields warn, never block.** Before generating, the fields the target templates use that are still empty — the schedule, a scenario's title or body — are listed in a confirm (*השדות הבאים ריקים, ויופיעו ריקים במצגת*), and the Tech generates anyway or goes back. The server generates whatever is saved.
+   - **The מצגת box is the same box as on the rooms card** (`Room.pptReceived`, §4.3, §8.4), under the same rules and through the same route, which re-runs the status check. **Generating never ticks it**: a generated deck may still look wrong, and then the Tech asks the facilitator for one. She ticks it once she has checked the deck.
 
-#### Sharing with the Techs
+Generation reads everything from the server: the template, the saved text, and the date and topics from the CRM; the cover's names fall back to the CRM's when empty. **Generating again replaces that facilitator's deck for the workshop** — there is no version history. A facilitator can have only one deck per workshop, because the rooms card will not slot one person into two rooms.
 
-A shared deck can be downloaded by **any Tech** (Senior Tech included, §5.4) — on Workshop Detail, and deliberately out of the way: nothing at all unless a deck is shared for that workshop, then only a faint **⋯** at the foot of the page, which opens *מצגת המתחקר/ת* with a download button. Two clicks. Unsharing removes it at once. No other role sees it.
+#### Templates — `/settings`
+
+**Manager only** (`CAN_MANAGE_DECK_TEMPLATES`). Setting a template's tokens up is skilled work — each facilitator's own deck, prepared by Daniel together with that facilitator, Claude adding the tokens — so it is not a Tech task. The *תבניות מצגת* section of /settings (§8.14) lists every active facilitator with their template: upload, replace, download, remove. **On upload** the system reads the template's tokens and stores them, and lists the tokens found, in red any it does not know (usually a typo — they would come out empty), and in amber the expected ones it lacks (fine when deliberate). One template per facilitator today; a new upload replaces the previous one. Some facilitators build a new deck for every workshop: for them the template is their latest deck, tokenized, or they stay outside the tool — found out facilitator by facilitator.
 
 #### Storage
 
-Files live in Postgres: `DeckFile` (metadata) and `DeckFileChunk` (bytes, ≤ 3 MB per row). Chunked because a Vercel function accepts and returns at most 4.5 MB and a template alone is about 4 MB, so the browser uploads and downloads in pieces. A file is served only once `complete`. One template per owner and one deck per owner per workshop are kept; a replacement deletes its predecessor. **Not in the nightly backup** (§9.3): the owner holds the original template, and a deck can be generated again. The migration revokes `anon`/`authenticated` privileges on both tables (§2.3.1).
+Files live in Postgres: `DeckFile` (metadata) and `DeckFileChunk` (bytes, ≤ 3 MB per row). Chunked because a Vercel function accepts and returns at most 4.5 MB and a template alone is about 4 MB, so the browser uploads and downloads in pieces. A file is served only once `complete`. One template per facilitator and one deck per facilitator per workshop are kept; a replacement deletes its predecessor. **Not in the nightly backup** (§9.3): the Manager holds the original templates, and a deck can be generated again. `WorkshopDeckContent` is text, and is backed up. The migrations revoke `anon`/`authenticated` privileges on all three tables (§2.3.1).
 
-#### Access — pilot first
+#### Access
 
-- **Pilot:** **Daniel's account only** (`DECK_PILOT_EMAILS` in `src/lib/deck/access.ts`), live in production so it runs on real workshop data. Every `/api/matzgot` route checks it on the server and answers anyone else with 404; the page answers 404 too. Techs reach shared decks only through `/api/matzgot/shared` and the file routes, which serve a deck to a Tech only while it is shared.
-- **Later:** widened to every facilitator (one deck per Room's facilitator, each from their own template), and to Tech generating on their behalf, as originally envisioned — per-facilitator base templates uploaded by Tech, and a **"צור מצגות"** button on Workshop Detail. Going wide should be a change to who is allowed, not a rewrite.
+- **Generate, download, enter text:** Manager and Tech — `CAN_GENERATE_DECKS` in `src/lib/roles.ts`, Senior Tech included by implication (§5.4). **Every Tech sees every deck**; there is no sharing step. Enforced on the server in every `/api/matzgot` route (403); the page answers 404 to anyone else.
+- **Templates:** Manager only — `CAN_MANAGE_DECK_TEMPLATES`. A Tech can neither upload nor download a template.
+- Checked by `npm run check:roles`.
 
-**Deferred:** whether preconditions (scenarios written, facilitators slotted, schedule present) hard-block or soft-warn; regeneration after later changes; topic-specific content slides chosen automatically by topic.
+#### Several templates per facilitator — later `[spec]`
+
+**Not to be built now.** Recorded so that the data model built for the Techs (9 Nov 2026) leaves room for it.
+
+**The need.** A facilitator who runs two recurring kinds of simulation with different decks (e.g. negotiation and parent meetings) wants a template for each, not one deck stretched over both.
+
+**Already in place.** A template belongs to a facilitator, and the database does not limit them to one. Each template has an optional name (`label`). Each deck records the template it was made from. Today the screens allow one template per facilitator, and uploading a new one replaces the old. Going wide means changing the screens, not running a migration.
+
+**Templates (`/settings`, Manager).** Each facilitator gets a list instead of a single template. Templates can be added, renamed, replaced and deleted. One is marked **ברירת מחדל**. Deleting a template leaves the decks made from it in place.
+
+**Deck screen (Tech).** A facilitator with one template looks exactly as today. A facilitator with several gets a template picker on their row, showing the default. Generating uses the chosen template. Regenerating keeps the template that deck was last made from, unless the Tech changes it. *צור לכל מי שיש לו תבנית* uses each facilitator's chosen template, or else their default. The fields shown are still every field used by any template in play.
+
+**Possibly, choosing by topic.** A template may list the topics it is for. If a workshop's topics match exactly one of the facilitator's templates, that template is chosen in advance. It is a preselection the Tech sees and can change, never a silent choice.
+
+**Open:** whether the Tech may choose at all or only gets the default; what counts as a topic match when a workshop has several topics; whether a template can be shared by several facilitators.
+
+#### Later still `[spec]`
+
+Facilitators downloading their own decks; a deck marked *לא מעודכנת* when the date, scenarios or schedule change after it was made; automatic deletion of decks some weeks after the workshop, since at 2–4 MB each they would otherwise grow the database without end; topic-specific content slides chosen automatically by topic.
 
 ---
 
@@ -1839,7 +1870,7 @@ Built as the first V2 item, on branch `sim_model`. It is now as-built behaviour 
 | F-03 | Scenario Library | Manager, Tech, Facilitator | — |
 | F-04 | WhatsApp Message Generator | Tech | — |
 | F-05 | Actor Activity & Payments | Manager | — |
-| F-06 | Facilitator PPT Generation | **Pilot live:** Daniel only; Techs download shared decks | Shares scenario parser with F-03 |
+| F-06 | Facilitator PPT Generation | **Live:** Manager, Tech generate; templates Manager only | Shares scenario parser with F-03 |
 | F-07 | Backup Management | **Admin** | Admin role (§14.0) |
 | ~~F-08~~ | ~~מודל סימולציה field~~ | — | **Shipped** — remaining scope is group-history surfacing |
 
@@ -2000,6 +2031,8 @@ Sessions 1–19 as built. Branch naming `session-N-*`, merged to `develop` then 
 | **28 Oct 2026** | — | **A seventh משימה נוספת: נפתחה קבוצת וואטסאפ** (§4.3.1, §3.5, §8.4). Inserted as task 2, straight after הוזמן בתיקתק, so the rest shift down one and the counts become `x/6` (centre/Zoom) and `x/7` (חיצוני). It blocks מוכן like the others. Migration `20261028120000_add_whatsapp_group_task` adds `whatsappGroupOpened BOOLEAN NOT NULL DEFAULT false` and — **unlike the original six — backfills it**: true wherever לוח זמנים + נשלח בקבוצה or תרחישים הודפסו + נשלחו בקבוצה is already ticked (both were sent *to the group*, so the group exists), and on every past or בתהליך סגירה / סגור workshop. Every מוכן workshop has both group tasks ticked, so none regresses — which matters because status is re-checked only when a workshop is opened or edited, and the readiness alert is silent for מוכן, so a regression would have hidden behind a stale badge. New workshops start unticked. Also corrected two stale lines in §8.4 (the overlay no longer shows a grey note for the EXTERNAL-only task) and the §4.3.1 claim that a new task is only a column and a catalogue row. |
 | **28 Oct 2026** | — | **F-06: goal and minutes centred** (§14 F-06). On the scenario slide, the `מטרת…` and `לרשות…` lines are now centred; the brief keeps its alignment. |
 | **28 Oct 2026** | — | **F-06: bold and underline in scenario text** (§14 F-06). In the preview, `*…*` becomes bold and `_…_` underlined on the scenario slide; a marker with no partner on its line stays as written. A hint above the scenarios says so. |
+| **8 Nov 2026** | — | **F-06: decisions for widening to the Techs** (§14 F-06). Spec only — nothing built, and whether to build is still open. One template per facilitator, each using its own subset of tokens; a "צור מצגת" per Room's facilitator on Workshop Detail, opening the same screen prefilled; all Techs see every deck, replacing the share toggle; approved text saved per workshop and reused for every facilitator's deck, kept inside the deck screen. |
+| **9 Nov 2026** | — | **F-06 widened to the Techs** (§14 F-06, §3.14, §5.2, §8.4, §8.14, §9.3). Branch `decks_for_techs`. Managers and Techs (`CAN_GENERATE_DECKS`) open the deck screen from a **מצגות מתחקרים** button on the rooms card; the Daniel-only email check, the share toggle and the ⋯ link are gone, and every Tech sees every deck. One template per facilitator, uploaded by the Manager in /settings (`CAN_MANAGE_DECK_TEMPLATES`), which reports the tokens found, unknown and missing. The text is entered once and saved per workshop, and the screen shows only the fields some template uses. One row per facilitator: generate (or all at once), download, and the room's existing מצגת box, which generating never ticks. Generating is blocked by the same rules as the מצגת box — every scenario written, the date not passed. Any empty token now comes out empty instead of staying visible; empty fields warn before generating instead of blocking; the icebreaker is never filled. Migration `20261109120000_decks_for_techs`: `DeckFile.ownerId` → `facilitatorId` (Daniel's template and decks stay his), plus `generatedById`, `templateId`, `label`, `tokens`, minus `sharedAt`; new table `WorkshopDeckContent`, in the nightly backup, `anon`/`authenticated` revoked. Several templates per facilitator recorded as later. |
 
 ---
 

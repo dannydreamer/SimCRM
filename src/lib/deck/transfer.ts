@@ -2,26 +2,32 @@
 // Files cross Vercel in CHUNK_SIZE pieces (a function takes and returns at
 // most 4.5 MB); these helpers hide that from the screens.
 
+// Mirrors DeckFileMeta in files.ts, which is server-only (it holds Prisma).
 export type DeckFileMeta = {
   id: string
   kind: "TEMPLATE" | "DECK"
+  facilitatorId: string
   fileName: string
   size: number
   chunkCount: number
   createdAt: string
-  sharedAt: string | null
+  generatedByName: string | null
 }
+
+export type TemplateUpload = DeckFileMeta & { tokens: string[]; missing: string[]; unknown: string[] }
 
 async function errorOf(res: Response, fallback: string): Promise<Error> {
   const body = await res.json().catch(() => null)
   return new Error(body?.error ?? fallback)
 }
 
-export async function uploadTemplate(file: File, onProgress?: (done: number, total: number) => void): Promise<DeckFileMeta> {
+export async function uploadTemplate(
+  file: File, facilitatorId: string, onProgress?: (done: number, total: number) => void,
+): Promise<TemplateUpload> {
   const start = await fetch("/api/matzgot/files", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ fileName: file.name, size: file.size }),
+    body: JSON.stringify({ fileName: file.name, size: file.size, facilitatorId }),
   })
   if (!start.ok) throw await errorOf(start, "ההעלאה נכשלה")
   const { id, chunkCount, chunkSize } = (await start.json()) as { id: string; chunkCount: number; chunkSize: number }
