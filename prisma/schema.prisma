@@ -103,7 +103,9 @@ model Person {
   roomsFacilitated       Room[]
   feedbackEntered        Feedback[]
   developmentLogsEntered ActorDevelopmentLog[]
-  deckFiles              DeckFile[]
+  deckFiles              DeckFile[]            @relation("DeckFacilitator")
+  decksGenerated         DeckFile[]            @relation("DeckGeneratedBy")
+  deckContentUpdated     WorkshopDeckContent[]
 }
 
 model PersonRole {
@@ -241,6 +243,7 @@ model Workshop {
   castingChangeLogs   CastingChangeLog[]
   roomLocations       WorkshopRoomLocation[]
   deckFiles           DeckFile[]
+  deckContent         WorkshopDeckContent?
 }
 
 // ─── Workshop Room Location (physical room) ──────────────────────────────────
@@ -475,32 +478,43 @@ model BackupLog {
 
 // ─── Facilitator deck files (§14 F-06) ───────────────────────────────────────
 //
-// A facilitator's template and the decks generated from it. The bytes live in
-// DeckFileChunk, a few MB at most per row: a Vercel function accepts and
+// Each facilitator's template and the decks generated from it. The bytes live
+// in DeckFileChunk, a few MB at most per row: a Vercel function accepts and
 // returns at most 4.5 MB, so files travel in chunks both ways. A row with
 // complete=false is an upload still in progress, and is never served.
 //
-// Not in the nightly backup (TABLE_ORDER in src/lib/backup.ts): the template's
-// owner keeps the original, and a deck can be generated again.
+// Not in the nightly backup (TABLE_ORDER in src/lib/backup.ts): the Manager
+// keeps the original templates, and a deck can be generated again.
 
 model DeckFile {
-  id         String    @id @default(uuid())
-  kind       String // "TEMPLATE" | "DECK"
-  ownerId    String
-  workshopId String? // DECK only
-  fileName   String
-  size       Int
-  chunkCount Int
-  complete   Boolean   @default(false)
-  // DECK only: when the owner made it downloadable by the Techs. Null = private.
-  sharedAt   DateTime?
-  createdAt  DateTime  @default(now())
+  id            String   @id @default(uuid())
+  kind          String // "TEMPLATE" | "DECK"
+  // Whose template or deck this is. Nothing in the database limits a
+  // facilitator to one template; the screens do, for now (§14 F-06, "later").
+  facilitatorId String
+  // DECK only: the Tech or Manager who generated it.
+  generatedById String?
+  // DECK only: the template it was generated from. Null once that is replaced.
+  templateId    String?
+  workshopId    String? // DECK only
+  // TEMPLATE only: an optional name, for when a facilitator has several.
+  label         String?
+  // TEMPLATE only: the tokens found in it, a JSON array of names. Null until read.
+  tokens        String?
+  fileName      String
+  size          Int
+  chunkCount    Int
+  complete      Boolean  @default(false)
+  createdAt     DateTime @default(now())
 
-  owner    Person          @relation(fields: [ownerId], references: [id])
-  workshop Workshop?       @relation(fields: [workshopId], references: [id], onDelete: Cascade)
-  chunks   DeckFileChunk[]
+  facilitator Person          @relation("DeckFacilitator", fields: [facilitatorId], references: [id])
+  generatedBy Person?         @relation("DeckGeneratedBy", fields: [generatedById], references: [id])
+  template    DeckFile?       @relation("DeckTemplate", fields: [templateId], references: [id], onDelete: SetNull)
+  decks       DeckFile[]      @relation("DeckTemplate")
+  workshop    Workshop?       @relation(fields: [workshopId], references: [id], onDelete: Cascade)
+  chunks      DeckFileChunk[]
 
-  @@index([ownerId, kind])
+  @@index([facilitatorId, kind])
   @@index([workshopId])
 }
 
@@ -512,4 +526,28 @@ model DeckFileChunk {
   file DeckFile @relation(fields: [fileId], references: [id], onDelete: Cascade)
 
   @@id([fileId, index])
+}
+
+// ─── Deck content approved for a workshop (§14 F-06) ─────────────────────────
+//
+// The text a Tech approved on the deck screen: schedule rows, scenario texts,
+// the cover's names. Entered once, it fills every facilitator's deck for the
+// workshop, and is there to correct on a later visit. JSON kept as TEXT so the
+// nightly backup's dump writes it as a plain string. In the backup.
+
+model WorkshopDeckContent {
+  workshopId       String   @id
+  // The cover's names as they should read on a slide; "" = the CRM's.
+  organization     String   @default("")
+  groupName        String   @default("")
+  // JSON: [{ activity, time }]
+  schedule         String   @default("[]")
+  scheduleFileName String?
+  // JSON: [{ scenarioId, title, body, fileName }] — body one paragraph per line
+  scenarios        String   @default("[]")
+  updatedAt        DateTime @updatedAt
+  updatedById      String?
+
+  workshop  Workshop @relation(fields: [workshopId], references: [id], onDelete: Cascade)
+  updatedBy Person?  @relation(fields: [updatedById], references: [id])
 }

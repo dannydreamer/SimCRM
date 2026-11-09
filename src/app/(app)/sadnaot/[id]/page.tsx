@@ -12,13 +12,13 @@ import {
 } from "@/lib/workshop-minor-tasks"
 import { CASTING_STATE_LABEL, castingRequired, castingState } from "@/lib/casting-progress"
 import { genderCount, genderFieldClass, genderTextClass, genderWord } from "@/lib/gender"
-import { CAN_CANCEL_WORKSHOP, hasAny } from "@/lib/roles"
+import { CAN_CANCEL_WORKSHOP, CAN_GENERATE_DECKS, hasAny } from "@/lib/roles"
 import {
   actorTraining, formatTraining, trainingOffsetFor, DEFAULT_TRAINING_OFFSET,
   type TrainingInput,
 } from "@/lib/actor-training"
 import { celebrate } from "@/lib/celebrate"
-import { SharedDeckLink } from "@/components/SharedDeckLink"
+import { pptBlockReason } from "@/lib/room-ppt"
 
 // The participants' feedback Google Form is a single standing form shared by every
 // workshop — the copied מחרוזת is pasted into it as a new option, so the link sits
@@ -526,18 +526,11 @@ function RoomRow({
   // Date comparisons (date-only, no time)
   const today = new Date(); today.setHours(0, 0, 0, 0)
   const wDate = new Date(workshopDate); wDate.setHours(0, 0, 0, 0)
-  const workshopPast = today > wDate      // day after workshop date
   const workshopFuture = today < wDate    // before workshop date
 
   // PPT: allowed before or on workshop date; blocked after; requires all scenarios written
-  const pptBlockReason = !r.facilitatorId
-    ? "יש לשבץ מתחקר/ת לפני סימון מצגת"
-    : workshopPast
-    ? "לא ניתן לסמן מצגת לאחר תאריך הסדנה"
-    : !allScenariosWritten
-    ? "יש לסמן את כל התרחישים כנכתב לפני סימון מצגת"
-    : null
-  const pptDisabled = !!pptBlockReason
+  const pptBlock = pptBlockReason({ facilitatorId: r.facilitatorId, workshopDate, allScenariosWritten })
+  const pptDisabled = !!pptBlock
 
   // Letter: allowed on or after workshop date; blocked before
   const letterBlockReason = !r.facilitatorId
@@ -584,7 +577,7 @@ function RoomRow({
       </td>
       <td className="py-2 px-3 text-center">
         {canCheckPptLetter && !r.cancelled ? (
-          <span title={pptBlockReason ?? undefined} className="inline-block">
+          <span title={pptBlock ?? undefined} className="inline-block">
             <input type="checkbox" checked={r.pptReceived}
               disabled={pptDisabled}
               onChange={(e) => !pptDisabled && patchRoom({ pptReceived: e.target.checked })}
@@ -680,6 +673,7 @@ export default function WorkshopDetailPage() {
   const isTech = roles.includes("TECH")
   const canEditScenarios = isManager || isTech
   const canCheckPptLetter = isManager || isTech
+  const canGenerateDecks = hasAny(roles, CAN_GENERATE_DECKS)
   const canCancelWorkshop = hasAny(roles, CAN_CANCEL_WORKSHOP)
 
   const load = useCallback(async () => {
@@ -1835,7 +1829,27 @@ export default function WorkshopDetailPage() {
 
         {/* Rooms */}
         <section>
-          <h2 className="text-sm font-semibold text-gray-700 uppercase tracking-wide mb-3">חדרים</h2>
+          <div className="flex items-center justify-between mb-3">
+            <h2 className="text-sm font-semibold text-gray-700 uppercase tracking-wide">חדרים</h2>
+            {/* Facilitator decks — §14 F-06. Enabled once there is something to put in a deck. */}
+            {canGenerateDecks && !w.cancelled && (() => {
+              const reason = !w.scenarios.some((s) => !s.cancelled)
+                ? "אין לסדנה תרחישים פעילים"
+                : !w.rooms.some((r) => !r.cancelled && r.facilitatorId)
+                ? "לא שובצו מתחקרים"
+                : null
+              return reason ? (
+                <span title={reason} className="px-3 py-1 border border-gray-200 text-xs text-gray-300 rounded cursor-not-allowed">
+                  מצגות מתחקרים
+                </span>
+              ) : (
+                <Link href={`/matzgot?workshop=${id}`}
+                  className="px-3 py-1 border border-gray-300 text-xs text-navy rounded hover:bg-gray-50">
+                  מצגות מתחקרים
+                </Link>
+              )
+            })()}
+          </div>
           {w.rooms.length === 0 ? (
             <p className="text-sm text-gray-400">אין חדרים</p>
           ) : (
@@ -2270,9 +2284,6 @@ export default function WorkshopDetailPage() {
             </span>
           )}
         </div>
-
-        {/* Renders nothing unless a facilitator shared a deck for this workshop. §14 F-06. */}
-        <SharedDeckLink workshopId={id} />
 
       </div>
 

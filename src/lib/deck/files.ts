@@ -4,9 +4,10 @@
 // forced by Vercel: a function accepts and returns at most 4.5 MB, and a
 // facilitator's template alone is about 4 MB. So the browser uploads and
 // downloads in CHUNK_SIZE pieces, and the server reassembles only when it needs
-// the whole file — to generate a deck from a template.
+// the whole file — to read a template, or generate a deck from one.
 
 import { prisma } from "@/lib/prisma"
+import { inspectTemplate } from "./pptx"
 
 export const CHUNK_SIZE = 3 * 1024 * 1024
 export const MAX_FILE_SIZE = 40 * 1024 * 1024
@@ -16,28 +17,35 @@ export type DeckKind = "TEMPLATE" | "DECK"
 export type DeckFileMeta = {
   id: string
   kind: DeckKind
+  facilitatorId: string
   fileName: string
   size: number
   chunkCount: number
   createdAt: string
-  sharedAt: string | null
+  /** DECK only: who generated it. */
+  generatedByName: string | null
 }
 
 const META_SELECT = {
-  id: true, kind: true, fileName: true, size: true, chunkCount: true, createdAt: true, sharedAt: true,
+  id: true, kind: true, facilitatorId: true, fileName: true, size: true, chunkCount: true, createdAt: true,
+  tokens: true, generatedBy: { select: { name: true } },
 } as const
 
-export function toMeta(f: {
-  id: string; kind: string; fileName: string; size: number; chunkCount: number; createdAt: Date; sharedAt: Date | null
-}): DeckFileMeta {
+type MetaRow = {
+  id: string; kind: string; facilitatorId: string; fileName: string; size: number; chunkCount: number
+  createdAt: Date; generatedBy?: { name: string } | null
+}
+
+export function toMeta(f: MetaRow): DeckFileMeta {
   return {
     id: f.id,
     kind: f.kind as DeckKind,
+    facilitatorId: f.facilitatorId,
     fileName: f.fileName,
     size: f.size,
     chunkCount: f.chunkCount,
     createdAt: f.createdAt.toISOString(),
-    sharedAt: f.sharedAt?.toISOString() ?? null,
+    generatedByName: f.generatedBy?.name ?? null,
   }
 }
 
@@ -45,31 +53,31 @@ export function chunkCountFor(size: number): number {
   return Math.max(1, Math.ceil(size / CHUNK_SIZE))
 }
 
-/** The owner's current template — the newest complete one. */
-export async function currentTemplate(ownerId: string) {
-  return prisma.deckFile.findFirst({
-    where: { ownerId, kind: "TEMPLATE", complete: true },
+/**
+ * Each facilitator's current template — the newest complete one. A facilitator
+ * may hold several in the database (§14 F-06, "later"); today one is used.
+ */
+export async function currentTemplates(facilitatorIds: string[]) {
+  const rows = await prisma.deckFile.findMany({
+    where: { facilitatorId: { in: facilitatorIds }, kind: "TEMPLATE", complete: true },
     orderBy: { createdAt: "desc" },
     select: META_SELECT,
   })
+  const out = new Map<string, (typeof rows)[number]>()
+  for (const r of rows) if (!out.has(r.facilitatorId)) out.set(r.facilitatorId, r)
+  return out
 }
 
-/** The owner's current deck for one workshop. */
-export async function currentDeck(ownerId: string, workshopId: string) {
-  return prisma.deckFile.findFirst({
-    where: { ownerId, workshopId, kind: "DECK", complete: true },
+/** Each facilitator's current deck for one workshop. */
+export async function currentDecks(workshopId: string) {
+  const rows = await prisma.deckFile.findMany({
+    where: { workshopId, kind: "DECK", complete: true },
     orderBy: { createdAt: "desc" },
     select: META_SELECT,
   })
-}
-
-/** The newest deck shared with the Techs for one workshop, whoever made it. */
-export async function sharedDeck(workshopId: string) {
-  return prisma.deckFile.findFirst({
-    where: { workshopId, kind: "DECK", complete: true, sharedAt: { not: null } },
-    orderBy: { createdAt: "desc" },
-    select: META_SELECT,
-  })
+  const out = new Map<string, (typeof rows)[number]>()
+  for (const r of rows) if (!out.has(r.facilitatorId)) out.set(r.facilitatorId, r)
+  return out
 }
 
 export async function readWhole(fileId: string): Promise<Uint8Array> {
@@ -78,12 +86,31 @@ export async function readWhole(fileId: string): Promise<Uint8Array> {
 }
 
 /**
- * Mark an upload complete once every chunk has arrived, then retire what it
- * replaces: a new template replaces the owner's previous ones; a new deck
- * replaces the owner's previous decks for that workshop, inheriting whether it
- * was shared, so a corrected deck does not silently vanish from the Techs.
+ * The tokens a template holds. Read on upload and stored; a template uploaded
+ * before they were stored is read once, here, and stored then.
  */
-export async function completeFile(fileId: string) {
+export async function templateTokens(t: { id: string; tokens: string | null }): Promise<string[]> {
+  if (t.tokens !== null) {
+    try { return JSON.parse(t.tokens) as string[] } catch { /* read again below */ }
+  }
+  try {
+    const report = await inspectTemplate(await readWhole(t.id))
+    await prisma.deckFile.update({ where: { id: t.id }, data: { tokens: JSON.stringify(report.tokens) } })
+    return report.tokens
+  } catch (e) {
+    // An unreadable template must not take the whole screen down with it;
+    // generating from it fails on its own row instead.
+    console.error("[matzgot] cannot read template", t.id, e)
+    return []
+  }
+}
+
+/**
+ * Mark an upload complete once every chunk has arrived, then retire what it
+ * replaces: a new template replaces the facilitator's previous ones; a new deck
+ * replaces the facilitator's previous decks for that workshop.
+ */
+export async function completeFile(fileId: string, extra: { tokens?: string } = {}) {
   const file = await prisma.deckFile.findUniqueOrThrow({ where: { id: fileId } })
   const arrived = await prisma.deckFileChunk.count({ where: { fileId } })
   if (arrived !== file.chunkCount) throw new Error(`הקובץ לא הועלה במלואו (${arrived}/${file.chunkCount})`)
@@ -91,31 +118,28 @@ export async function completeFile(fileId: string) {
   const previous = await prisma.deckFile.findMany({
     where: {
       id: { not: fileId },
-      ownerId: file.ownerId,
+      facilitatorId: file.facilitatorId,
       kind: file.kind,
       ...(file.kind === "DECK" ? { workshopId: file.workshopId } : {}),
     },
-    select: { id: true, sharedAt: true, complete: true },
+    select: { id: true },
   })
-  const wasShared = previous.some((p) => p.complete && p.sharedAt)
 
   await prisma.$transaction([
-    prisma.deckFile.update({
-      where: { id: fileId },
-      data: { complete: true, ...(file.kind === "DECK" && wasShared ? { sharedAt: new Date() } : {}) },
-    }),
+    prisma.deckFile.update({ where: { id: fileId }, data: { complete: true, ...extra } }),
     prisma.deckFile.deleteMany({ where: { id: { in: previous.map((p) => p.id) } } }),
   ])
 }
 
-/** Store a whole file the server produced (a generated deck), chunked, complete. */
-export async function storeWhole(input: {
-  kind: DeckKind; ownerId: string; workshopId: string | null; fileName: string; data: Uint8Array
+/** Store a deck the server generated, chunked, complete. */
+export async function storeDeck(input: {
+  facilitatorId: string; generatedById: string; templateId: string; workshopId: string; fileName: string; data: Uint8Array
 }) {
   const chunkCount = chunkCountFor(input.data.length)
   const file = await prisma.deckFile.create({
     data: {
-      kind: input.kind, ownerId: input.ownerId, workshopId: input.workshopId,
+      kind: "DECK", facilitatorId: input.facilitatorId, generatedById: input.generatedById,
+      templateId: input.templateId, workshopId: input.workshopId,
       fileName: input.fileName, size: input.data.length, chunkCount,
     },
   })
