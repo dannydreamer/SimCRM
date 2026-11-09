@@ -21,6 +21,7 @@
 import JSZip from "jszip"
 import { parseSchedule, parseScenario, type DocxBlock } from "../src/lib/deck/docx"
 import { EMPTY_CONTENT, cleanContent, emptyFields, fieldsFor, fromRow, scenarioTexts, scheduleRows, toRow } from "../src/lib/deck/content"
+import { generateBlockReason, pptBlockReason } from "../src/lib/room-ppt"
 import { applyMarkup, centerClosingLines, charsPerLine, parseMarkup, fillTableRows, fillTokens, fitOneLine, fitScenarioText, fitTable, generateDeck, inspectTemplate, paragraphText } from "../src/lib/deck/pptx"
 import { NS, children, descendants, parseXml } from "../src/lib/deck/xml"
 
@@ -310,6 +311,26 @@ check("empty: an empty schedule counts only if the template has a schedule",
   [emptyFields(EMPTY_CONTENT, [], ["row.time"]), emptyFields(EMPTY_CONTENT, [], ["date"])], [["לוח הזמנים"], []])
 check("empty: a field the template does not use is never reported",
   emptyFields(saved, ["s1", "s2"], ["scenario.title"]), ["שם תרחיש 2"])
+
+// ── Generating is blocked as the מצגת box is (§14 F-06) ─────────────────────
+const later = new Date(Date.now() + 7 * 864e5).toISOString()
+const earlier = new Date(Date.now() - 7 * 864e5).toISOString()
+const ready = { facilitatorId: "f", workshopDate: later, allScenariosWritten: true }
+for (const [label, input] of [
+  ["ready", ready],
+  ["a scenario not written", { ...ready, allScenariosWritten: false }],
+  ["the date has passed", { ...ready, workshopDate: earlier }],
+  ["no facilitator", { ...ready, facilitatorId: null }],
+] as const) {
+  check(`block: ${label} — generating and ticking agree`, generateBlockReason(input) === null, pptBlockReason(input) === null)
+}
+check("block: a scenario not written stops generating",
+  generateBlockReason({ ...ready, allScenariosWritten: false }), "יש לסמן את כל התרחישים כנכתב לפני יצירת מצגת")
+check("block: the box keeps its own wording",
+  pptBlockReason({ ...ready, allScenariosWritten: false }), "יש לסמן את כל התרחישים כנכתב לפני סימון מצגת")
+check("block: the date wording reads right for both",
+  [pptBlockReason({ ...ready, workshopDate: earlier }), generateBlockReason({ ...ready, workshopDate: earlier })],
+  ["לא ניתן לסמן מצגת לאחר תאריך הסדנה", "לא ניתן ליצור מצגת לאחר תאריך הסדנה"])
 
 packageChecks().then(() => {
   console.log(failures === 0 ? "\n✓ all checks passed\n" : `\n✗ ${failures} check(s) failed\n`)

@@ -5,6 +5,7 @@ import { currentTemplates, readWhole, storeDeck, toMeta } from "@/lib/deck/files
 import { EMPTY_CONTENT, fromRow, scenarioTexts, scheduleRows } from "@/lib/deck/content"
 import { generateDeck } from "@/lib/deck/pptx"
 import { shortDate } from "@/lib/actor-training"
+import { generateBlockReason } from "@/lib/room-ppt"
 
 export const maxDuration = 60
 
@@ -12,7 +13,9 @@ export const maxDuration = 60
 // text saved for the workshop — the screen saves before it asks. The date and
 // the topics always come from the CRM; the cover's names fall back to the
 // CRM's when empty. Empty fields come out empty: the screen warns, the server
-// does not refuse. The deck replaces that facilitator's previous one. §14 F-06.
+// does not refuse. Generating is blocked exactly as the room's מצגת box is —
+// every active scenario written, the date not passed (pptBlockReason). The
+// deck replaces that facilitator's previous one. §14 F-06.
 export async function POST(req: NextRequest) {
   const { session, error } = await requireDeckUser()
   if (error) return error
@@ -28,7 +31,7 @@ export async function POST(req: NextRequest) {
       participantGroup: { select: { name: true, organization: { select: { name: true } } } },
       scenarios: {
         where: { cancelled: false }, orderBy: { orderIndex: "asc" },
-        select: { id: true, topic: { select: { name: true } } },
+        select: { id: true, written: true, topic: { select: { name: true } } },
       },
       rooms: {
         where: { cancelled: false, facilitatorId },
@@ -42,6 +45,12 @@ export async function POST(req: NextRequest) {
   if (w.scenarios.length === 0) return NextResponse.json({ error: "אין לסדנה תרחישים פעילים" }, { status: 400 })
   const facilitator = w.rooms[0]?.facilitator
   if (!facilitator) return NextResponse.json({ error: "המתחקר/ת אינו/ה משובץ/ת בסדנה זו" }, { status: 400 })
+  const blocked = generateBlockReason({
+    facilitatorId: facilitator.id,
+    workshopDate: w.date.toISOString(),
+    allScenariosWritten: w.scenarios.every((s) => s.written),
+  })
+  if (blocked) return NextResponse.json({ error: blocked }, { status: 400 })
 
   const template = (await currentTemplates([facilitator.id])).get(facilitator.id)
   if (!template) return NextResponse.json({ error: `ל${facilitator.name} אין תבנית מצגת` }, { status: 400 })

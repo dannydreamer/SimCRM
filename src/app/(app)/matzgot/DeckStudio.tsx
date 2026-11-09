@@ -19,7 +19,7 @@ import { useRouter } from "next/navigation"
 import { readDocxBlocks, parseSchedule, parseScenario, type ScheduleRow } from "@/lib/deck/docx"
 import { downloadFile, type DeckFileMeta } from "@/lib/deck/transfer"
 import { EMPTY_CONTENT, emptyFields, fieldsFor, type DeckContent, type ScenarioText } from "@/lib/deck/content"
-import { pptBlockReason } from "@/lib/room-ppt"
+import { generateBlockReason, pptBlockReason } from "@/lib/room-ppt"
 import { shortDate } from "@/lib/actor-training"
 import { useUser } from "@/app/(app)/user-context"
 
@@ -267,6 +267,11 @@ function WorkshopDecks({ workshopId }: { workshopId: string }) {
   if (!w) return <div className="p-8 text-sm text-gray-400">טוען...</div>
 
   const anyBusy = bulk || Object.keys(busy).length > 0
+  // Generating is blocked as the מצגת box is; every row has a facilitator, so
+  // the reason is the same for all of them.
+  const generateBlock = generateBlockReason({
+    facilitatorId: w.facilitators[0]?.facilitatorId ?? null, workshopDate: w.dateIso, allScenariosWritten: w.allScenariosWritten,
+  })
 
   return (
     <div className="max-w-4xl mx-auto p-4 sm:p-6 space-y-6" dir="rtl">
@@ -397,11 +402,14 @@ function WorkshopDecks({ workshopId }: { workshopId: string }) {
           <section className={card}>
             <div className={cardHead}>
               <span>2 · מצגות</span>
-              <button onClick={() => generate(withTemplate)} disabled={anyBusy || withTemplate.length === 0}
-                className={primary.replace("text-sm", "text-xs")}>
+              <button onClick={() => generate(withTemplate)} disabled={anyBusy || withTemplate.length === 0 || !!generateBlock}
+                title={generateBlock ?? undefined} className={primary.replace("text-sm", "text-xs")}>
                 {bulk ? "יוצר..." : "צור לכל מי שיש לו תבנית"}
               </button>
             </div>
+            {generateBlock && (
+              <p className="px-5 py-2 text-sm text-amber-700 bg-amber-50 border-b border-amber-100">{generateBlock}</p>
+            )}
             <div className="overflow-x-auto">
               <table className="w-full text-right text-sm">
                 <thead className="bg-gray-50 text-xs text-gray-500">
@@ -420,7 +428,7 @@ function WorkshopDecks({ workshopId }: { workshopId: string }) {
                     })
                     const rowBusy = busy[f.facilitatorId]
                     return (
-                      <tr key={f.roomId} className="border-t border-gray-100 align-top">
+                      <tr key={f.roomId} className="border-t border-gray-100 align-middle">
                         <td className="py-2 px-3 whitespace-nowrap">חדר {f.roomNumber}</td>
                         <td className="py-2 px-3">
                           {f.name}
@@ -437,13 +445,14 @@ function WorkshopDecks({ workshopId }: { workshopId: string }) {
                         </td>
                         <td className="py-2 px-3">
                           {f.template && (
-                            <div className="flex flex-wrap gap-2 justify-end">
+                            <div className="flex gap-2 justify-end whitespace-nowrap">
                               {rowBusy ? <span className="text-xs text-gray-500 py-1.5">{rowBusy}</span> : (
                                 <>
                                   {f.deck && (
                                     <button onClick={() => download(f)} disabled={anyBusy} className={primary}>הורדה</button>
                                   )}
-                                  <button onClick={() => generate([f])} disabled={anyBusy} className={quiet}>
+                                  <button onClick={() => generate([f])} disabled={anyBusy || !!generateBlock}
+                                    title={generateBlock ?? undefined} className={quiet}>
                                     {f.deck ? "צור מחדש" : "צור"}
                                   </button>
                                 </>
@@ -452,7 +461,7 @@ function WorkshopDecks({ workshopId }: { workshopId: string }) {
                           )}
                         </td>
                         <td className="py-2 px-3 text-center">
-                          <span title={block ?? undefined} className="inline-block">
+                          <span title={block ?? undefined} className="inline-flex align-middle">
                             <input type="checkbox" checked={f.pptReceived} disabled={!!block}
                               onChange={(e) => !block && togglePpt(f, e.target.checked)}
                               className={`w-4 h-4 accent-navy ${block ? "opacity-40 cursor-not-allowed" : "cursor-pointer"}`} />
